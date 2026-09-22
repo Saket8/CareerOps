@@ -33,17 +33,28 @@ class ResumeRepository:
         ats_validation_details: Optional[dict] = None,
         tailoring_diff: Optional[dict] = None,
     ) -> ResumeVersionModel:
-        version = ResumeVersionModel(
-            version_id=version_id,
-            job_id=job_id,
-            is_master=is_master,
-            file_path_docx=file_path_docx,
-            file_path_pdf=file_path_pdf,
-            checksum=checksum,
-            ats_score=ats_score,
-            ats_validation_details=ats_validation_details or {},
-            tailoring_diff=tailoring_diff or {},
-        )
-        self.session.add(version)
+        version = self.get_by_version_id(version_id)
+        if version:
+            version.job_id = job_id
+            version.is_master = is_master
+            version.file_path_docx = file_path_docx
+            version.file_path_pdf = file_path_pdf
+            version.checksum = checksum
+            version.ats_score = ats_score
+            version.ats_validation_details = ats_validation_details or {}
+            version.tailoring_diff = tailoring_diff or {}
+        else:
+            version = ResumeVersionModel(
+                version_id=version_id,
+                job_id=job_id,
+                is_master=is_master,
+                file_path_docx=file_path_docx,
+                file_path_pdf=file_path_pdf,
+                checksum=checksum,
+                ats_score=ats_score,
+                ats_validation_details=ats_validation_details or {},
+                tailoring_diff=tailoring_diff or {},
+            )
+            self.session.add(version)
         self.session.flush()
         return version

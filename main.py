@@ -24,6 +24,7 @@ def main():
     parser.add_argument("--query-limit", type=int, default=15, help="Max jobs to evaluate per search query")
     parser.add_argument("--validate-phase", action="store_true", help="Run Section 24 Phase Gate Audit on application records")
     parser.add_argument("--cleanup", "--apply-retention", dest="cleanup", action="store_true", help="Execute retention policy to purge stale data and reclaim storage")
+    parser.add_argument("--interview-briefing", "--force-interview", dest="force_interview", action="store_true", help="Force generation and email dispatch of consolidated daily interview briefing")
 
     args = parser.parse_args()
 
@@ -69,7 +70,11 @@ def main():
     logger.info(f"Initiating Autonomous Career Agent (LIVE={not is_dry}, OFFLINE={args.offline})...")
 
     orchestrator = Orchestrator(config=config, offline_mode=args.offline)
-    daily_report = orchestrator.run_daily_pipeline(force_weekly=args.weekly, query_limit=args.query_limit)
+    daily_report = orchestrator.run_daily_pipeline(
+        force_weekly=args.weekly,
+        force_interview=args.force_interview,
+        query_limit=args.query_limit,
+    )
 
     print("\n" + "=" * 60)
     print(f"  RUN COMPLETE: {daily_report.date} (Run ID: {daily_report.run_id})")

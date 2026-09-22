@@ -75,6 +75,11 @@ jobs:
           if [ "${{ github.event.inputs.force_weekly }}" == "true" ] || [ $(date +%u) -eq 5 ]; then
             EXTRA_FLAGS="--weekly"
           fi
+          # UTC 08:30 is 14:00 IST (2 PM run) -> include consolidated daily interview briefing
+          CURRENT_HOUR_UTC=$(date -u +%H)
+          if [ "$CURRENT_HOUR_UTC" = "08" ] || [ "$CURRENT_HOUR_UTC" = "8" ]; then
+            EXTRA_FLAGS="$EXTRA_FLAGS --interview-briefing"
+          fi
           if [ -z "$NAUKRI_USERNAME" ]; then
             EXTRA_FLAGS="$EXTRA_FLAGS --offline"
           fi
@@ -84,7 +89,7 @@ jobs:
         run: |
           python main.py --validate-phase
 
-      - name: Archive Daily & Weekly Reports
+      - name: Archive Daily, Weekly & Interview Reports
         uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -92,6 +97,7 @@ jobs:
           path: |
             reports/daily/
             reports/weekly/
+            reports/interviews/
 
       - name: Archive Application Evidence & Screenshots
         uses: actions/upload-artifact@v4

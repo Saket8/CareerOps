@@ -136,11 +136,21 @@
 - [x] Add `--cleanup` / `--apply-retention` CLI command to `main.py`
 - [x] Create unit tests in `tests/unit/test_retention.py`
 - [x] Verify 100% test pass rate (61/61 passing) and phase gate persistence (15/15 confirmed)
-- [x] Run retention cleanup on workspace, verify disk and DB state
+### Phase 18: Consolidated Daily Interview Intelligence Briefing & Curated External Opportunities
+- [x] Implement attachment support (`MIMEMultipart("mixed")`) in `src/email_service/smtp_mailer.py`
+- [x] Implement `generate_consolidated_daily_briefing()` in `src/agents/interview_agent.py` generating `.docx` and `.pdf` via Chromium print engine
+- [x] Add prominent "⭐ High-Value External Opportunities" section to `src/agents/reporting.py` (HTML & Markdown)
+- [x] Integrate consolidated interview briefing generation and separate email delivery in `src/agents/orchestrator.py`
+- [x] Add `--interview-briefing` CLI flag to `main.py`
+- [x] Write unit tests in `tests/unit/test_consolidated_interview.py`
+- [x] Verify test suite passing (64/64 passing) and execute sample generation
 
 ---
 
 ## Review & Validation Summary
+- **Consolidated Daily Interview Intelligence:** Generated single comprehensive daily dossier (`reports/interviews/Daily_Interview_Intelligence_YYYY-MM-DD.docx` and `.pdf`) unifying executive opportunity matrices, Level 1 fundamentals, Level 2 systems design, Level 3 principal trade-offs, STAR truth-anchored answers, and 7-day roadmaps across all target opportunities.
+- **Dedicated Interview Email:** Briefing delivered in a dedicated separate email (`CareerOps — Daily Consolidated Interview Intelligence Briefing — YYYY-MM-DD`) with PDF and Word documents attached directly to the message. Timed for the 14:00 (2 PM IST) recruiter review run, with automatic backfill from confirmed applications.
+- **Curated External Opportunities:** Daily application report updated with a dedicated prominent section highlighting external career portal vacancies with match scoring, key architectural factors, and 1-click `[ Apply on Company Portal ↗ ]` direct submission action buttons.
 - **Live Naukri Account Verification:** Verified via live browser on `https://www.naukri.com/myapply/historypage`: Exactly **15 Total applies** confirmed in candidate account (`artifacts/evidence/final_scaled_naukri_history.png`):
   1. `OCI Architect` @ `Maveric` (`250826020809`)
   2. `OCI IDAM Security Lead` @ `Purview Services` (`160926921291`)
@@ -162,7 +172,8 @@
 - **Employer Safety Invariant:** Zero contact with Cognizant/CTS — all Cognizant postings strictly rejected.
 - **Email Delivery:** Clean daily report with all 15 direct verification links dispatched to `sauravskt8@gmail.com`.
 - **Phase Gate Status:** `APPLICATION AUTOMATION PHASE: PASSED` (`python main.py --validate-phase`).
-- **Test Suite Status:** 57 / 57 passing (`python -m pytest tests/unit`).
+- **Test Suite Status:** 64 / 64 passing (`python -m pytest tests/unit`).
+
 
 
 

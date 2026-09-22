@@ -46,7 +46,12 @@ class Orchestrator:
         init_db(db_url)
         self.db_url = db_url
 
-    def run_daily_pipeline(self, force_weekly: bool = False, query_limit: int = 25) -> DailyReportData:
+    def run_daily_pipeline(
+        self,
+        force_weekly: bool = False,
+        force_interview: bool = False,
+        query_limit: int = 25,
+    ) -> DailyReportData:
         """Executes the full automated weekday pipeline."""
         start_time = datetime.now(timezone.utc)
         run_id = f"run_{start_time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
@@ -80,6 +85,7 @@ class Orchestrator:
             smtp_mailer = SmtpMailer(self.config)
 
             top_applications = []
+            matched_items_for_briefing = []
             resumes_generated = 0
             applications_attempted = 0
             confirmed_count = 0
@@ -103,6 +109,7 @@ class Orchestrator:
 
                 # 3. TAILOR RESUME & APPLY FOR QUALIFYING JOBS
                 if score.passed_threshold:
+                    matched_items_for_briefing.append((job, score, evidence))
                     # Tailor ATS Resume (DOCX & PDF)
                     docx_path, pdf_path, val_report = resume_agent.generate_tailored_resume(job, score)
                     resumes_generated += 1
@@ -187,11 +194,46 @@ class Orchestrator:
 
             d_md, d_html, d_html_content = reporting_agent.generate_daily_report(daily_data)
 
-            # Send Email
+            # Send Email 1: Daily Application Audit Report
             smtp_mailer.send_report(
-                subject=f"Career Agent — Daily Report — {date_str}",
+                subject=f"CareerOps — Daily Application Report — {date_str}",
                 html_body=d_html_content,
             )
+
+            # Send Email 2: Consolidated Daily Interview Intelligence Briefing (Separate Dedicated Email)
+            # Timed for 14:00 IST (2 PM run) or when explicitly requested / forced
+            try:
+                import zoneinfo
+                ist_hour = datetime.now(zoneinfo.ZoneInfo("Asia/Kolkata")).hour
+            except Exception:
+                ist_hour = datetime.now().hour
+
+            is_afternoon_2pm_run = (13 <= ist_hour <= 15)
+            should_send_interview = force_interview or is_afternoon_2pm_run or (len(matched_items_for_briefing) > 0)
+
+            # Backfill for interview briefing if scheduled/forced but no new applies in current single run
+            if should_send_interview and not matched_items_for_briefing:
+                recent_applied = job_repo.get_jobs_by_status(JobStatus.APPLIED_CONFIRMED)[:10]
+                for r_job in recent_applied:
+                    r_score, r_evidence = qualification_agent.evaluate_job(r_job)
+                    matched_items_for_briefing.append((r_job, r_score, r_evidence))
+
+            if should_send_interview and matched_items_for_briefing:
+                logger.info("Generating Daily Consolidated Interview Intelligence Briefing...")
+                i_docx, i_pdf, i_html_content = interview_agent.generate_consolidated_daily_briefing(
+                    matched_items_for_briefing, date_str
+                )
+                attachments = []
+                if i_pdf.exists():
+                    attachments.append(i_pdf)
+                if i_docx.exists():
+                    attachments.append(i_docx)
+
+                smtp_mailer.send_report(
+                    subject=f"CareerOps — Daily Consolidated Interview Intelligence Briefing — {date_str}",
+                    html_body=i_html_content,
+                    attachments=attachments,
+                )
 
             # Record run finish in DB
             run_repo.finish_run(

@@ -1,11 +1,11 @@
-"""SMTP Mailer for delivering Daily and Weekly Career Reports."""
-
 import os
 import smtplib
 import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Optional, Dict, Any
+from email.mime.application import MIMEApplication
+from pathlib import Path
+from typing import Optional, Dict, Any, List, Union
 
 from src.utils.logger import get_logger
 
@@ -32,9 +32,10 @@ class SmtpMailer:
         html_body: str,
         text_body: str = "",
         recipient: Optional[str] = None,
+        attachments: Optional[List[Union[str, Path]]] = None,
         max_retries: int = 3,
     ) -> bool:
-        """Sends an HTML email report with retry logic."""
+        """Sends an HTML email report with retry logic and optional file attachments."""
         target_recipient = recipient or self.default_recipient
 
         if not self.enabled:
@@ -48,14 +49,32 @@ class SmtpMailer:
             )
             return False
 
-        msg = MIMEMultipart("alternative")
+        if attachments:
+            msg = MIMEMultipart("mixed")
+            body_part = MIMEMultipart("alternative")
+            body_part.attach(MIMEText(text_body or "Please view this email in an HTML-compatible client.", "plain", "utf-8"))
+            body_part.attach(MIMEText(html_body, "html", "utf-8"))
+            msg.attach(body_part)
+
+            for attach_item in attachments:
+                attach_path = Path(attach_item)
+                if attach_path.exists() and attach_path.is_file():
+                    try:
+                        with open(attach_path, "rb") as f:
+                            part = MIMEApplication(f.read(), Name=attach_path.name)
+                        part["Content-Disposition"] = f'attachment; filename="{attach_path.name}"'
+                        msg.attach(part)
+                        logger.info(f"Attached file {attach_path.name} to email '{subject}'")
+                    except Exception as e:
+                        logger.warning(f"Failed to attach file {attach_path}: {e}")
+        else:
+            msg = MIMEMultipart("alternative")
+            msg.attach(MIMEText(text_body or "Please view this email in an HTML-compatible client.", "plain", "utf-8"))
+            msg.attach(MIMEText(html_body, "html", "utf-8"))
+
         msg["Subject"] = subject
         msg["From"] = f"{self.sender_name} <{self.username}>"
         msg["To"] = target_recipient
-
-        # Attach text part and HTML part
-        msg.attach(MIMEText(text_body or "Please view this email in an HTML-compatible client.", "plain", "utf-8"))
-        msg.attach(MIMEText(html_body, "html", "utf-8"))
 
         for attempt in range(1, max_retries + 1):
             try:

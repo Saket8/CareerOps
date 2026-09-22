@@ -74,6 +74,18 @@ Date: {data.date}
         else:
             md_content += "_No confirmed applications in this run._\n\n"
 
+        if external_apps:
+            md_content += "### ⭐ HIGH-VALUE EXTERNAL OPPORTUNITIES (RECOMMENDED FOR 1-CLICK MANUAL APPLICATION)\n"
+            md_content += "_The following opportunities scored high for your profile (≥75% match, ₹25+ LPA) but require submission on external enterprise career portals (Workday, Greenhouse, Taleo). Direct links are provided below for 1-click manual submission:_\n\n"
+            for idx, item in enumerate(external_apps, 1):
+                factors = ", ".join(item.key_factors[:3]) if item.key_factors else "High architecture alignment"
+                md_content += f"{idx}. **{item.role}** @ **{item.company}**\n"
+                md_content += f"   - **Match Score:** `{item.match_score}%`\n"
+                md_content += f"   - **Salary:** {item.salary}\n"
+                md_content += f"   - **Key Fit Factors:** {factors}\n"
+                md_content += f"   - **Recommended Resume:** `{item.resume_used}`\n"
+                md_content += f"   - **Direct Portal Link:** [Apply on Company Portal ↗]({item.url})\n\n"
+
         if unverified_apps:
             md_content += "### UNVERIFIED APPLICATIONS\n"
             for idx, item in enumerate(unverified_apps, 1):
@@ -88,15 +100,6 @@ Date: {data.date}
                 md_content += f"{idx}. **{item.role}** @ {item.company}\n"
                 md_content += f"   - **Status:** `{item.status}`\n"
                 md_content += f"   - **Reason:** {item.reason or 'Safety barrier / auth challenge encountered'}\n"
-                md_content += f"   - **URL:** {item.url}\n\n"
-
-        if external_apps:
-            md_content += "### EXTERNAL PORTAL / MANUAL INTERVENTION\n"
-            for idx, item in enumerate(external_apps, 1):
-                md_content += f"{idx}. **{item.role}** @ {item.company}\n"
-                md_content += f"   - **Status:** `{item.status}`\n"
-                md_content += f"   - **Method:** {item.method}\n"
-                md_content += f"   - **Details:** {item.reason or 'Requires external submission or facts clarification'}\n"
                 md_content += f"   - **URL:** {item.url}\n\n"
 
         if failed_apps:
@@ -144,6 +147,29 @@ Date: {data.date}
                     </td>
                     <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; text-align: center;">
                         {verify_btn_html}
+                    </td>
+                </tr>
+                """)
+            return "".join(rows)
+
+        def build_external_rows(ext_list):
+            if not ext_list:
+                return ""
+            rows = []
+            for app in ext_list:
+                factors = ", ".join(app.key_factors[:3]) if app.key_factors else "High architecture alignment"
+                btn_link = app.url if app.url else "#"
+                rows.append(f"""
+                <tr style="background-color: #ffffff;">
+                    <td style="padding: 12px 14px; border-bottom: 1px solid #bae6fd; font-weight: 700; color: #0f172a;">{app.company}</td>
+                    <td style="padding: 12px 14px; border-bottom: 1px solid #bae6fd; font-weight: 600; color: #0369a1;"><a href="{btn_link}" target="_blank" style="color: #0369a1; text-decoration: none;">{app.role}</a></td>
+                    <td style="padding: 12px 14px; border-bottom: 1px solid #bae6fd;">
+                        <span style="display: inline-block; padding: 3px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700; background-color: #e0f2fe; color: #0369a1;">{app.match_score}%</span>
+                    </td>
+                    <td style="padding: 12px 14px; border-bottom: 1px solid #bae6fd; font-size: 12px; color: #475569;">{app.salary}</td>
+                    <td style="padding: 12px 14px; border-bottom: 1px solid #bae6fd; font-size: 12px; color: #334155;">{factors}</td>
+                    <td style="padding: 12px 14px; border-bottom: 1px solid #bae6fd; text-align: center;">
+                        <a href="{btn_link}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff; padding: 7px 14px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 11px; white-space: nowrap; box-shadow: 0 2px 4px rgba(2, 132, 199, 0.25);">Apply on Company Portal &rarr;</a>
                     </td>
                 </tr>
                 """)
@@ -220,11 +246,41 @@ Date: {data.date}
       </table>
     </div>
 
-    <!-- Unverified / Blocked / External Applications Section -->
+    <!-- High-Value External Opportunities Section (Recommended for 1-Click Manual Apply) -->
     {(f'''
-    <div style="padding: 12px 32px 12px 32px;">
-      <h2 style="font-size: 17px; font-weight: 700; margin-top: 0; margin-bottom: 12px; color: #9a3412; border-bottom: 2px solid #fed7aa; padding-bottom: 6px;">
-        &iexcl; Unverified / External / Blocked Applications
+    <div style="padding: 24px 32px 16px 32px; background-color: #f0f9ff; border-top: 1px solid #bae6fd; border-bottom: 1px solid #bae6fd;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <h2 style="font-size: 17px; font-weight: 700; margin: 0; color: #0369a1;">
+          ⭐ High-Value External Opportunities ({len(external_apps)})
+        </h2>
+        <span style="background-color: #0284c7; color: #ffffff; padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700;">Recommended for Manual Apply</span>
+      </div>
+      <div style="font-size: 13px; color: #0c4a6e; margin-bottom: 14px; line-height: 1.5;">
+        The following opportunities scored high for your profile (&ge;75% match, &ge;₹25 LPA) but require submission directly on enterprise career portals (Workday, Greenhouse, Taleo). Click <strong>"Apply on Company Portal &rarr;"</strong> below to open the external job listing directly:
+      </div>
+      <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; background-color: #ffffff; border-radius: 8px; overflow: hidden; border: 1px solid #bae6fd; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <thead>
+          <tr style="background-color: #e0f2fe; border-bottom: 2px solid #bae6fd;">
+            <th style="padding: 8px 12px; color: #0369a1; font-size: 11px; text-transform: uppercase;">Company</th>
+            <th style="padding: 8px 12px; color: #0369a1; font-size: 11px; text-transform: uppercase;">Role</th>
+            <th style="padding: 8px 12px; color: #0369a1; font-size: 11px; text-transform: uppercase;">Match</th>
+            <th style="padding: 8px 12px; color: #0369a1; font-size: 11px; text-transform: uppercase;">Salary</th>
+            <th style="padding: 8px 12px; color: #0369a1; font-size: 11px; text-transform: uppercase;">Key Fit Factors</th>
+            <th style="padding: 8px 12px; color: #0369a1; font-size: 11px; text-transform: uppercase; text-align: center;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {build_external_rows(external_apps)}
+        </tbody>
+      </table>
+    </div>
+    ''') if external_apps else ''}
+
+    <!-- Unverified / Blocked Applications Section -->
+    {(f'''
+    <div style="padding: 16px 32px 12px 32px;">
+      <h2 style="font-size: 15px; font-weight: 700; margin-top: 0; margin-bottom: 10px; color: #9a3412; border-bottom: 1px solid #fed7aa; padding-bottom: 4px;">
+        &iexcl; Unverified / Blocked Applications
       </h2>
       <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
         <thead>
@@ -239,11 +295,11 @@ Date: {data.date}
           </tr>
         </thead>
         <tbody>
-          {build_table_rows(unverified_apps + blocked_apps + external_apps + failed_apps)}
+          {build_table_rows(unverified_apps + blocked_apps + failed_apps)}
         </tbody>
       </table>
     </div>
-    ''') if (unverified_apps or blocked_apps or external_apps or failed_apps) else ''}
+    ''') if (unverified_apps or blocked_apps or failed_apps) else ''}
 
     <!-- Footer -->
     <div style="padding: 18px 32px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center;">

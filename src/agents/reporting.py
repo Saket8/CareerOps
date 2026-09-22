@@ -136,31 +136,36 @@ Date: {data.date}
         # Clean, modern Responsive HTML format
         def build_table_rows(apps_list):
             if not apps_list:
-                return '<tr><td colspan="7" style="padding: 12px; text-align: center; color: #64748b;">None</td></tr>'
+                return '<tr><td colspan="4" style="padding: 16px; text-align: center; color: #64748b;">None</td></tr>'
             rows = []
             for app in apps_list:
                 is_confirmed = app.status in ("APPLIED_CONFIRMED", "APPLIED")
                 status_color = "#16a34a" if is_confirmed else "#d97706" if "UNVERIFIED" in app.status else "#dc2626"
+                status_bg = "#dcfce7" if is_confirmed else "#fef3c7" if "UNVERIFIED" in app.status else "#fee2e2"
                 verify_btn_html = ""
                 if app.url:
                     if is_confirmed:
-                        verify_btn_html = f'<a href="{app.url}" target="_blank" style="display: inline-block; background-color: #16a34a; color: #ffffff; padding: 5px 10px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 11px; white-space: nowrap;">Verify on Naukri (Applied) &rarr;</a>'
+                        verify_btn_html = f'<a href="{app.url}" target="_blank" style="display: inline-block; background-color: #16a34a; color: #ffffff; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 11px; white-space: nowrap;">Verify (Applied) &rarr;</a>'
                     else:
                         verify_btn_html = f'<a href="{app.url}" target="_blank" style="color: #2563eb; text-decoration: underline; font-size: 11px;">View Listing</a>'
 
                 rows.append(f"""
                 <tr>
-                    <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #1e293b;">{app.company}</td>
-                    <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0;"><a href="{app.url}" style="color: #2563eb; text-decoration: none; font-weight: 500;">{app.role}</a></td>
-                    <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 12px 14px; border-bottom: 1px solid #e2e8f0; vertical-align: middle;">
+                        <div style="font-weight: 700; color: #0f172a; font-size: 13px; line-height: 1.35;">
+                            <a href="{app.url or '#'}" target="_blank" style="color: #0f172a; text-decoration: none;">{app.role}</a>
+                        </div>
+                        <div style="font-size: 12px; color: #64748b; margin-top: 3px; font-weight: 500;">
+                            <span style="color: #1e293b; font-weight: 600;">{app.company}</span> &bull; <span style="color: #475569;">{app.salary}</span>
+                        </div>
+                    </td>
+                    <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; text-align: center; vertical-align: middle; white-space: nowrap;">
                         <span style="display: inline-block; padding: 3px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700; background-color: #dcfce7; color: #166534;">{app.match_score}%</span>
                     </td>
-                    <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0;">{app.method}</td>
-                    <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #475569;">{app.salary}</td>
-                    <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0;">
-                        <span style="font-weight: 700; color: {status_color}; font-size: 12px;">{app.status}</span>
+                    <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; text-align: center; vertical-align: middle; white-space: nowrap;">
+                        <span style="display: inline-block; padding: 3px 8px; border-radius: 6px; font-weight: 700; color: {status_color}; background-color: {status_bg}; font-size: 11px;">{app.status}</span>
                     </td>
-                    <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; text-align: center;">
+                    <td style="padding: 12px 12px; border-bottom: 1px solid #e2e8f0; text-align: center; vertical-align: middle; white-space: nowrap;">
                         {verify_btn_html}
                     </td>
                 </tr>
@@ -176,15 +181,22 @@ Date: {data.date}
                 btn_link = app.url if app.url else "#"
                 rows.append(f"""
                 <tr style="background-color: #ffffff;">
-                    <td style="padding: 12px 14px; border-bottom: 1px solid #bae6fd; font-weight: 700; color: #0f172a;">{app.company}</td>
-                    <td style="padding: 12px 14px; border-bottom: 1px solid #bae6fd; font-weight: 600; color: #0369a1;"><a href="{btn_link}" target="_blank" style="color: #0369a1; text-decoration: none;">{app.role}</a></td>
-                    <td style="padding: 12px 14px; border-bottom: 1px solid #bae6fd;">
+                    <td style="padding: 12px 14px; border-bottom: 1px solid #bae6fd; vertical-align: middle;">
+                        <div style="font-weight: 700; color: #0369a1; font-size: 13px; line-height: 1.35;">
+                            <a href="{btn_link}" target="_blank" style="color: #0369a1; text-decoration: none;">{app.role}</a>
+                        </div>
+                        <div style="font-size: 12px; color: #475569; margin-top: 3px;">
+                            <span style="font-weight: 600; color: #0f172a;">{app.company}</span> &bull; <span>{app.salary}</span>
+                        </div>
+                        <div style="font-size: 11px; color: #64748b; margin-top: 3px; font-style: italic;">
+                            {factors}
+                        </div>
+                    </td>
+                    <td style="padding: 12px 10px; border-bottom: 1px solid #bae6fd; text-align: center; vertical-align: middle; white-space: nowrap;">
                         <span style="display: inline-block; padding: 3px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700; background-color: #e0f2fe; color: #0369a1;">{app.match_score}%</span>
                     </td>
-                    <td style="padding: 12px 14px; border-bottom: 1px solid #bae6fd; font-size: 12px; color: #475569;">{app.salary}</td>
-                    <td style="padding: 12px 14px; border-bottom: 1px solid #bae6fd; font-size: 12px; color: #334155;">{factors}</td>
-                    <td style="padding: 12px 14px; border-bottom: 1px solid #bae6fd; text-align: center;">
-                        <a href="{btn_link}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff; padding: 7px 14px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 11px; white-space: nowrap; box-shadow: 0 2px 4px rgba(2, 132, 199, 0.25);">Apply on Company Portal &rarr;</a>
+                    <td style="padding: 12px 12px; border-bottom: 1px solid #bae6fd; text-align: center; vertical-align: middle; white-space: nowrap;">
+                        <a href="{btn_link}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff; padding: 6px 14px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 11px; white-space: nowrap; box-shadow: 0 2px 4px rgba(2, 132, 199, 0.25);">Apply on Company Portal &rarr;</a>
                     </td>
                 </tr>
                 """)
@@ -195,134 +207,164 @@ Date: {data.date}
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
 <title>CAREER AGENT — APPLICATION REPORT — {data.date}</title>
+<style>
+  body, table, td, p, a, li, blockquote {{
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+  }}
+  table, td {{
+    mso-table-lspace: 0pt;
+    mso-table-rspace: 0pt;
+  }}
+  @media only screen and (max-width: 600px) {{
+    .email-container {{
+      width: 100% !important;
+      max-width: 100% !important;
+      margin: 0 !important;
+      border-radius: 0 !important;
+      border: none !important;
+    }}
+    .email-padding {{
+      padding: 16px 12px !important;
+    }}
+    .stat-card {{
+      flex: 1 1 80px !important;
+      padding: 10px 4px !important;
+    }}
+    .table-wrapper {{
+      width: 100% !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+    }}
+  }}
+</style>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #334155; margin: 0; padding: 24px;">
-  <div style="max-width: 760px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); overflow: hidden; border: 1px solid #e2e8f0;">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; color: #334155; margin: 0; padding: 12px 6px; -webkit-font-smoothing: antialiased;">
+  <div class="email-container" style="max-width: 660px; width: 100%; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.07); border: 1px solid #e2e8f0; box-sizing: border-box;">
     
     <!-- Header -->
-    <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 28px 32px; color: #ffffff;">
-      <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #38bdf8;">Autonomous Career Intelligence</div>
-      <h1 style="margin: 8px 0 4px 0; font-size: 24px; font-weight: 700;">Career Agent — Application Report</h1>
-      <div style="font-size: 14px; color: #94a3b8;">{data.date} &bull; Mode: <strong style="color: {'#fbbf24' if data.dry_run else '#4ade80'};">{'DRY RUN' if data.dry_run else 'LIVE SUBMISSION'}</strong> &bull; Run: <code>{data.run_id}</code></div>
+    <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 24px 24px; color: #ffffff; border-radius: 12px 12px 0 0;">
+      <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #38bdf8;">Autonomous Career Intelligence</div>
+      <h1 style="margin: 6px 0 4px 0; font-size: 22px; font-weight: 700; line-height: 1.3;">CareerOps &bull; Application Report</h1>
+      <div style="font-size: 13px; color: #94a3b8; margin-top: 4px;">{data.date} &bull; Mode: <strong style="color: {'#fbbf24' if data.dry_run else '#4ade80'};">{'DRY RUN' if data.dry_run else 'LIVE SUBMISSION'}</strong> &bull; Run: <code style="font-size: 11px; background: #334155; padding: 2px 6px; border-radius: 4px; color: #f8fafc;">{data.run_id}</code></div>
     </div>
 
     <!-- Stat Cards Grid -->
-    <div style="padding: 24px 32px; background-color: #f1f5f9; display: flex; flex-wrap: wrap; gap: 12px;">
-      <div style="flex: 1 1 110px; background: #ffffff; padding: 14px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
-        <div style="font-size: 22px; font-weight: 800; color: #0f172a;">{data.jobs_scanned}</div>
-        <div style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Discovered</div>
+    <div style="padding: 16px 20px; background-color: #f8fafc; display: flex; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid #e2e8f0;">
+      <div class="stat-card" style="flex: 1 1 90px; min-width: 80px; background: #ffffff; padding: 12px 8px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center; box-sizing: border-box;">
+        <div style="font-size: 20px; font-weight: 800; color: #0f172a;">{data.jobs_scanned}</div>
+        <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 600; margin-top: 2px;">Discovered</div>
       </div>
-      <div style="flex: 1 1 110px; background: #ffffff; padding: 14px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
-        <div style="font-size: 22px; font-weight: 800; color: #dc2626;">{data.salary_rejected}</div>
-        <div style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Salary Rejected</div>
+      <div class="stat-card" style="flex: 1 1 90px; min-width: 80px; background: #ffffff; padding: 12px 8px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center; box-sizing: border-box;">
+        <div style="font-size: 20px; font-weight: 800; color: #dc2626;">{data.salary_rejected}</div>
+        <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 600; margin-top: 2px;">Salary Rejected</div>
       </div>
-      <div style="flex: 1 1 110px; background: #ffffff; padding: 14px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
-        <div style="font-size: 22px; font-weight: 800; color: #2563eb;">{data.qualified_jobs}</div>
-        <div style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Qualified</div>
+      <div class="stat-card" style="flex: 1 1 90px; min-width: 80px; background: #ffffff; padding: 12px 8px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center; box-sizing: border-box;">
+        <div style="font-size: 20px; font-weight: 800; color: #2563eb;">{data.qualified_jobs}</div>
+        <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 600; margin-top: 2px;">Qualified</div>
       </div>
-      <div style="flex: 1 1 110px; background: #ffffff; padding: 14px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
-        <div style="font-size: 22px; font-weight: 800; color: #16a34a;">{len(confirmed_apps)}</div>
-        <div style="font-size: 11px; text-transform: uppercase; color: #16a34a; font-weight: 700;">Confirmed</div>
+      <div class="stat-card" style="flex: 1 1 90px; min-width: 80px; background: #ffffff; padding: 12px 8px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center; box-sizing: border-box;">
+        <div style="font-size: 20px; font-weight: 800; color: #16a34a;">{len(confirmed_apps)}</div>
+        <div style="font-size: 10px; text-transform: uppercase; color: #16a34a; font-weight: 700; margin-top: 2px;">Confirmed</div>
       </div>
-      <div style="flex: 1 1 110px; background: #ffffff; padding: 14px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
-        <div style="font-size: 22px; font-weight: 800; color: #d97706;">{len(unverified_apps)}</div>
-        <div style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Unverified</div>
+      <div class="stat-card" style="flex: 1 1 90px; min-width: 80px; background: #ffffff; padding: 12px 8px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center; box-sizing: border-box;">
+        <div style="font-size: 20px; font-weight: 800; color: #d97706;">{len(unverified_apps)}</div>
+        <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 600; margin-top: 2px;">Unverified</div>
       </div>
-      <div style="flex: 1 1 110px; background: #ffffff; padding: 14px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
-        <div style="font-size: 22px; font-weight: 800; color: #ef4444;">{len(blocked_apps)}</div>
-        <div style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Blocked</div>
+      <div class="stat-card" style="flex: 1 1 90px; min-width: 80px; background: #ffffff; padding: 12px 8px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center; box-sizing: border-box;">
+        <div style="font-size: 20px; font-weight: 800; color: #ef4444;">{len(blocked_apps)}</div>
+        <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 600; margin-top: 2px;">Blocked</div>
       </div>
     </div>
 
     <!-- Confirmed Applications Section -->
-    <div style="padding: 24px 32px 12px 32px;">
-      <h2 style="font-size: 17px; font-weight: 700; margin-top: 0; margin-bottom: 10px; color: #166534; border-bottom: 2px solid #bbf7d0; padding-bottom: 6px;">
-        &check; Confirmed Applications ({len(confirmed_apps)})
+    <div class="email-padding" style="padding: 24px 24px 16px 24px;">
+      <h2 style="font-size: 16px; font-weight: 700; margin-top: 0; margin-bottom: 10px; color: #166534; border-bottom: 2px solid #bbf7d0; padding-bottom: 6px;">
+        &#10004; Confirmed Applications ({len(confirmed_apps)})
       </h2>
-      <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 13px; color: #166534; line-height: 1.5;">
-        <strong>&check; Click-to-Verify Guarantee:</strong> Every application below was submitted live directly to the employer via your authenticated account (<code>sauravskt8@gmail.com</code>). Clicking <strong>"Verify on Naukri (Applied)"</strong> will open the job listing displaying the official green <strong>"Applied"</strong> status badge.
+      <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; font-size: 13px; color: #166534; line-height: 1.5;">
+        <strong>&#10004; Click-to-Verify Guarantee:</strong> Every application below was submitted live directly to the employer via your authenticated account (<code>sauravskt8@gmail.com</code>). Clicking <strong>"Verify (Applied) &rarr;"</strong> opens the listing displaying the official green <strong>"Applied"</strong> status badge.
       </div>
-      <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
-        <thead>
-          <tr style="background-color: #f8fafc; border-bottom: 2px solid #cbd5e1;">
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Company</th>
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Role</th>
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Match</th>
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Method</th>
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Salary</th>
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Status</th>
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase; text-align: center;">Live Proof / Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {build_table_rows(confirmed_apps)}
-        </tbody>
-      </table>
+      <div class="table-wrapper" style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; border: 1px solid #e2e8f0; background-color: #ffffff;">
+        <table style="width: 100%; min-width: 480px; border-collapse: collapse; text-align: left; font-size: 13px;">
+          <thead>
+            <tr style="background-color: #f8fafc; border-bottom: 2px solid #cbd5e1;">
+              <th style="padding: 10px 14px; color: #475569; font-size: 11px; text-transform: uppercase; font-weight: 700;">Target Role &amp; Company</th>
+              <th style="padding: 10px 10px; color: #475569; font-size: 11px; text-transform: uppercase; font-weight: 700; text-align: center;">Match</th>
+              <th style="padding: 10px 10px; color: #475569; font-size: 11px; text-transform: uppercase; font-weight: 700; text-align: center;">Status</th>
+              <th style="padding: 10px 12px; color: #475569; font-size: 11px; text-transform: uppercase; font-weight: 700; text-align: center;">Live Proof / Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {build_table_rows(confirmed_apps)}
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- High-Value External Opportunities Section (Recommended for 1-Click Manual Apply) -->
     {(f'''
-    <div style="padding: 24px 32px 16px 32px; background-color: #f0f9ff; border-top: 1px solid #bae6fd; border-bottom: 1px solid #bae6fd;">
-      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-        <h2 style="font-size: 17px; font-weight: 700; margin: 0; color: #0369a1;">
+    <div class="email-padding" style="padding: 20px 24px 16px 24px; background-color: #f0f9ff; border-top: 1px solid #bae6fd; border-bottom: 1px solid #bae6fd;">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+        <h2 style="font-size: 16px; font-weight: 700; margin: 0; color: #0369a1;">
           ⭐ High-Value External Opportunities ({len(external_apps)})
         </h2>
         <span style="background-color: #0284c7; color: #ffffff; padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700;">Recommended for Manual Apply</span>
       </div>
-      <div style="font-size: 13px; color: #0c4a6e; margin-bottom: 14px; line-height: 1.5;">
-        The following opportunities scored high for your profile (&ge;75% match, &ge;₹25 LPA) but require submission directly on enterprise career portals (Workday, Greenhouse, Taleo). Click <strong>"Apply on Company Portal &rarr;"</strong> below to open the external job listing directly:
+      <div style="font-size: 13px; color: #0c4a6e; margin-bottom: 12px; line-height: 1.5;">
+        The following opportunities scored high for your profile (&ge;75% match, &ge;₹25 LPA) but require submission on external enterprise portals (Workday, Greenhouse, Taleo). Click <strong>"Apply on Company Portal &rarr;"</strong> below to open the external job listing directly:
       </div>
-      <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; background-color: #ffffff; border-radius: 8px; overflow: hidden; border: 1px solid #bae6fd; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-        <thead>
-          <tr style="background-color: #e0f2fe; border-bottom: 2px solid #bae6fd;">
-            <th style="padding: 8px 12px; color: #0369a1; font-size: 11px; text-transform: uppercase;">Company</th>
-            <th style="padding: 8px 12px; color: #0369a1; font-size: 11px; text-transform: uppercase;">Role</th>
-            <th style="padding: 8px 12px; color: #0369a1; font-size: 11px; text-transform: uppercase;">Match</th>
-            <th style="padding: 8px 12px; color: #0369a1; font-size: 11px; text-transform: uppercase;">Salary</th>
-            <th style="padding: 8px 12px; color: #0369a1; font-size: 11px; text-transform: uppercase;">Key Fit Factors</th>
-            <th style="padding: 8px 12px; color: #0369a1; font-size: 11px; text-transform: uppercase; text-align: center;">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {build_external_rows(external_apps)}
-        </tbody>
-      </table>
+      <div class="table-wrapper" style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; border: 1px solid #bae6fd; background-color: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <table style="width: 100%; min-width: 480px; border-collapse: collapse; text-align: left; font-size: 13px;">
+          <thead>
+            <tr style="background-color: #e0f2fe; border-bottom: 2px solid #bae6fd;">
+              <th style="padding: 10px 14px; color: #0369a1; font-size: 11px; text-transform: uppercase; font-weight: 700;">Opportunity &amp; Fit Factors</th>
+              <th style="padding: 10px 10px; color: #0369a1; font-size: 11px; text-transform: uppercase; font-weight: 700; text-align: center;">Match</th>
+              <th style="padding: 10px 12px; color: #0369a1; font-size: 11px; text-transform: uppercase; font-weight: 700; text-align: center;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {build_external_rows(external_apps)}
+          </tbody>
+        </table>
+      </div>
     </div>
     ''') if external_apps else ''}
 
     <!-- Unverified / Blocked Applications Section -->
     {(f'''
-    <div style="padding: 16px 32px 12px 32px;">
+    <div class="email-padding" style="padding: 16px 24px 12px 24px;">
       <h2 style="font-size: 15px; font-weight: 700; margin-top: 0; margin-bottom: 10px; color: #9a3412; border-bottom: 1px solid #fed7aa; padding-bottom: 4px;">
-        &iexcl; Unverified / Blocked Applications
+        &#9888;&#65039; Unverified / Blocked Applications
       </h2>
-      <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
-        <thead>
-          <tr style="background-color: #f8fafc; border-bottom: 2px solid #cbd5e1;">
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Company</th>
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Role</th>
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Match</th>
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Method</th>
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Salary</th>
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Status</th>
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase; text-align: center;">Live Proof / Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {build_table_rows(unverified_apps + blocked_apps + failed_apps)}
-        </tbody>
-      </table>
+      <div class="table-wrapper" style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; border: 1px solid #fed7aa; background-color: #ffffff;">
+        <table style="width: 100%; min-width: 480px; border-collapse: collapse; text-align: left; font-size: 13px;">
+          <thead>
+            <tr style="background-color: #fff7ed; border-bottom: 2px solid #fed7aa;">
+              <th style="padding: 10px 14px; color: #9a3412; font-size: 11px; text-transform: uppercase; font-weight: 700;">Target Role &amp; Company</th>
+              <th style="padding: 10px 10px; color: #9a3412; font-size: 11px; text-transform: uppercase; font-weight: 700; text-align: center;">Match</th>
+              <th style="padding: 10px 10px; color: #9a3412; font-size: 11px; text-transform: uppercase; font-weight: 700; text-align: center;">Status</th>
+              <th style="padding: 10px 12px; color: #9a3412; font-size: 11px; text-transform: uppercase; font-weight: 700; text-align: center;">Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            {build_table_rows(unverified_apps + blocked_apps + failed_apps)}
+          </tbody>
+        </table>
+      </div>
     </div>
     ''') if (unverified_apps or blocked_apps or failed_apps) else ''}
 
     <!-- Footer -->
-    <div style="padding: 18px 32px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center;">
-      Generated autonomously by Naukri Career Agent &bull; Every listed APPLIED_CONFIRMED application contains verified evidence in database.
+    <div style="padding: 18px 24px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center; border-radius: 0 0 12px 12px;">
+      Autonomous Career Agent &bull; Strictly verified live submissions only &bull; Zero mock/dummy data policy enforced.
     </div>
   </div>
 </body>
-</html>"""
+</html>
+"""
         html_file.write_text(html_content, encoding="utf-8")
         logger.info(f"Daily reports written to {md_file} and {html_file}")
         return md_file, html_file, html_content

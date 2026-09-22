@@ -7,17 +7,19 @@ app:
   environment: "production"
 
 schedule:
-  cron_expression: "30 3,8 * * 1-5"  # Mon-Fri 09:00 IST (03:30 UTC) & 14:00 IST (08:30 UTC)
+  cron_expression: "30 3,8 * * *"  # Daily 09:00 IST (03:30 UTC) & 14:00 IST (08:30 UTC)
   timezone: "Asia/Kolkata"
   times_ist:
     - "09:00"  # Morning recruiter login & screening window
-    - "14:00"  # Post-lunch recruiter resume search & review window
+    - "14:00"  # Post-lunch recruiter review window + interview briefing
   days:
     - "monday"
     - "tuesday"
     - "wednesday"
     - "thursday"
     - "friday"
+    - "saturday"
+    - "sunday"
 
 application:
   match_threshold: 75.0

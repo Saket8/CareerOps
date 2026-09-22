@@ -503,6 +503,7 @@ class InterviewAgent:
               <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">{job.company}</td>
               <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0;">{job.title}</td>
               <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0;"><span style="background-color: #dcfce7; color: #166534; padding: 3px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700;">{score.overall_score:.1f}%</span></td>
+              <td style="padding: 10px 10px; border-bottom: 1px solid #e2e8f0; text-align: center;"><span style="background-color: #dcfce7; color: #166534; padding: 3px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700;">{score.overall_score:.1f}%</span></td>
               <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #475569;">{job.salary.raw_text or 'Not Disclosed'}</td>
               <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #2563eb; font-weight: 600;">OCI + GenAI Platform</td>
             </tr>
@@ -515,83 +516,112 @@ class InterviewAgent:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
 <title>CareerOps — Daily Consolidated Interview Intelligence Briefing</title>
+<style>
+  body, table, td, p, a, li, blockquote {{
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+  }}
+  table, td {{
+    mso-table-lspace: 0pt;
+    mso-table-rspace: 0pt;
+  }}
+  @media only screen and (max-width: 600px) {{
+    .email-container {{
+      width: 100% !important;
+      max-width: 100% !important;
+      margin: 0 !important;
+      border-radius: 0 !important;
+      border: none !important;
+    }}
+    .email-padding {{
+      padding: 16px 12px !important;
+    }}
+    .table-wrapper {{
+      width: 100% !important;
+      overflow-x: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+    }}
+  }}
+</style>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #334155; margin: 0; padding: 24px;">
-  <div style="max-width: 760px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); overflow: hidden; border: 1px solid #e2e8f0;">
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; color: #334155; margin: 0; padding: 12px 6px; -webkit-font-smoothing: antialiased;">
+  <div class="email-container" style="max-width: 660px; width: 100%; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.07); border: 1px solid #e2e8f0; box-sizing: border-box;">
     
     <!-- Header -->
-    <div style="background: linear-gradient(135deg, #0369a1 0%, #0f172a 100%); padding: 28px 32px; color: #ffffff;">
-      <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #38bdf8;">Consolidated Interview Intelligence</div>
-      <h1 style="margin: 8px 0 4px 0; font-size: 22px; font-weight: 700;">Daily Consolidated Interview Briefing</h1>
-      <div style="font-size: 14px; color: #94a3b8;">{date_str} &bull; Target: <strong>Principal Cloud & AI Architect (12+ Years)</strong></div>
+    <div style="background: linear-gradient(135deg, #0369a1 0%, #0f172a 100%); padding: 24px 24px; color: #ffffff; border-radius: 12px 12px 0 0;">
+      <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #38bdf8;">Consolidated Interview Intelligence</div>
+      <h1 style="margin: 6px 0 4px 0; font-size: 22px; font-weight: 700; line-height: 1.3;">Daily Consolidated Interview Briefing</h1>
+      <div style="font-size: 13px; color: #94a3b8; margin-top: 4px;">{date_str} &bull; Target: <strong>Principal Cloud &amp; AI Architect (12+ Years)</strong></div>
     </div>
 
     <!-- Overview Banner -->
-    <div style="padding: 20px 32px; background-color: #f0fdf4; border-bottom: 1px solid #bbf7d0;">
+    <div class="email-padding" style="padding: 16px 24px; background-color: #f0fdf4; border-bottom: 1px solid #bbf7d0;">
       <div style="font-size: 13px; color: #166534; line-height: 1.5;">
-        <strong>&check; Single Consolidated Report:</strong> All interview intelligence for today's high-match opportunities has been synthesized into a single executive document. The complete 7-section document is <strong>attached to this email as a PDF ({pdf_name}) and Word document ({docx_name})</strong>.
+        <strong>&#10004; Single Consolidated Report:</strong> All interview intelligence for today's high-match opportunities has been synthesized into a single executive document. The complete 7-section dossier is <strong>attached to this email as a PDF ({pdf_name}) and Word document ({docx_name})</strong>.
       </div>
     </div>
 
     <!-- Opportunities Table -->
-    <div style="padding: 24px 32px;">
-      <h2 style="font-size: 16px; font-weight: 700; margin-top: 0; margin-bottom: 12px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
+    <div class="email-padding" style="padding: 20px 24px 16px 24px;">
+      <h2 style="font-size: 16px; font-weight: 700; margin-top: 0; margin-bottom: 10px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
         Analyzed Opportunities ({len(matched_items)} Roles)
       </h2>
-      <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
-        <thead>
-          <tr style="background-color: #f8fafc; border-bottom: 2px solid #cbd5e1;">
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Company</th>
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Role</th>
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Match</th>
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Salary</th>
-            <th style="padding: 8px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Focus</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows}
-        </tbody>
-      </table>
+      <div class="table-wrapper" style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; border: 1px solid #e2e8f0; background-color: #ffffff;">
+        <table style="width: 100%; min-width: 480px; border-collapse: collapse; text-align: left; font-size: 13px;">
+          <thead>
+            <tr style="background-color: #f8fafc; border-bottom: 2px solid #cbd5e1;">
+              <th style="padding: 10px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Company</th>
+              <th style="padding: 10px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Role</th>
+              <th style="padding: 10px 10px; color: #475569; font-size: 11px; text-transform: uppercase; text-align: center;">Match</th>
+              <th style="padding: 10px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Salary</th>
+              <th style="padding: 10px 12px; color: #475569; font-size: 11px; text-transform: uppercase;">Focus</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows}
+          </tbody>
+        </table>
+      </div>
 
       <!-- Key Focus Areas Grid -->
-      <h2 style="font-size: 16px; font-weight: 700; margin-top: 24px; margin-bottom: 12px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
+      <h2 style="font-size: 16px; font-weight: 700; margin-top: 24px; margin-bottom: 10px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
         Executive Preparation Highlights
       </h2>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px;">
-          <div style="font-weight: 700; font-size: 13px; color: #0369a1; margin-bottom: 4px;">Level 1: Fundamentals</div>
-          <div style="font-size: 12px; color: #475569; line-height: 1.4;">DRG v2 Transit Routing, Private OKE FSS StorageClasses, Model Context Protocol (MCP), and Terraform modular state management.</div>
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+          <div style="font-weight: 700; font-size: 13px; color: #0369a1; margin-bottom: 3px;">Level 1: Technical Fundamentals</div>
+          <div style="font-size: 12px; color: #475569; line-height: 1.45;">DRG v2 Transit Routing, Private OKE FSS StorageClasses, Model Context Protocol (MCP), and Terraform modular state management.</div>
         </div>
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px;">
-          <div style="font-weight: 700; font-size: 13px; color: #0369a1; margin-bottom: 4px;">Level 2: Systems Design</div>
-          <div style="font-size: 12px; color: #475569; line-height: 1.4;">Air-Gapped Telecom OCI Landing Zone with centralized Palo Alto inspection, and Offline GenAI CloudOps alert triaging.</div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+          <div style="font-weight: 700; font-size: 13px; color: #0369a1; margin-bottom: 3px;">Level 2: Systems Design &amp; Architecture</div>
+          <div style="font-size: 12px; color: #475569; line-height: 1.45;">Air-Gapped Telecom OCI Landing Zone with centralized Palo Alto inspection, and Offline GenAI CloudOps alert triaging.</div>
         </div>
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px;">
-          <div style="font-weight: 700; font-size: 13px; color: #0369a1; margin-bottom: 4px;">Level 3: Trade-offs</div>
-          <div style="font-size: 12px; color: #475569; line-height: 1.4;">Dedicated vs Serverless AI Clusters (cost vs sovereignty), ExaCS vs Autonomous Database (control vs 50% DBA reduction).</div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+          <div style="font-weight: 700; font-size: 13px; color: #0369a1; margin-bottom: 3px;">Level 3: Principal Architect Strategy &amp; Trade-offs</div>
+          <div style="font-size: 12px; color: #475569; line-height: 1.45;">Dedicated vs Serverless AI Clusters (cost vs sovereignty), ExaCS vs Autonomous Database (control vs 50% DBA reduction).</div>
         </div>
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px;">
-          <div style="font-weight: 700; font-size: 13px; color: #0369a1; margin-bottom: 4px;">Verified Model Answers</div>
-          <div style="font-size: 12px; color: #475569; line-height: 1.4;">KPN air-gapped deployment, Emerson multi-cloud migration, and ODAOS LangGraph autonomous database operations.</div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px;">
+          <div style="font-weight: 700; font-size: 13px; color: #0369a1; margin-bottom: 3px;">Candidate STAR-Verified Model Answers</div>
+          <div style="font-size: 12px; color: #475569; line-height: 1.45;">KPN air-gapped deployment, Emerson multi-cloud migration, and ODAOS LangGraph autonomous database operations.</div>
         </div>
       </div>
 
       <!-- Attached Documents Notice -->
-      <div style="margin-top: 24px; padding: 16px; background-color: #f1f5f9; border-radius: 8px; border: 1px solid #cbd5e1; text-align: center;">
-        <div style="font-size: 13px; font-weight: 700; color: #0f172a;">Attached Document Available</div>
-        <div style="font-size: 12px; color: #64748b; margin-top: 4px;">
+      <div style="margin-top: 20px; padding: 14px 16px; background-color: #f1f5f9; border-radius: 8px; border: 1px solid #cbd5e1; text-align: center;">
+        <div style="font-size: 13px; font-weight: 700; color: #0f172a;">Executive Dossier Attached</div>
+        <div style="font-size: 12px; color: #64748b; margin-top: 3px;">
           Please review the attached <strong>{pdf_name}</strong> or <strong>{docx_name}</strong> for the full 7-section question set, whiteboard architecture diagrams, and 7-day revision roadmap.
         </div>
       </div>
     </div>
 
     <!-- Footer -->
-    <div style="background-color: #f8fafc; padding: 16px 32px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #94a3b8;">
+    <div style="background-color: #f8fafc; padding: 16px 24px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #94a3b8; border-radius: 0 0 12px 12px;">
       CareerOps Autonomous Career Intelligence Platform &bull; Generated strictly against verified candidate truth
     </div>
   </div>
 </body>
 </html>
 """
-

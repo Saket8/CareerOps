@@ -28,6 +28,14 @@ class DiscoveryAgent:
         self.job_repo = job_repo
         self.config = config
         self.min_salary_lpa = float(config.get("application", {}).get("min_salary_lpa", 20.0))
+        self.blocked_companies = [
+            c.lower().strip() for c in config.get("safety", {}).get("blocked_companies", ["cognizant", "cts"])
+        ]
+
+    def is_blocked_company(self, company_name: str) -> bool:
+        """Checks if company matches any blocked employer string (e.g. current employer)."""
+        comp_lower = company_name.lower().strip()
+        return any(b in comp_lower for b in self.blocked_companies)
 
     def run_discovery(self, query_limit: int = 25) -> DiscoveryResult:
         """Runs discovery across all configured search query categories."""
@@ -63,6 +71,14 @@ class DiscoveryAgent:
 
             for listing in listings:
                 result.total_found += 1
+
+                # 0. Employer Safety Gate (Current Employer Blocklist)
+                if self.is_blocked_company(listing.company):
+                    logger.warning(
+                        f"EMPLOYER SAFETY GATE: Strictly blocked '{listing.title}' at current employer '{listing.company}'. Skipping."
+                    )
+                    continue
+
                 dedup_key = f"{listing.company.lower().strip()}::{listing.title.lower().strip()}"
 
                 # 1. Deduplicate within current run

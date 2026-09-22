@@ -68,9 +68,44 @@ class QualificationAgent:
         self.config = config
         self.match_threshold = float(config.get("application", {}).get("match_threshold", 75.0))
         self.high_match_threshold = float(config.get("application", {}).get("high_match_threshold", 85.0))
+        self.blocked_companies = [
+            c.lower().strip() for c in config.get("safety", {}).get("blocked_companies", ["cognizant", "cts"])
+        ]
 
     def evaluate_job(self, job: JobListing) -> Tuple[JobScore, JobEvidence]:
         """Evaluates a single job listing against candidate truth."""
+        # 0. Employer Safety Gate
+        if any(b in job.company.lower() for b in self.blocked_companies):
+            logger.warning(f"Employer Safety Gate: Blocking qualification for job '{job.title}' at '{job.company}'")
+            zero_score = JobScore(
+                job_id=job.job_id,
+                overall_score=0.0,
+                architecture_score=0.0,
+                cloud_score=0.0,
+                oci_score=0.0,
+                ai_score=0.0,
+                agentic_ai_score=0.0,
+                kubernetes_score=0.0,
+                security_score=0.0,
+                multicloud_score=0.0,
+                experience_alignment=0.0,
+                skill_alignment=0.0,
+                passed_threshold=False,
+                match_reasons=[],
+                strengths=[],
+                gaps=["Current employer is blocked per candidate safety policy"],
+                categories=[],
+            )
+            empty_evidence = JobEvidence(
+                job_id=job.job_id,
+                observed_facts=[],
+                inferred_signals=[],
+                generated_actions=[],
+            )
+            job.status = JobStatus.REJECTED
+            self.job_repo.save_job(job)
+            return zero_score, empty_evidence
+
         text = f"{job.title}\n{job.jd_text}".lower()
 
         # Compute dimension matches

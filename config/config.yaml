@@ -58,6 +58,12 @@ safety:
   stop_on_unknown_question: true
   stop_on_external_redirect: true
   max_daily_requests: 200
+  blocked_companies:
+    - "Cognizant"
+    - "Cognizant Technology Solutions"
+    - "CTS"
+    - "Cognizant Cloud Solutions"
+    - "Cognizant Worldwide"
 
 search:
   enabled: true

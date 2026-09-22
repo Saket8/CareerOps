@@ -59,6 +59,17 @@ class ApplicationAgent:
         """Processes and submits a single application with complete guardrails."""
         job_id = job.job_id
 
+        # 0. Employer Safety Gate (Current Employer Blocklist)
+        blocked_companies = [
+            c.lower().strip() for c in self.config.get("safety", {}).get("blocked_companies", ["cognizant", "cts"])
+        ]
+        if any(b in job.company.lower() for b in blocked_companies):
+            logger.critical(
+                f"CRITICAL SAFETY GATE: Prevented application to current employer '{job.company}' (Job: {job.title})"
+            )
+            self.job_repo.update_status(job_id, JobStatus.REJECTED)
+            return ApplicationOutcome(job_id, False, JobStatus.REJECTED, f"Blocked current employer: {job.company}")
+
         # 1. Idempotency Check: prevent duplicate application
         if self.app_repo.has_applied_to_job(job_id):
             logger.info(f"Idempotency Guard: Application already exists for job {job_id}. Skipping.")

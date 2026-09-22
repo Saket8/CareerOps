@@ -74,6 +74,14 @@
 - [x] Align application quota and discovery frequency to peak recruiter login and post-lunch screening windows
 - [x] Push workflow and configuration updates to GitHub repository
 
+### Phase 11: Employer Safety Guardrails (Cognizant Blocklist)
+- [x] Purge all Cognizant records from SQLite database (`jobs`, `applications`, `resumes`, `scores`, `evidence`, `events`)
+- [x] Delete all generated Cognizant resumes and interview preparation packs from disk
+- [x] Configure `safety.blocked_companies` in `config/config.yaml` with Cognizant, CTS, Cognizant Cloud Solutions
+- [x] Enforce hard multi-layered safety gates in `DiscoveryAgent`, `QualificationAgent`, and `ApplicationAgent`
+- [x] Write regression tests asserting automatic rejection of current employer job postings
+
+
 
 ---
 

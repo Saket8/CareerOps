@@ -84,3 +84,31 @@ def test_irrelevant_job_rejection(db_session):
     assert score.overall_score < 75.0
     assert score.passed_threshold is False
     assert frontend_job.status == JobStatus.REJECTED
+
+
+def test_current_employer_blocked(db_session):
+    job_repo = JobRepository(db_session)
+    candidate_truth = get_candidate_truth(refresh=True)
+    config = {
+        "application": {"match_threshold": 75.0, "high_match_threshold": 85.0},
+        "safety": {"blocked_companies": ["Cognizant", "CTS", "Cognizant Technology Solutions"]},
+    }
+    agent = QualificationAgent(job_repo, candidate_truth, config)
+
+    cognizant_job = JobListing(
+        job_id="job_cognizant_1",
+        title="Principal Cloud Architect",
+        company="Cognizant Technology Solutions",
+        location="Noida",
+        url="https://naukri.com/job/cts1",
+        jd_text="Enterprise OCI Cloud Architect with Terraform and Kubernetes.",
+    )
+    job_repo.save_job(cognizant_job)
+
+    score, evidence = agent.evaluate_job(cognizant_job)
+
+    assert score.passed_threshold is False
+    assert score.overall_score == 0.0
+    assert cognizant_job.status == JobStatus.REJECTED
+    assert "Current employer is blocked" in score.gaps[0]
+

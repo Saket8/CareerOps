@@ -285,7 +285,7 @@ class NaukriBrowserAdapter(BaseNaukriClient):
                 ),
                 (
                     f"Principal {query}",
-                    "Cognizant Cloud Solutions",
+                    "Tata Consultancy Services",
                     "Noida / Gurgaon",
                     "30-45 LPA",
                     "11-15 Yrs",

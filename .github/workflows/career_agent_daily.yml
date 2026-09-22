@@ -52,9 +52,19 @@ jobs:
         uses: actions/cache@v4
         with:
           path: naukri_career_agent.sqlite
-          key: career-agent-db-${{ github.run_id }}
+          key: career-agent-db-v4-${{ github.run_id }}
           restore-keys: |
-            career-agent-db-
+            career-agent-db-v4-
+
+      - name: Restore Authenticated Session
+        env:
+          NAUKRI_AUTH_STATE_B64: ${{ secrets.NAUKRI_AUTH_STATE_B64 }}
+        run: |
+          mkdir -p artifacts
+          if [ -n "$NAUKRI_AUTH_STATE_B64" ]; then
+            echo "$NAUKRI_AUTH_STATE_B64" | base64 --decode > artifacts/naukri_auth.json
+            echo "Authenticated session state restored to artifacts/naukri_auth.json"
+          fi
 
       - name: Run Test Suite Verification
         run: |
@@ -78,7 +88,7 @@ jobs:
           if [ -z "$NAUKRI_USERNAME" ]; then
             EXTRA_FLAGS="$EXTRA_FLAGS --offline"
           fi
-          python main.py $EXTRA_FLAGS
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x800x24" python main.py $EXTRA_FLAGS
 
       - name: Validate Application Automation Phase Gate
         run: |

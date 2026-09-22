@@ -35,13 +35,18 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
 
     def _launch_browser(self, p):
         """Launches Chromium or native Chrome with persistent state."""
-        is_live = not self.offline_mode and not bool(int(os.environ.get("HEADLESS", "0")))
-        headless = False if is_live else self.headless
-        channel = "chrome" if is_live else None
+        import sys
+
+        channel = "chrome" if (sys.platform == "win32" and not self.offline_mode) else None
 
         launch_kwargs = {
-            "headless": headless,
-            "args": ["--disable-blink-features=AutomationControlled", "--no-sandbox"],
+            "headless": self.headless,
+            "args": [
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+            ],
         }
         if channel:
             launch_kwargs["channel"] = channel

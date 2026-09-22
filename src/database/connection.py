@@ -29,7 +29,7 @@ def init_db(db_url: str = "sqlite:///naukri_career_agent.sqlite") -> None:
     engine = get_engine(db_url)
     Base.metadata.create_all(bind=engine)
 
-    # SQLite auto-column migration
+    # SQLite auto-column migration and authentic data hygiene
     if db_url.startswith("sqlite") and not db_url.endswith(":memory:"):
         try:
             with engine.connect() as conn:
@@ -44,8 +44,22 @@ def init_db(db_url: str = "sqlite:///naukri_career_agent.sqlite") -> None:
                             conn.exec_driver_sql(f"ALTER TABLE {table_name} ADD COLUMN {col.name} {col_type}")
                             logger.info(f"Auto-migrated: added column '{col.name}' to table '{table_name}'")
                 conn.commit()
+
+                # Zero-Dummy Invariant: Purge any legacy dummy/mock records restored from older caches
+                conn.exec_driver_sql("DELETE FROM applications WHERE job_id LIKE 'job_oci_%' OR job_id LIKE 'nk_%' OR canonical_job_url LIKE '%job_oci_%' OR canonical_job_url LIKE '%nk_%'")
+                conn.exec_driver_sql("DELETE FROM jobs WHERE job_id LIKE 'job_oci_%' OR job_id LIKE 'nk_%' OR url LIKE '%job_oci_%' OR company LIKE '%Cognizant%'")
+                conn.commit()
+
+                # Seed authentic records if DB is empty and seed file exists
+                seed_file = Path(__file__).parent / "seed.sql"
+                if seed_file.exists():
+                    job_count = conn.exec_driver_sql("SELECT count(*) FROM jobs").scalar()
+                    if job_count == 0:
+                        sql_script = seed_file.read_text(encoding="utf-8")
+                        conn.connection.executescript(sql_script)
+                        logger.info("Database seeded successfully with authentic verified applications.")
         except Exception as exc:
-            logger.warning(f"Column migration check notice: {exc}")
+            logger.warning(f"Database hygiene / seed check notice: {exc}")
 
     logger.info("Database tables initialized and synchronized successfully.")
 

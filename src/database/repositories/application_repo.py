@@ -17,7 +17,7 @@ class ApplicationRepository:
         return self.session.query(ApplicationModel).filter(ApplicationModel.job_id == job_id).first()
 
     def has_applied_to_job(self, job_id: str) -> bool:
-        """Check if an application was already submitted or is active for this job."""
+        """Check if an application was already submitted or is actively leasing this job."""
         app = self.get_by_job_id(job_id)
         if not app:
             return False
@@ -25,8 +25,22 @@ class ApplicationRepository:
             JobStatus.APPLIED.value,
             JobStatus.APPLIED_CONFIRMED.value,
             JobStatus.APPLICATION_READY.value,
+            JobStatus.APPLICATION_STARTED.value,
             JobStatus.SUBMISSION_ATTEMPTED.value,
         )
+
+    def commit_preflight_lease(self, record: ApplicationRecord) -> ApplicationModel:
+        """Atomically persist and commit an APPLICATION_STARTED pre-flight lease to disk."""
+        record.status = JobStatus.APPLICATION_STARTED
+        db_app = self.record_application(record, commit=True)
+        self.log_event(
+            record.application_id,
+            "APPLICATION_READY",
+            JobStatus.APPLICATION_STARTED.value,
+            "Committed pre-flight application lease before browser submission",
+        )
+        self.session.commit()
+        return db_app
 
     def count_applications_today(self) -> int:
         """Count successful applications submitted today to enforce daily limits."""
@@ -41,7 +55,7 @@ class ApplicationRepository:
             or 0
         )
 
-    def record_application(self, record: ApplicationRecord) -> ApplicationModel:
+    def record_application(self, record: ApplicationRecord, commit: bool = False) -> ApplicationModel:
         """Create or update an application record with full audit trail."""
         existing = (
             self.session.query(ApplicationModel)
@@ -75,7 +89,10 @@ class ApplicationRepository:
             existing.evidence_path = record.evidence_path
             existing.failure_reason = record.failure_reason
             existing.dry_run = record.dry_run
-            self.session.flush()
+            if commit:
+                self.session.commit()
+            else:
+                self.session.flush()
             return existing
 
         db_app = ApplicationModel(
@@ -106,8 +123,27 @@ class ApplicationRepository:
             dry_run=record.dry_run,
         )
         self.session.add(db_app)
-        self.session.flush()
+        if commit:
+            self.session.commit()
+        else:
+            self.session.flush()
         return db_app
+
+    def release_or_fail_lease(
+        self,
+        application_id: str,
+        from_status: str = "APPLICATION_STARTED",
+        to_status: str = "APPLICATION_FAILED",
+        reason: str = "Submission aborted or crashed",
+    ) -> Optional[ApplicationModel]:
+        """Transitions a lease out of active state with disk commit."""
+        app = self.session.query(ApplicationModel).filter(ApplicationModel.application_id == application_id).first()
+        if app:
+            app.status = to_status
+            app.failure_reason = reason
+            self.log_event(application_id, from_status, to_status, reason)
+            self.session.commit()
+        return app
 
     def log_event(self, application_id: str, from_status: str, to_status: str, reason: str = "", payload: Optional[Dict[str, Any]] = None) -> ApplicationEventModel:
         """Log an explicit state transition event."""

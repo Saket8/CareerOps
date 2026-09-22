@@ -62,7 +62,25 @@ def init_db(db_url: str = "sqlite:///naukri_career_agent.sqlite") -> None:
                 conn.exec_driver_sql("DELETE FROM jobs WHERE job_id LIKE 'job_oci_%' OR job_id LIKE 'nk_%' OR url LIKE '%job_oci_%' OR company LIKE '%Cognizant%'")
                 # Clean up legacy unapplied rejected jobs so they can be re-evaluated under dual-track qualification
                 conn.exec_driver_sql("DELETE FROM jobs WHERE status = 'REJECTED'")
+                
+                # Physical Unique Constraint Migration:
+                # Deduplicate existing applications keeping the most terminal or confirmed row
+                conn.exec_driver_sql("""
+                    DELETE FROM applications 
+                    WHERE rowid NOT IN (
+                        SELECT MIN(rowid) FROM applications 
+                        GROUP BY job_id
+                    )
+                """)
+                # Physically create unique index on existing tables
+                conn.exec_driver_sql("CREATE UNIQUE INDEX IF NOT EXISTS uq_applications_job_id ON applications(job_id)")
                 conn.commit()
+
+                # Verify index exists
+                res_idx = conn.exec_driver_sql("PRAGMA index_list(applications)")
+                idx_names = {row[1] for row in res_idx.fetchall()}
+                if "uq_applications_job_id" in idx_names:
+                    logger.info("Physical SQLite unique index 'uq_applications_job_id' verified.")
         except Exception as exc:
             logger.warning(f"Database hygiene notice: {exc}")
 

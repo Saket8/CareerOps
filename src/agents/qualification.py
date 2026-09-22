@@ -159,11 +159,21 @@ class QualificationAgent:
         overall_score = max(track_cloud_score, track_ai_score, track_hybrid_score)
         overall_score = round(min(100.0, max(0.0, overall_score)), 1)
 
+        # Full-JD Scoring Calibration & Confidence Gating:
+        # If full JD text is unavailable (< 50 chars), do not assign high confidence scores
+        has_full_jd = getattr(job, "has_full_jd", False) or bool(job.jd_text and len(job.jd_text.strip()) >= 50)
+        if not has_full_jd:
+            logger.info(f"Confidence Gating: Job {job.job_id} lacks full JD text; capping score below qualification threshold.")
+            overall_score = min(overall_score, self.match_threshold - 1.0)
+
         # Determine Role Categories
         categories = self._determine_categories(text)
 
         # Identify Strengths and Gaps
         strengths, gaps, match_reasons = self._identify_strengths_and_gaps(text, oci_score, k8s_score, ai_score, sec_score)
+        if not has_full_jd:
+            gaps.append("Full JD text unavailable; scored tentatively on card snippet only.")
+            match_reasons.append("Preliminary card metadata score (full JD retrieval pending).")
 
         passed = overall_score >= self.match_threshold
 

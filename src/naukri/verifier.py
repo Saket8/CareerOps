@@ -28,7 +28,8 @@ class ApplicationVerifier:
 
     # Level 1 Confirmation Phrases (Definitive)
     DEFINITIVE_CONFIRMATION_PATTERNS = [
-        re.compile(r"application\s+(?:submitted|sent)\s+successfully", re.IGNORECASE),
+        re.compile(r"application\s+(?:was\s+|is\s+|has\s+been\s+)?(?:submitted|sent)\s+successfully", re.IGNORECASE),
+        re.compile(r"application\s+(?:was\s+|has\s+been\s+)?(?:successfully\s+)?submitted", re.IGNORECASE),
         re.compile(r"successfully\s+applied", re.IGNORECASE),
         re.compile(r"you\s+have\s+(?:successfully\s+)?applied(?:\s+for\s+this\s+job)?", re.IGNORECASE),
         re.compile(r"your\s+application\s+has\s+been\s+submitted", re.IGNORECASE),
@@ -87,14 +88,14 @@ class ApplicationVerifier:
                 evidence_summary="Login session required to proceed with application.",
             )
 
-        # 1. Check for Level 3 "Already Applied" state on listing or post-apply page
-        if (
-            "already applied" in content_lower
-            or "already applied" in title_lower
-            or "already-applied" in content_lower
-            or re.search(r'class="[^"]*already-applied[^"]*"', page_content, re.IGNORECASE)
+        # 1. Check for Level 3 "Already Applied" state with dedicated UI element / badge
+        has_already_applied_badge = bool(
+            re.search(r'class="[^"]*(?:already-applied|applied-btn)[^"]*"', page_content, re.IGNORECASE)
+            or re.search(r'<(?:button|span|div)[^>]*class="[^"]*applied[^"]*"[^>]*>\s*Already Applied\s*</', page_content, re.IGNORECASE)
+            or re.search(r'<(?:button|span|div)[^>]*disabled[^>]*>\s*Already Applied\s*</', page_content, re.IGNORECASE)
             or re.search(r'applied\s+to\s+["\'][^"\']+["\']', page_content, re.IGNORECASE)
-        ):
+        )
+        if has_already_applied_badge:
             return VerificationEvidence(
                 confirmed=True,
                 status=JobStatus.APPLIED_CONFIRMED,
@@ -122,15 +123,27 @@ class ApplicationVerifier:
                 break
 
         if definitive_text:
-            return VerificationEvidence(
-                confirmed=True,
-                status=JobStatus.APPLIED_CONFIRMED,
-                verification_level="LEVEL_1_DIRECT_MODAL",
-                confirmation_text=definitive_text,
-                confirmation_reference=captured_ref or "CONF_DETECTED",
-                final_url=final_url,
-                evidence_summary=f"Definitive confirmation on platform: '{definitive_text}'" + (f" (Ref: {captured_ref})" if captured_ref else ""),
-            )
+            if captured_ref:
+                return VerificationEvidence(
+                    confirmed=True,
+                    status=JobStatus.APPLIED_CONFIRMED,
+                    verification_level="LEVEL_1_DIRECT_MODAL",
+                    confirmation_text=definitive_text,
+                    confirmation_reference=captured_ref,
+                    final_url=final_url,
+                    evidence_summary=f"Definitive confirmation on platform: '{definitive_text}' (Ref: {captured_ref})",
+                )
+            else:
+                # Text matches without reference ID -> demote to SUBMISSION_UNVERIFIED
+                return VerificationEvidence(
+                    confirmed=False,
+                    status=JobStatus.SUBMISSION_UNVERIFIED,
+                    verification_level="HEURISTIC_TEXT_UNVERIFIED",
+                    confirmation_text=definitive_text,
+                    confirmation_reference=None,
+                    final_url=final_url,
+                    evidence_summary=f"Definitive text detected without reference ID or badge: '{definitive_text}'",
+                )
 
         # 4. Check for External ATS Portal
         is_external_ats = any(domain in url_lower for domain in self.EXTERNAL_ATS_DOMAINS)

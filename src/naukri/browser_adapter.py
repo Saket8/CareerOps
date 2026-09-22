@@ -122,19 +122,49 @@ class NaukriBrowserAdapter(BaseNaukriClient):
             return []
 
     def fetch_job_details(self, job_listing: JobListing) -> JobListing:
-        """Fetches full job description text for an existing listing."""
+        """Fetches full job description text for an existing listing with browser headers and auth session."""
         if not job_listing.url.startswith("http"):
+            job_listing.has_full_jd = False
             return job_listing
 
         try:
-            resp = self.session.get(job_listing.url, timeout=10)
+            # Restore session cookies if available
+            auth_file = Path("artifacts/naukri_auth.json")
+            if auth_file.exists():
+                try:
+                    import json
+                    with open(auth_file, "r", encoding="utf-8") as f:
+                        auth_data = json.load(f)
+                    for cookie in auth_data.get("cookies", []):
+                        self.session.cookies.set(cookie["name"], cookie["value"], domain=cookie.get("domain", ".naukri.com"))
+                except Exception as cookie_err:
+                    logger.debug(f"Auth cookie attachment notice: {cookie_err}")
+
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": "https://www.naukri.com/",
+            }
+
+            resp = self.session.get(job_listing.url, headers=headers, timeout=12)
             if resp.status_code == 200:
                 soup = BeautifulSoup(resp.text, "html.parser")
-                jd_elem = soup.find("div", class_=re.compile(r"job-desc|dang-inner-html"))
+                jd_elem = (
+                    soup.find("div", class_=re.compile(r"job-desc|dang-inner-html|styles_job-desc-container"))
+                    or soup.find("section", class_=re.compile(r"job-desc|styles_job-desc-container"))
+                    or soup.find("div", class_="jdContainer")
+                )
                 if jd_elem:
-                    job_listing.jd_text = jd_elem.get_text(separator="\n").strip()
+                    text = jd_elem.get_text(separator="\n").strip()
+                    if len(text) >= 50:
+                        job_listing.jd_text = text
+                        job_listing.has_full_jd = True
+                        return job_listing
         except Exception as exc:
-            logger.warning(f"Could not fetch JD text for {job_listing.url}: {exc}")
+            logger.warning(f"Could not fetch full JD text for {job_listing.url}: {exc}")
+
+        job_listing.has_full_jd = bool(job_listing.jd_text and len(job_listing.jd_text.strip()) >= 50)
         return job_listing
 
     def submit_application(

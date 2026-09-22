@@ -146,3 +146,25 @@ def test_verifier_unverified_generic_page():
     assert evidence.confirmed is False
     assert evidence.status == JobStatus.SUBMISSION_UNVERIFIED
     assert evidence.verification_level == "NO_CONFIRMATION_FOUND"
+
+
+def test_verifier_loose_text_without_badge_or_ref_demoted_to_unverified():
+    verifier = ApplicationVerifier()
+    # Has confirmation words, but NO badge and NO reference ID
+    html = """
+    <html>
+        <body>
+            <h1>Careers FAQ</h1>
+            <p>Your application was submitted successfully in our previous system.</p>
+            <p>For questions you have already applied to, please check your inbox.</p>
+        </body>
+    </html>
+    """
+    evidence = verifier.verify_submission(
+        page_content=html,
+        final_url="https://www.naukri.com/faq",
+        page_title="FAQ",
+    )
+    assert evidence.confirmed is False
+    assert evidence.status == JobStatus.SUBMISSION_UNVERIFIED
+    assert evidence.verification_level == "HEURISTIC_TEXT_UNVERIFIED"

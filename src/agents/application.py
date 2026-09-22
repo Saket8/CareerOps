@@ -148,10 +148,7 @@ class ApplicationAgent:
             status=JobStatus.APPLICATION_STARTED,
             dry_run=self.dry_run,
         )
-        self.app_repo.record_application(preflight_record)
-        self.job_repo.update_status(job_id, JobStatus.APPLICATION_STARTED)
-        self.app_repo.log_event(app_id, "ATS_VALIDATED", "APPLICATION_READY", "Prepared tailored resume and verified answers")
-        self.app_repo.log_event(app_id, "APPLICATION_READY", "APPLICATION_STARTED", "Acquired pre-flight application lease before browser submission")
+        self.app_repo.commit_preflight_lease(preflight_record)
 
         # 5. Attempt Submission via Client Adapter with Safety Trap
         try:
@@ -183,36 +180,32 @@ class ApplicationAgent:
                 record.status = JobStatus.APPLICATION_FAILED
                 record.confirmation_detected = False
                 record.confirmation_reference = None
-                record.failure_reason = "Rejected dummy confirmation reference (Zero dummy apply policy enforced)"
+                record.verification_method = "REJECTED_DUMMY"
+                record.failure_reason = "Simulated or mock confirmation rejected by zero-dummy policy"
 
-            # 2. In dry-run mode, live submission is skipped and job status stays APPLICATION_READY
-            if self.dry_run:
+            # 2. In dry-run mode, application must never be marked as APPLIED or APPLIED_CONFIRMED
+            if self.dry_run and final_status in (JobStatus.APPLIED, JobStatus.APPLIED_CONFIRMED):
                 final_status = JobStatus.APPLICATION_READY
                 record.status = JobStatus.APPLICATION_READY
                 record.confirmation_detected = False
                 record.confirmation_reference = None
-                is_confirmed = False
-            else:
-                is_confirmed = (
-                    final_status in (JobStatus.APPLIED_CONFIRMED, JobStatus.APPLIED)
-                    and record.confirmation_detected
-                    and bool(record.confirmation_reference)
-                )
-                if is_confirmed:
-                    final_status = JobStatus.APPLIED_CONFIRMED
-                    record.status = JobStatus.APPLIED_CONFIRMED
+                record.verification_method = "DRY_RUN_UNAPPLIED"
 
-            # Save application to repository
-            self.app_repo.record_application(record)
+            record.status = final_status
+            is_confirmed = final_status == JobStatus.APPLIED_CONFIRMED
 
+            # Commit final application record to database immediately
+            self.app_repo.record_application(record, commit=True)
+
+            # Log audit event
             event_status = final_status.value
-            event_desc = f"Application workflow completed: {final_status.value} (DRY_RUN={self.dry_run})"
+            event_desc = f"Application outcome: {final_status.value}"
             if record.failure_reason:
                 event_desc += f" - {record.failure_reason}"
 
             self.app_repo.log_event(
                 app_id,
-                "APPLICATION_READY",
+                "APPLICATION_STARTED",
                 event_status,
                 event_desc,
                 payload={
@@ -239,22 +232,21 @@ class ApplicationAgent:
         except SafetyBarrierException as barrier_err:
             logger.warning(f"Exception Safety Boundary triggered for job {job_id}: {barrier_err}")
             self.job_repo.update_status(job_id, JobStatus.APPLICATION_BLOCKED)
-            self.app_repo.log_event(
+            self.app_repo.release_or_fail_lease(
                 app_id,
-                "APPLICATION_READY",
-                "APPLICATION_BLOCKED",
+                "APPLICATION_STARTED",
+                JobStatus.APPLICATION_BLOCKED.value,
                 f"Halted at barrier: {barrier_err.barrier_type}",
-                payload={"barrier": barrier_err.barrier_type, "message": str(barrier_err)},
             )
             return ApplicationOutcome(job_id, False, JobStatus.APPLICATION_BLOCKED, str(barrier_err))
 
         except Exception as exc:
             logger.error(f"Application error for job {job_id}: {exc}")
             self.job_repo.update_status(job_id, JobStatus.APPLICATION_FAILED)
-            self.app_repo.log_event(
+            self.app_repo.release_or_fail_lease(
                 app_id,
-                "APPLICATION_READY",
-                "APPLICATION_FAILED",
+                "APPLICATION_STARTED",
+                JobStatus.APPLICATION_FAILED.value,
                 f"Unexpected application failure: {exc}",
             )
             return ApplicationOutcome(job_id, False, JobStatus.APPLICATION_FAILED, str(exc))

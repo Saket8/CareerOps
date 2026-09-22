@@ -16,7 +16,9 @@ class CandidateProfile(BaseModel):
     total_experience_years: float
     cloud_experience_years: float
     oci_experience_years: float
-    kubernetes_experience_years: float = 5.0
+    kubernetes_experience_years: Optional[float] = None
+    ai_experience_years: Optional[float] = None
+    python_experience_years: Optional[float] = None
     notice_period_days: int = 30
     willing_to_relocate: bool = True
     work_authorization: str = "Indian Citizen"

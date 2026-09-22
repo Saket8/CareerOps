@@ -159,14 +159,17 @@
 - [x] Prioritize and sort qualifying opportunities by overall match score descending in `src/agents/orchestrator.py`
 - [x] Deliver curated external enterprise portal opportunities directly into the daily report email with 1-click apply buttons
 - [x] Purge stale legacy `REJECTED` jobs on database startup in `src/database/connection.py` to allow fresh qualification
-- [x] Clean legacy mock events from `src/database/seed.sql` ensuring 100% genuine data invariant
-- [x] Update phase gate validator to accommodate live verified applications and external enterprise portal listings
+
+### Phase 21: Production Hardening & Full Feedback Audit Remediation
+- [x] 1. Durable Application Lease: Commit lease immediately to SQLite and enforce `APPLICATION_STARTED` in `has_applied_to_job()`
+- [x] 2. SQLite Unique Application Migration: Prune duplicates and create physical `uq_applications_job_id` unique index on existing databases
+- [x] 3. GitHub Actions Multi-Tier State Persistence: Stable runner cache key + 90-day SQLite DB artifact upload/download via `upload-artifact@v4` and `gh run download`
+- [x] 4. Proof-Based, Run-Scoped Phase Gate: Validate physical visual evidence files exist on disk (>0 bytes), reload badge proof, and remove false pass on attempted jobs
+- [x] 5. Playwright Selector Contracts & Controlled Browser Flow: Create dedicated offline DOM selector contract tests and local HTTP mock browser flow
+- [x] 6. Candidate-Truth Zero-Fabrication: Remove all hardcoded fallbacks ("2", "5", 5.0, 35.0); derive strictly from candidate facts or return unverified
+- [x] 7. Centralize Confirmation Safety: `ApplicationVerifier` returns `SUBMISSION_UNVERIFIED` for plain text heuristics without confirmed badge/ref ID
+- [x] 8. Full-JD Reliability & Confidence Gating: Implement browser-based detail fetching and confidence score capping for card-only snippets
 - [x] Run full pytest test suite (66/66 passing) and phase gate audit (`APPLICATION AUTOMATION PHASE: PASSED`)
-- [x] Bump GitHub Actions database cache key to `career-agent-db-v5-` and push to `origin/main`
-
----
-
-## Review & Validation Summary
 - **Consolidated Daily Interview Intelligence:** Generated single comprehensive daily dossier (`reports/interviews/Daily_Interview_Intelligence_YYYY-MM-DD.docx` and `.pdf`) unifying executive opportunity matrices, Level 1 fundamentals, Level 2 systems design, Level 3 principal trade-offs, STAR truth-anchored answers, and 7-day roadmaps across all target opportunities.
 - **Dedicated Interview Email:** Briefing delivered in a dedicated separate email (`CareerOps — Daily Consolidated Interview Intelligence Briefing — YYYY-MM-DD`) with PDF and Word documents attached directly to the message. Timed for the 14:00 (2 PM IST) recruiter review run, with automatic backfill from confirmed applications.
 - **Curated External Opportunities:** Daily application report updated with a dedicated prominent section highlighting external career portal vacancies with match scoring, key architectural factors, and 1-click `[ Apply on Company Portal ↗ ]` direct submission action buttons.

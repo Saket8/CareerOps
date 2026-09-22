@@ -60,18 +60,33 @@ class CandidateAnswerResolver:
             )
 
         if ("kubernetes" in q_lower or "k8s" in q_lower or "oke" in q_lower) and any(term in q_lower for term in ["experience", "years"]):
-            k8s_years = getattr(self.cand, "kubernetes_experience_years", 5.0)
+            k8s_years = getattr(self.cand, "kubernetes_experience_years", None)
+            if k8s_years is not None:
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value=str(int(k8s_years)),
+                    field_type=field_type,
+                )
             return FormQuestionAnswerResult(
-                can_answer=True,
-                answer_value=str(int(k8s_years)),
+                can_answer=False,
+                answer_value=None,
                 field_type=field_type,
+                unverified_reason="Kubernetes experience years not found in verified candidate facts.",
             )
 
         if any(term in q_lower for term in ["agentic", "genai", "gen ai", "llm", "rag", "artificial intelligence", "ai "]) and any(term in q_lower for term in ["experience", "years"]):
+            ai_years = getattr(self.cand, "ai_experience_years", None)
+            if ai_years is not None:
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value=str(int(ai_years)),
+                    field_type=field_type,
+                )
             return FormQuestionAnswerResult(
-                can_answer=True,
-                answer_value="2",
+                can_answer=False,
+                answer_value=None,
                 field_type=field_type,
+                unverified_reason="AI/GenAI experience years not found in verified candidate facts.",
             )
 
         if ("architect" in q_lower or "architecture" in q_lower or "solution architect" in q_lower or "technical architect" in q_lower) and any(term in q_lower for term in ["experience", "years"]):
@@ -82,10 +97,18 @@ class CandidateAnswerResolver:
             )
 
         if any(term in q_lower for term in ["python", "java", ".net", "react", "angular", "node"]) and any(term in q_lower for term in ["experience", "years"]):
+            py_years = getattr(self.cand, "python_experience_years", None)
+            if py_years is not None:
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value=str(int(py_years)),
+                    field_type=field_type,
+                )
             return FormQuestionAnswerResult(
-                can_answer=True,
-                answer_value="5",
+                can_answer=False,
+                answer_value=None,
                 field_type=field_type,
+                unverified_reason=f"Programming language experience for question '{question_text}' not found in verified candidate facts.",
             )
 
         if "cloud" in q_lower and any(term in q_lower for term in ["experience", "years"]) and "total" not in q_lower and "overall" not in q_lower:
@@ -159,19 +182,37 @@ class CandidateAnswerResolver:
 
         # 7. CTC / Salary questions
         if any(term in q_lower for term in ["expected ctc", "expected salary", "salary expectation", "expected package"]):
-            exp_ctc = getattr(self.cand, "target_salary_lpa", None) or None
+            exp_ctc = (
+                getattr(self.cand, "target_salary_lpa", None)
+                or getattr(self.cand, "current_salary_lpa", None)
+                or getattr(self.cand, "min_acceptable_salary_lpa", None)
+            )
+            if exp_ctc is not None:
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value=str(int(exp_ctc)),
+                    field_type=field_type,
+                )
             return FormQuestionAnswerResult(
-                can_answer=True,
-                answer_value=str(int(exp_ctc)),
+                can_answer=False,
+                answer_value=None,
                 field_type=field_type,
+                unverified_reason="Expected salary not found in verified candidate facts.",
             )
 
         if any(term in q_lower for term in ["current ctc", "current salary", "present ctc", "present salary", "current package", "ctc in lacs"]):
             cur_ctc = getattr(self.cand, "current_salary_lpa", None) or getattr(self.cand, "min_acceptable_salary_lpa", None)
+            if cur_ctc is not None:
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value=str(int(cur_ctc)),
+                    field_type=field_type,
+                )
             return FormQuestionAnswerResult(
-                can_answer=True,
-                answer_value=str(int(cur_ctc)),
+                can_answer=False,
+                answer_value=None,
                 field_type=field_type,
+                unverified_reason="Current salary not found in verified candidate facts.",
             )
 
         # 8. Unverified Question Handling (Section 8 of tasks/goal.md)

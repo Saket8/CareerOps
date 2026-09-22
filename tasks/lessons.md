@@ -2,9 +2,15 @@
 
 ## Operational Principles
 1. **Candidate Truth Invariant**: Never allow any module to invent, extrapolate, or falsify experience, job titles, or skills.
-2. **Salary Eligibility Precision**: Disclosed minimum salary must be $\ge$ 30 LPA. Any range with a lower minimum (e.g. 20-35 LPA, 25-35 LPA) must be rejected immediately without considering the upper bound.
-3. **Safe Automation**: Never attempt to bypass CAPTCHA, MFA, or rate limits. Halting and logging `BLOCKED` preserves account integrity.
-4. **Idempotency**: Every job processing step must be idempotent and recoverable from SQLite state. Pre-flight intent leases and unique constraints must protect against duplicate external actions across crashes.
+2. **Salary Eligibility Precision**: Disclosed minimum salary must be $\ge$ 30 LPA or span $\ge$ 30 LPA ceiling. Any range whose maximum ceiling is $< 30$ LPA must be rejected immediately.
+3. **Zero-Exaggeration & Proof-Based Audit Rule**:
+  - Never claim a fix is implemented without rigorous codebase verification.
+  - Pre-flight application leases MUST be committed immediately to SQLite and enforced in `has_applied_to_job()`.
+  - Candidate answer resolvers must NEVER use hardcoded fallback numbers (e.g. "2", "5", "35.0")—every response must derive strictly from `CandidateTruth` or return `can_answer=False`.
+  - Phase gate validation must be proof-based and check real physical evidence files on disk, not just count raw attempted records in SQLite.
+  - Centralize verification rules in `ApplicationVerifier` so text heuristics never claim `APPLIED_CONFIRMED` without authentic badge or reference proof.
+4. **Safe Automation**: Never attempt to bypass CAPTCHA, MFA, or rate limits. Halting and logging `BLOCKED` preserves account integrity.
+5. **Idempotency**: Every job processing step must be idempotent and recoverable from SQLite state. Pre-flight intent leases and unique constraints must protect against duplicate external actions across crashes.
 
 ---
 

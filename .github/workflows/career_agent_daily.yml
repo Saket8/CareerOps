@@ -49,12 +49,24 @@ jobs:
           python -m playwright install --with-deps chromium
 
       - name: Restore Database State Cache
+        id: cache-db
         uses: actions/cache@v4
         with:
           path: naukri_career_agent.sqlite
-          key: career-agent-db-v5-${{ github.run_id }}
+          key: career-agent-db-v6-${{ runner.os }}-${{ github.run_number }}
           restore-keys: |
+            career-agent-db-v6-${{ runner.os }}-
             career-agent-db-v5-
+
+      - name: Fallback Restore Database from Previous Run Artifact
+        if: steps.cache-db.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ ! -f naukri_career_agent.sqlite ]; then
+            echo "Cache miss. Attempting download of latest career-agent-db-state artifact..."
+            gh run download --name career-agent-db-state --dir . || echo "No prior database artifact found."
+          fi
 
       - name: Restore Authenticated Session
         env:
@@ -122,3 +134,12 @@ jobs:
           path: |
             resumes/generated/
             interviews/
+
+      - name: Persist SQLite Database State Artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: career-agent-db-state
+          path: naukri_career_agent.sqlite
+          retention-days: 90
+          overwrite: true

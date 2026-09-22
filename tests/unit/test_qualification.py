@@ -112,3 +112,31 @@ def test_current_employer_blocked(db_session):
     assert cognizant_job.status == JobStatus.REJECTED
     assert "Current employer is blocked" in score.gaps[0]
 
+
+def test_missing_full_jd_confidence_gating(db_session):
+    job_repo = JobRepository(db_session)
+    candidate_truth = get_candidate_truth(refresh=True)
+    config = {"application": {"match_threshold": 75.0, "high_match_threshold": 85.0}}
+    agent = QualificationAgent(job_repo, candidate_truth, config)
+
+    # Job has senior OCI keywords in title and search query, but NO full JD text (<50 chars)
+    card_only_job = JobListing(
+        job_id="job_card_only_1",
+        title="Senior Principal OCI Cloud Architect - Enterprise Landing Zones",
+        company="Global Enterprise",
+        location="Bengaluru",
+        url="https://naukri.com/job/card1",
+        source_query="Oracle Cloud Infrastructure OCI Architect",
+        jd_text="Brief snippet",  # Less than 50 chars
+        has_full_jd=False,
+    )
+    job_repo.save_job(card_only_job)
+
+    score, evidence = agent.evaluate_job(card_only_job)
+
+    # Must be confidence-gated below match threshold
+    assert score.overall_score <= 74.0
+    assert score.passed_threshold is False
+    assert any("Full JD text unavailable" in g for g in score.gaps)
+    assert any("Preliminary card metadata score" in r for r in score.match_reasons)
+

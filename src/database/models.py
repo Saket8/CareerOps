@@ -150,6 +150,9 @@ class JobEvidenceModel(Base):
 
 class ApplicationModel(Base):
     __tablename__ = "applications"
+    __table_args__ = (
+        Index("uq_applications_job_id", "job_id", unique=True),
+    )
 
     application_id = Column(String(128), primary_key=True)
     job_id = Column(String(128), ForeignKey("jobs.job_id"), nullable=False, unique=True, index=True)

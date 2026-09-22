@@ -76,6 +76,7 @@ class JobListing(BaseModel):
     url: str
     canonical_url: Optional[str] = None
     jd_text: str = ""
+    has_full_jd: bool = False
     source_query: str = ""
     discovered_via_query: Optional[str] = ""
     skills_found: List[str] = Field(default_factory=list)

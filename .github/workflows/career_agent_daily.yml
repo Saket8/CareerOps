@@ -9,7 +9,7 @@ on:
       dry_run:
         description: 'Dry run mode (true/false)'
         required: true
-        default: 'true'
+        default: 'false'
       force_weekly:
         description: 'Force weekly career intelligence report'
         required: false
@@ -55,12 +55,12 @@ jobs:
 
       - name: Execute Career Agent Pipeline
         env:
-          DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
           NAUKRI_USERNAME: ${{ secrets.NAUKRI_USERNAME }}
           NAUKRI_PASSWORD: ${{ secrets.NAUKRI_PASSWORD }}
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT || 'saket.saurav@cognizant.com' }}
+          EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT || 'sauravskt8@gmail.com' }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           TIMEZONE: "Asia/Kolkata"
         run: |
@@ -68,7 +68,10 @@ jobs:
           if [ "${{ github.event.inputs.force_weekly }}" == "true" ] || [ $(date +%u) -eq 5 ]; then
             EXTRA_FLAGS="--weekly"
           fi
-          python main.py --offline $EXTRA_FLAGS
+          if [ -z "$NAUKRI_USERNAME" ]; then
+            EXTRA_FLAGS="$EXTRA_FLAGS --offline"
+          fi
+          python main.py $EXTRA_FLAGS
 
       - name: Archive Daily & Weekly Reports
         uses: actions/upload-artifact@v4

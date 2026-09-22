@@ -22,7 +22,7 @@ application:
   min_salary_lpa: null
   undisclosed_salary_allowed: true
   max_applications_per_day: 10
-  dry_run: true  # MUST default to true for safety
+  dry_run: false  # LIVE mode enabled per user preference
   retry_attempts: 3
   retry_backoff_seconds: 5
 
@@ -46,7 +46,7 @@ email:
   smtp_port: 587
   smtp_use_tls: true
   sender_name: "Autonomous Career Agent"
-  default_recipient: "saket.saurav@cognizant.com"
+  default_recipient: "sauravskt8@gmail.com"
 
 safety:
   stop_on_captcha: true

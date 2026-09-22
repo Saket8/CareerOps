@@ -41,6 +41,8 @@ logs/
 .env
 .env.*
 secrets.yaml
+creds.txt
+*credential*
 
 # IDE / Editor
 .vscode/

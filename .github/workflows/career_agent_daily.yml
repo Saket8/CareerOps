@@ -3,8 +3,8 @@ name: CareerOps Autonomous Daily Automation
 on:
   schedule:
     # Daily 2x (Monday through Sunday) at:
-    # 1. 09:00 IST (03:30 UTC) - Morning recruiter screening window
-    # 2. 14:00 IST (08:30 UTC) - Post-lunch recruiter review window + interview briefing
+    # 1. 09:00 IST (03:30 UTC) - Morning recruiter screening window (new application submissions)
+    # 2. 14:00 IST (08:30 UTC) - Post-lunch recruiter review window (new application submissions)
     - cron: '30 3,8 * * *'
   workflow_dispatch:
     inputs:
@@ -74,11 +74,6 @@ jobs:
           EXTRA_FLAGS=""
           if [ "${{ github.event.inputs.force_weekly }}" == "true" ] || [ $(date +%u) -eq 5 ]; then
             EXTRA_FLAGS="--weekly"
-          fi
-          # UTC 08:30 is 14:00 IST (2 PM run) -> include consolidated daily interview briefing
-          CURRENT_HOUR_UTC=$(date -u +%H)
-          if [ "$CURRENT_HOUR_UTC" = "08" ] || [ "$CURRENT_HOUR_UTC" = "8" ]; then
-            EXTRA_FLAGS="$EXTRA_FLAGS --interview-briefing"
           fi
           if [ -z "$NAUKRI_USERNAME" ]; then
             EXTRA_FLAGS="$EXTRA_FLAGS --offline"

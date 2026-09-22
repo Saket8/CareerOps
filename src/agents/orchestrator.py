@@ -201,16 +201,9 @@ class Orchestrator:
                 html_body=d_html_content,
             )
 
-            # Send Email 2: Consolidated Daily Interview Intelligence Briefing (Separate Dedicated Email)
-            # Timed for 14:00 IST (2 PM run) or when explicitly requested / forced
-            try:
-                import zoneinfo
-                ist_hour = datetime.now(zoneinfo.ZoneInfo("Asia/Kolkata")).hour
-            except Exception:
-                ist_hour = datetime.now().hour
-
-            is_afternoon_2pm_run = (13 <= ist_hour <= 15)
-            should_send_interview = force_interview or is_afternoon_2pm_run or (len(matched_items_for_briefing) > 0)
+            # Send Email 2: Consolidated Interview Intelligence Dossier (WEEKLY cycle on Friday or when forced)
+            # Daily runs at 09:00 AM & 02:00 PM IST strictly execute and email newly applied jobs
+            should_send_interview = force_interview or is_friday
 
             # Strict zero-dummy filter on matched items
             import re
@@ -219,12 +212,12 @@ class Orchestrator:
                 if re.match(r"^\d+$", str(item[0].job_id)) and not ("job_oci_" in item[0].url or "nk_" in item[0].url)
             ]
 
-            # Backfill for interview briefing if scheduled/forced but no new applies in current single run
+            # Backfill for weekly interview briefing if scheduled/forced but no new applies in current single run
             if should_send_interview and not matched_items_for_briefing:
                 recent_applied = job_repo.get_jobs_by_status(JobStatus.APPLIED_CONFIRMED)
                 if not recent_applied:
                     recent_applied = [j for j in job_repo.get_jobs_by_status(JobStatus.APPLIED) if re.match(r"^\d+$", str(j.job_id))]
-                for r_job in recent_applied[:10]:
+                for r_job in recent_applied[:15]:
                     if not re.match(r"^\d+$", str(r_job.job_id)) or "job_oci_" in r_job.url or "nk_" in r_job.url:
                         continue
                     listing = r_job.to_listing() if hasattr(r_job, "to_listing") else r_job
@@ -232,7 +225,7 @@ class Orchestrator:
                     matched_items_for_briefing.append((listing, r_score, r_evidence))
 
             if should_send_interview and matched_items_for_briefing:
-                logger.info("Generating Daily Consolidated Interview Intelligence Briefing...")
+                logger.info("Generating Weekly Consolidated Interview Intelligence Dossier...")
                 i_docx, i_pdf, i_html_content = interview_agent.generate_consolidated_daily_briefing(
                     matched_items_for_briefing, date_str
                 )
@@ -243,7 +236,7 @@ class Orchestrator:
                     attachments.append(i_docx)
 
                 smtp_mailer.send_report(
-                    subject=f"CareerOps — Daily Consolidated Interview Intelligence Briefing — {date_str}",
+                    subject=f"CareerOps — Weekly Consolidated Interview Intelligence Dossier — {date_str}",
                     html_body=i_html_content,
                     attachments=attachments,
                 )

@@ -10,8 +10,8 @@ schedule:
   cron_expression: "30 3,8 * * *"  # Daily 09:00 IST (03:30 UTC) & 14:00 IST (08:30 UTC)
   timezone: "Asia/Kolkata"
   times_ist:
-    - "09:00"  # Morning recruiter login & screening window
-    - "14:00"  # Post-lunch recruiter review window + interview briefing
+    - "09:00"  # Morning recruiter login & screening window (new applications)
+    - "14:00"  # Post-lunch recruiter review window (new applications)
   days:
     - "monday"
     - "tuesday"

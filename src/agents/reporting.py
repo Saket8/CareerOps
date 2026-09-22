@@ -25,15 +25,22 @@ class ReportingAgent:
         md_file = self.daily_dir / f"{data.date}.md"
         html_file = self.daily_dir / f"{data.date}.html"
 
-        # Filter out dummy/mock jobs in production reports
+        # Zero-dummy filter: Never show dummy/mock jobs regardless of run mode
         def _is_valid_report_app(a):
-            if data.dry_run:
-                return True
             u = a.url or ""
-            return not ("job-listings-job_oci_" in u or "job-listings-job_undisclosed_" in u or "job-listings-nk_" in u or u == "#")
+            if not u or u == "#" or not u.startswith("http"):
+                return False
+            if any(fake in u for fake in ("job-listings-job_oci_", "job-listings-job_undisclosed_", "job-listings-nk_", "job_oci_", "nk_")):
+                return False
+            return True
 
         valid_apps = [a for a in data.top_applications if _is_valid_report_app(a)]
-        confirmed_apps = [a for a in valid_apps if a.status in ("APPLIED_CONFIRMED", "APPLIED")]
+        # Confirmed apps must be authentic live applications with non-mock references
+        confirmed_apps = [
+            a for a in valid_apps
+            if a.status in ("APPLIED_CONFIRMED", "APPLIED")
+            and not (a.confirmation_ref and any(a.confirmation_ref.startswith(p) for p in ("MOCK_", "SIM_")))
+        ]
         unverified_apps = [a for a in valid_apps if a.status == "SUBMISSION_UNVERIFIED"]
         blocked_apps = [a for a in valid_apps if a.status in ("APPLICATION_BLOCKED", "BLOCKED")]
         external_apps = [a for a in valid_apps if a.status in ("EXTERNAL_APPLICATION_REQUIRED", "NEEDS_MANUAL_INTERVENTION")]

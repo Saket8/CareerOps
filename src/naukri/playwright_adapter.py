@@ -219,10 +219,12 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                 dry_run=dry_run,
             )
 
-        # 2. DRY RUN SIMULATION MODE (Debug only)
+        # 2. DRY RUN MODE (Zero dummy apply policy enforced)
         if dry_run:
-            logger.info(f"[DRY_RUN] Simulating application for {job.job_id} ({job.title} @ {job.company})")
-            mock_ref = f"MOCK_CONF_{uuid.uuid4().hex[:8].upper()}"
+            logger.info(
+                f"[DRY_RUN] Application prepared for {job.job_id} ({job.title} @ {job.company}), "
+                f"but live submission skipped per zero-dummy-apply policy."
+            )
             resolver = CandidateAnswerResolver(candidate_truth)
             return ApplicationRecord(
                 application_id=app_id,
@@ -231,37 +233,24 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                 source_job_url=job.url,
                 canonical_job_url=canonical_url,
                 started_at=started_at,
-                submitted_at=datetime.now(timezone.utc),
-                status=JobStatus.APPLIED,
-                confirmation_detected=True,
-                confirmation_text="Simulated dry run confirmation",
-                confirmation_reference=mock_ref,
+                submitted_at=None,
+                status=JobStatus.APPLICATION_READY,
+                confirmation_detected=False,
+                confirmation_text=None,
+                confirmation_reference=None,
                 final_url=canonical_url,
-                verification_method="SIMULATED_DRY_RUN",
+                verification_method="DRY_RUN_PREPARED",
                 questions_answered=resolver.verified_facts,
                 dry_run=True,
+                failure_reason="Dry run mode active: Live submission skipped. Zero dummy apply policy enforced.",
             )
 
-        # 3. OFFLINE VERIFICATION FIXTURE (for automated testing of verifier)
+        # 3. OFFLINE MODE (No network access, live browser submission unavailable)
         if self.offline_mode:
-            logger.info(f"[OFFLINE_TEST] Executing offline verification fixture for {job.job_id}")
-            mock_ref = f"CONF_{uuid.uuid4().hex[:8].upper()}"
-            mock_confirmation_html = f"""
-            <html>
-                <body>
-                    <h1>Application submitted successfully!</h1>
-                    <p>Thank you for applying for {job.title} at {job.company}.</p>
-                    <p>Application ID: {mock_ref}</p>
-                </body>
-            </html>
-            """
-            evidence = self.verifier.verify_submission(
-                page_content=mock_confirmation_html,
-                final_url=f"{canonical_url}/confirmation",
-                page_title="Application Submitted Successfully",
-                is_simulated_in_test=True,
+            logger.info(
+                f"[OFFLINE_MODE] Offline mode active for {job.job_id}: "
+                f"Live browser submission unavailable. Zero dummy apply policy enforced."
             )
-
             resolver = CandidateAnswerResolver(candidate_truth)
             return ApplicationRecord(
                 application_id=app_id,
@@ -270,16 +259,16 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                 source_job_url=job.url,
                 canonical_job_url=canonical_url,
                 started_at=started_at,
-                submitted_at=datetime.now(timezone.utc),
-                status=evidence.status,
-                confirmation_detected=evidence.confirmed,
-                confirmation_text=evidence.confirmation_text,
-                confirmation_reference=evidence.confirmation_reference,
-                final_url=evidence.final_url,
-                verification_method=evidence.verification_level,
-                evidence_path=evidence_path,
+                submitted_at=None,
+                status=JobStatus.APPLICATION_READY,
+                confirmation_detected=False,
+                confirmation_text=None,
+                confirmation_reference=None,
+                final_url=canonical_url,
+                verification_method="OFFLINE_MODE_SKIPPED",
                 questions_answered=resolver.verified_facts,
                 dry_run=False,
+                failure_reason="Offline mode active: Live browser submission unavailable. Zero dummy apply policy enforced.",
             )
 
         # 4. REAL LIVE PLAYWRIGHT EXECUTION

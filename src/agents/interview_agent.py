@@ -225,11 +225,10 @@ class InterviewAgent:
         for item in matched_items:
             j = item[0]
             u = j.url or ""
-            if "job-listings-job_oci_" in u or "job-listings-job_undisclosed_" in u or "job-listings-nk_" in u:
+            if any(fake in u for fake in ("job-listings-job_oci_", "job-listings-job_undisclosed_", "job-listings-nk_", "job_oci_", "nk_")):
                 continue
             clean_matched.append(item)
-        if clean_matched:
-            matched_items = clean_matched
+        matched_items = clean_matched
 
         # 1. Build Consolidated DOCX
         doc = docx.Document()

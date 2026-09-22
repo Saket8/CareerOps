@@ -121,12 +121,39 @@ class ApplicationAgent:
             except ValueError:
                 final_status = JobStatus.APPLICATION_FAILED
 
+            # Strict Zero-Dummy Invariant:
+            # 1. At no point can a dummy/mock apply reference be confirmed
+            if record.confirmation_reference and any(record.confirmation_reference.startswith(p) for p in ("MOCK_", "SIM_")):
+                logger.error(
+                    f"Dummy confirmation detected ({record.confirmation_reference}) for {job_id}. "
+                    f"Rejecting dummy apply per zero-dummy policy."
+                )
+                final_status = JobStatus.APPLICATION_FAILED
+                record.status = JobStatus.APPLICATION_FAILED
+                record.confirmation_detected = False
+                record.confirmation_reference = None
+                record.failure_reason = "Rejected dummy confirmation reference (Zero dummy apply policy enforced)"
+
+            # 2. In dry-run mode, live submission is skipped and job status stays APPLICATION_READY
+            if self.dry_run:
+                final_status = JobStatus.APPLICATION_READY
+                record.status = JobStatus.APPLICATION_READY
+                record.confirmation_detected = False
+                record.confirmation_reference = None
+                is_confirmed = False
+            else:
+                is_confirmed = (
+                    final_status in (JobStatus.APPLIED_CONFIRMED, JobStatus.APPLIED)
+                    and record.confirmation_detected
+                    and bool(record.confirmation_reference)
+                )
+                if is_confirmed:
+                    final_status = JobStatus.APPLIED_CONFIRMED
+                    record.status = JobStatus.APPLIED_CONFIRMED
+
             # Save application to repository
             self.app_repo.record_application(record)
-            
-            is_confirmed = final_status in (JobStatus.APPLIED_CONFIRMED, JobStatus.APPLIED)
-            if is_confirmed and not self.dry_run:
-                final_status = JobStatus.APPLIED_CONFIRMED
+
             event_status = final_status.value
             event_desc = f"Application workflow completed: {final_status.value} (DRY_RUN={self.dry_run})"
             if record.failure_reason:
@@ -149,7 +176,7 @@ class ApplicationAgent:
             if is_confirmed:
                 logger.info(
                     f"Application CONFIRMED for '{job.title}' @ {job.company} "
-                    f"[{'DRY_RUN' if self.dry_run else 'LIVE'} | Ref: {record.confirmation_reference}]"
+                    f"[LIVE | Ref: {record.confirmation_reference}]"
                 )
                 return ApplicationOutcome(job_id, True, final_status, "Submitted successfully and confirmed", record)
             else:

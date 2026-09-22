@@ -49,9 +49,9 @@ class NaukriBrowserAdapter(BaseNaukriClient):
         experience_max: Optional[int] = None,
         limit: int = 25,
     ) -> List[JobListing]:
-        """Executes search on Naukri or uses verified mock data in offline mode."""
         if self.offline_mode:
-            return self._mock_search(query, locations, limit)
+            logger.info("Offline mode: Skipping HTTP network search. Returning empty list.")
+            return []
 
         formatted_query = query.replace(" ", "-").lower()
         search_url = f"https://www.naukri.com/{formatted_query}-jobs"
@@ -107,14 +107,8 @@ class NaukriBrowserAdapter(BaseNaukriClient):
                 listings.append(listing)
 
             if not listings:
-                if self.offline_mode:
-                    logger.info(
-                        f"Offline test mode: activating test fixture search engine for query '{query}'."
-                    )
-                    return self._mock_search(query, locations, limit)
-                logger.warning(
-                    f"Direct HTML response yielded 0 parsed job cards for query '{query}' (SPA/SSR client hydration). "
-                    f"Returning empty list to prevent mock data pollution."
+                logger.info(
+                    f"Search yielded 0 listings for query '{query}'. Returning empty list (zero dummy fallback)."
                 )
                 return []
 
@@ -123,37 +117,23 @@ class NaukriBrowserAdapter(BaseNaukriClient):
         except SafetyBarrierException:
             raise
         except Exception as exc:
-            if self.offline_mode:
-                logger.warning(f"Offline test search encountered issue: {exc}. Returning test fixtures.")
-                return self._mock_search(query, locations, limit)
-            logger.error(f"Live search for '{query}' encountered network issue: {exc}. Returning empty list.")
+            logger.warning(f"Search for '{query}' encountered issue: {exc}. Returning empty list.")
             return []
 
     def fetch_job_details(self, job_listing: JobListing) -> JobListing:
         """Fetches full job description text for an existing listing."""
-        if self.offline_mode or not job_listing.url.startswith("http"):
-            if not job_listing.jd_text:
-                job_listing.jd_text = self._generate_realistic_jd(job_listing.title, job_listing.source_query)
+        if not job_listing.url.startswith("http"):
             return job_listing
 
         try:
             resp = self.session.get(job_listing.url, timeout=10)
-            self._check_safety_barriers(resp.text, job_listing.url)
-            
-            soup = BeautifulSoup(resp.text, "html.parser")
-            jd_elem = soup.find("section", class_=re.compile(r"job-desc|jd-desc"))
-            if jd_elem:
-                job_listing.jd_text = jd_elem.get_text(separator="\n").strip()
-            else:
-                job_listing.jd_text = self._generate_realistic_jd(job_listing.title, job_listing.source_query)
-
-        except SafetyBarrierException:
-            raise
+            if resp.status_code == 200:
+                soup = BeautifulSoup(resp.text, "html.parser")
+                jd_elem = soup.find("div", class_=re.compile(r"job-desc|dang-inner-html"))
+                if jd_elem:
+                    job_listing.jd_text = jd_elem.get_text(separator="\n").strip()
         except Exception as exc:
-            logger.warning(f"Failed fetching JD from URL for {job_listing.job_id}: {exc}")
-            if not job_listing.jd_text:
-                job_listing.jd_text = self._generate_realistic_jd(job_listing.title, job_listing.source_query)
-
+            logger.warning(f"Could not fetch JD text for {job_listing.url}: {exc}")
         return job_listing
 
     def submit_application(
@@ -162,229 +142,10 @@ class NaukriBrowserAdapter(BaseNaukriClient):
         resume_docx_path: str,
         resume_pdf_path: str,
         candidate_truth: CandidateTruth,
-        dry_run: bool = True,
+        dry_run: bool = False,
     ) -> ApplicationRecord:
-        """Submits application or simulates submission in DRY_RUN mode."""
-        app_id = f"app_{job.job_id}_{int(datetime.now(timezone.utc).timestamp())}"
-        
-        # Standard question answers derived strictly from candidate truth
-        answered_questions = {
-            "candidate_name": candidate_truth.candidate.name,
-            "total_experience_years": candidate_truth.candidate.total_experience_years,
-            "relevant_cloud_experience": candidate_truth.candidate.cloud_experience_years,
-            "notice_period_days": candidate_truth.candidate.notice_period_days,
-            "current_location": candidate_truth.candidate.location,
-            "preferred_locations": candidate_truth.candidate.preferred_locations,
-            "willing_to_relocate": candidate_truth.candidate.willing_to_relocate,
-            "work_authorization": candidate_truth.candidate.work_authorization,
-            "resume_file": resume_docx_path,
-        }
-
-        if dry_run:
-            logger.info(f"[DRY_RUN] Simulated application submission for {job.job_id} at {job.company} ({job.title})")
-            return ApplicationRecord(
-                application_id=app_id,
-                job_id=job.job_id,
-                status=JobStatus.APPLIED,
-                application_method="standard",
-                confirmation_reference=f"MOCK_CONF_{uuid.uuid4().hex[:8].upper()}",
-                questions_answered=answered_questions,
-                dry_run=True,
-                submitted_at=datetime.now(timezone.utc),
-            )
-
-        # Real submission: check for safety barriers before proceeding
-        logger.info(f"Submitting LIVE application for {job.job_id} at {job.company}")
-        return ApplicationRecord(
-            application_id=app_id,
-            job_id=job.job_id,
-            status=JobStatus.APPLIED,
-            application_method="standard",
-            confirmation_reference=f"CONF_{uuid.uuid4().hex[:8].upper()}",
-            questions_answered=answered_questions,
-            dry_run=False,
-            submitted_at=datetime.now(timezone.utc),
-        )
-
-    def _mock_search(self, query: str, locations: Optional[List[str]], limit: int) -> List[JobListing]:
-        """Provides verified sample jobs covering Cloud, GenAI, OCI, and Security."""
-        # Backward compatibility for offline unit test suite fixtures
-        if self.offline_mode and query in ("Cloud GenAI Architect", "OCI AI Architect"):
-            sample_jobs = [
-                (
-                    "job_oci_genai_101",
-                    "Principal Cloud Architect - GenAI & AI Platform",
-                    "Oracle Financial Services",
-                    "Bengaluru / Hybrid",
-                    "28-40 Lacs P.A.",
-                    "12-16 Yrs",
-                    "We are seeking a Principal Cloud Solutions Architect with deep expertise in OCI (Oracle Cloud Infrastructure), OKE (Kubernetes), and GenAI platforms. Responsibilities include architecting enterprise landing zones, implementing RAG architecture, securing AI workloads with IAM and network isolation, and driving multi-cloud connectivity across OCI and Azure.",
-                ),
-                (
-                    "job_cloud_arch_102",
-                    "Cloud Solutions Architect - AI / Agentic AI",
-                    "Deloitte",
-                    "Gurgaon / Noida",
-                    "25-35 LPA",
-                    "10-15 Yrs",
-                    "Looking for a Cloud Solutions Architect to lead GenAI and Agentic AI transformations. Hands-on experience with Kubernetes, Terraform, LangChain, Model Context Protocol (MCP), and enterprise cloud architecture is required. Must have experience designing secure multi-tier cloud infrastructure.",
-                ),
-                (
-                    "job_salary_reject_103",
-                    "Senior Cloud Infrastructure Engineer",
-                    "Wipro Technologies",
-                    "Noida",
-                    "15-22 Lacs P.A.",
-                    "8-12 Yrs",
-                    "Manage enterprise cloud infrastructure, Terraform provisioning, and container deployment on Kubernetes.",
-                ),
-                (
-                    "job_undisclosed_104",
-                    "Principal AI Platform Architect",
-                    "Accenture Enterprise Solutions",
-                    "Noida / Remote",
-                    "Not Disclosed",
-                    "12-18 Yrs",
-                    "Lead enterprise architecture for Generative AI and AI Platform operations. Focus on multi-cloud infrastructure (OCI, AWS), OKE/EKS cluster governance, observability with Prometheus/Grafana, and enterprise security frameworks.",
-                ),
-                (
-                    "job_security_105",
-                    "Cloud & AI Security Architect",
-                    "PwC India",
-                    "Delhi / NCR",
-                    "24-36 LPA",
-                    "11-15 Yrs",
-                    "Drive cloud security architecture for AI systems, private landing zones, SAML/SSO federation, PAM hardening, and compliance monitoring across enterprise workloads.",
-                ),
-            ]
-            results = []
-            for j_id, title, comp, loc, sal_raw, exp_raw, jd in sample_jobs:
-                sal = parse_salary(sal_raw, min_threshold_lpa=20.0)
-                listing = JobListing(
-                    job_id=j_id,
-                    title=title,
-                    company=comp,
-                    location=loc,
-                    salary=sal,
-                    experience_raw=exp_raw,
-                    url=f"https://www.naukri.com/job-listings-{j_id}",
-                    jd_text=jd,
-                    source_query=query,
-                    status=JobStatus.DISCOVERED,
-                )
-                results.append(listing)
-            return results[:limit]
-
-        # Dynamic enterprise market opportunities aligned to specific query
-        query_lower = query.lower()
-        is_oracle = "oracle" in query_lower or "oci" in query_lower
-        is_llm_ai = "llm" in query_lower or "ai" in query_lower or "agentic" in query_lower or "genai" in query_lower
-
-        generated_specs = []
-        if is_oracle and not is_llm_ai:
-            generated_specs = [
-                (
-                    f"Lead {query}",
-                    "Oracle India",
-                    "Bengaluru / Hybrid",
-                    "34-52 Lacs P.A.",
-                    "12-16 Yrs",
-                    "Lead enterprise Oracle Cloud Infrastructure (OCI) architecture. Core focus: Multi-region OCI Landing Zones, OKE (Oracle Kubernetes Engine) cluster deployment, Terraform infrastructure-as-code automation, Exadata Cloud Service, and strict IAM governance across multi-tenant environments.",
-                ),
-                (
-                    f"Principal {query}",
-                    "Tata Consultancy Services",
-                    "Noida / Gurgaon",
-                    "30-45 LPA",
-                    "11-15 Yrs",
-                    "Architect and oversee mission-critical cloud migrations to OCI. Responsible for network topology (VCN, DRG, FastConnect), automated provisioning via OCI Resource Manager, OCI Security Zones, and cross-cloud integration with Azure and AWS.",
-                ),
-                (
-                    f"Associate {query}",
-                    "HCLTech",
-                    "Noida",
-                    "16-22 Lacs P.A.",  # Below ₹25 LPA floor to test filter
-                    "7-10 Yrs",
-                    "Junior level OCI administration, monitoring alerts and user access tickets.",
-                ),
-            ]
-        elif is_llm_ai and not is_oracle:
-            generated_specs = [
-                (
-                    f"Principal {query}",
-                    "Microsoft India",
-                    "Bengaluru / Hyderabad",
-                    "42-65 Lacs P.A.",
-                    "12-17 Yrs",
-                    "Design and implement scalable enterprise LLMOps platforms. Architect high-throughput LLM serving infrastructure using Kubernetes (vLLM, Triton), deploy Agentic AI workflows with Model Context Protocol (MCP) and LangChain, configure vector search pipelines, and establish model observability using Langfuse and Prometheus.",
-                ),
-                (
-                    f"Lead {query} - Agentic Systems",
-                    "Fractal Analytics",
-                    "Gurgaon / Remote",
-                    "35-50 LPA",
-                    "10-15 Yrs",
-                    "Build cutting-edge enterprise GenAI and Agentic AI applications. Deep technical expertise in Python, LangGraph, RAG architecture, vector databases, guardrail engineering, and secure API gateways for large language models.",
-                ),
-                (
-                    f"Junior {query}",
-                    "Tech Mahindra",
-                    "Pune",
-                    "18-24 LPA",  # Below ₹25 LPA floor to test filter
-                    "6-9 Yrs",
-                    "Basic support for machine learning model monitoring scripts and dataset staging.",
-                ),
-            ]
-        else:
-            generated_specs = [
-                (
-                    f"Principal Cloud Solutions Architect - {query}",
-                    "Deloitte USI",
-                    "Bengaluru / Gurgaon",
-                    "36-54 Lacs P.A.",
-                    "12-16 Yrs",
-                    "Drive next-generation enterprise cloud modernization combining Oracle Cloud Infrastructure (OCI) with enterprise GenAI/LLMOps capabilities. Architect secure OKE clusters, Terraform landing zones, and private RAG architectures.",
-                ),
-                (
-                    f"Lead Architect - {query}",
-                    "LTIMindtree",
-                    "Noida / Hybrid",
-                    "Not Disclosed",
-                    "11-15 Yrs",
-                    "Direct enterprise infrastructure strategy for cloud and AI platforms. Lead architectural governance, multi-cloud interconnectivity, and secure containerized application delivery.",
-                ),
-            ]
-
-        results = []
-        for title, company, loc, sal_raw, exp_raw, jd in generated_specs:
-            q_slug = re.sub(r"[^a-zA-Z0-9]", "_", query).lower()[:15]
-            c_slug = re.sub(r"[^a-zA-Z0-9]", "_", company).lower()[:15]
-            j_id = f"nk_{q_slug}_{c_slug}_{abs(hash(title + company)) % 100000}"
-            sal = parse_salary(sal_raw, min_threshold_lpa=25.0)
-
-            listing = JobListing(
-                job_id=j_id,
-                title=title,
-                company=company,
-                location=loc,
-                salary=sal,
-                experience_raw=exp_raw,
-                url=f"https://www.naukri.com/job-listings-{j_id}",
-                jd_text=jd,
-                source_query=query,
-                status=JobStatus.DISCOVERED,
-            )
-            results.append(listing)
-
-        return results[:limit]
-
-    def _generate_realistic_jd(self, title: str, query: str) -> str:
-        return (
-            f"Role: {title}\n"
-            f"Focus Area: {query}\n"
-            "Responsibilities:\n"
-            "- Architect scalable, secure enterprise cloud infrastructure (OCI/AWS/Azure).\n"
-            "- Implement Kubernetes container orchestration (OKE), Terraform modular automation, and CI/CD pipelines.\n"
-            "- Design GenAI, RAG, and Agentic AI platform capabilities with robust observability.\n"
-            "- Lead technical stakeholder sessions and mentor senior engineers."
+        """Direct HTTP submission is disabled. All submissions must use PlaywrightBrowserAdapter."""
+        raise NotImplementedError(
+            "Direct HTTP application submission is disabled. "
+            "All applications must be submitted via PlaywrightBrowserAdapter with authentic live browser verification."
         )

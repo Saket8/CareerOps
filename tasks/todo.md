@@ -145,6 +145,14 @@
 - [x] Write unit tests in `tests/unit/test_consolidated_interview.py`
 - [x] Verify test suite passing (64/64 passing) and execute sample generation
 
+### Phase 19: Complete Eradication of Dummy Fallback & Synthetic Apply Logic
+- [x] Remove `_mock_search()` and synthetic job generation from `src/naukri/browser_adapter.py`
+- [x] Remove dummy applies and mock confirmation references (`MOCK_CONF_...`, simulated `CONF_...`) from `src/naukri/browser_adapter.py` and `src/naukri/playwright_adapter.py`
+- [x] Ensure dry-run / offline mode sets `status = APPLICATION_READY` with zero dummy apply records
+- [x] Enforce strict live confirmation requirement in `src/agents/application.py`
+- [x] Update `tests/unit/test_discovery.py` to use test-level mock adapter fixture rather than production mock logic
+- [x] Verify test suite passing (67/67) and phase gate persistence (15/15 live confirmed)
+
 ---
 
 ## Review & Validation Summary

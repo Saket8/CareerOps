@@ -205,10 +205,11 @@ class ResumeAgent:
         """Generates job-specific ATS-tailored DOCX and PDF resumes."""
         safe_company = re.sub(r"[^\w\-]", "_", job.company)[:30].strip("_")
         safe_role = re.sub(r"[^\w\-]", "_", job.title)[:30].strip("_")
+        safe_job_id = re.sub(r"[^\w\-]", "_", str(job.job_id))
         date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
         
-        docx_filename = f"{safe_company}_{safe_role}_{date_str}.docx"
-        pdf_filename = f"{safe_company}_{safe_role}_{date_str}.pdf"
+        docx_filename = f"{safe_company}_{safe_role}_{safe_job_id}_{date_str}.docx"
+        pdf_filename = f"{safe_company}_{safe_role}_{safe_job_id}_{date_str}.pdf"
         
         docx_path = self.output_dir / docx_filename
         pdf_path = self.output_dir / pdf_filename

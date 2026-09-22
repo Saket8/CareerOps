@@ -27,6 +27,7 @@ candidate:
   willing_to_relocate: true
   work_authorization: "Indian Citizen"
   current_salary_disclosed: false
+  current_salary_lpa: null
   min_acceptable_salary_lpa: null
   target_salary_lpa: null  # No upper ceiling per user directive
 

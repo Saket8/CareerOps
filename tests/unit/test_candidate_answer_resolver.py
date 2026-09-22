@@ -29,6 +29,16 @@ def test_resolver_standard_fields():
     assert res.can_answer is True
     assert str(int(candidate_truth.candidate.cloud_experience_years)) in str(res.answer_value)
 
+    # Current CTC
+    res = resolver.resolve_question("What is your current CTC / salary in Lacs?")
+    assert res.can_answer is True
+    assert res.answer_value == "30"
+
+    # Expected CTC (35 LPA)
+    res = resolver.resolve_question("Expected CTC / package?")
+    assert res.can_answer is True
+    assert res.answer_value == "35"
+
 
 def test_resolver_unverified_question_prevents_hallucination():
     candidate_truth = get_candidate_truth(refresh=True)

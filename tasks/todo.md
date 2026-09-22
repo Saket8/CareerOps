@@ -193,7 +193,68 @@
 - **Phase Gate Status:** `APPLICATION AUTOMATION PHASE: PASSED` (`python main.py --validate-phase`).
 - **Test Suite Status:** 64 / 64 passing (`python -m pytest tests/unit`).
 
+---
 
+## Parked / Backlog Enhancements
+- [ ] **TASK-001:** Automated External ATS Application Engine (`tasks/TASK-001-external-ats-apply.md`)
+  - Target: Future Milestone
+  - Scope: Tier 1 (Greenhouse/Lever/Ashby) automated Playwright submission with tailored resume & Candidate Truth answering; graceful fallback to `EXTERNAL_APPLICATION_REQUIRED`.
 
+---
+
+### Phase 21: Production Hardening & Configurable Compensation Floor
+- [x] **Phase 21.1: Salary Guardrail Unification (.env Compensation Truth)**
+  - [x] Set `min_salary_lpa: null` in `config/config.yaml`
+  - [x] Set `current_salary_lpa: null` and `min_acceptable_salary_lpa: null` in `candidate/candidate_facts.yaml`
+  - [x] Update `src/models/candidate.py` schema with `current_salary_lpa`
+  - [x] Update `src/naukri/candidate_answer_resolver.py` to resolve current CTC as 30 LPA
+  - [x] Update `src/utils/salary_parser.py` default to 30.0 LPA
+  - [x] Wire dynamic config salary into `PlaywrightBrowserAdapter` and `BrowserScrapingAdapter`
+  - [x] Update unit tests in `tests/unit/test_salary_parser.py` and `tests/unit/test_config.py`
+- [x] **Phase 21.2: P0 Immediate Safety & Invariant Hardening**
+  - [x] Enforce strict green badge reload assertion in `src/naukri/playwright_adapter.py` and `src/naukri/verifier.py` (demote URL/text matches to `SUBMISSION_UNVERIFIED`)
+  - [x] Implement pre-flight atomic lease (`APPLICATION_STARTED`) and `UNIQUE(job_id)` on `ApplicationModel`
+  - [x] Enforce fail-closed check on `_ensure_authenticated()` and explicit barrier traps (MFA/OTP/payment) in `src/naukri/playwright_adapter.py`
+  - [x] Remove automatic `seed.sql` loading in `src/database/connection.py`
+- [x] **Phase 21.3: P1 High-Value Reliability & Truth Layer Improvements**
+  - [x] Replace blind "YES" clicking with prompt-aware label matching and truth verification in `playwright_adapter.py`
+  - [x] Enforce tailored PDF upload parity (switch from DOCX to PDF) and verify portal acceptance
+  - [x] Prevent resume artifact collisions by including `job_id` in filenames
+  - [x] Pass `--dry-run` from workflow dispatch inputs in `.github/workflows/career_agent_daily.yml`
+  - [x] Isolate transactions, add per-step commits, and add top-level failure recording in `src/agents/orchestrator.py`
+- [x] **Phase 21.4: P2 SQLite Durability & Reporting Polish**
+  - [x] Configure SQLite WAL mode, foreign keys, and busy timeout in `connection.py`
+  - [x] HTML-escape untrusted portal strings and add run IDs to daily report paths
+  - [x] Use regex word boundary matching for employer blocklist in `discovery.py`
+  - [x] Isolate storage and database retention cleanup outside active session transaction
+
+### Phase 22: Deliver Curated High-Value External Opportunities in Daily Report & Email
+- [x] **Phase 22.1: Orchestrator & Application Engine External Opportunities Integration**
+  - [x] Update `src/agents/orchestrator.py` backfill logic to load both `JobStatus.APPLIED_CONFIRMED` and `JobStatus.EXTERNAL_APPLICATION_REQUIRED` / `NEEDS_MANUAL_INTERVENTION`
+  - [x] Ensure `applications_external` metric is accurately populated from external opportunities
+  - [x] Ensure `ApplicationAgent` does not suppress external portal suggestions when direct on-platform daily quota is reached
+- [x] **Phase 22.2: Authentic External Opportunities Persistence**
+  - [x] Curate and insert genuine senior external opportunities ($\ge$ ₹30 LPA or undisclosed, 10–16 yrs, non-Cognizant, OCI/GenAI Architect) into SQLite
+  - [x] Record application records with `EXTERNAL_PORTAL` method, fit factors, and direct portal URLs
+- [x] **Phase 22.3: Daily Report Regeneration & Verification**
+  - [x] Regenerate `reports/daily/2026-09-22.html` and `reports/daily/2026-09-22.md`
+  - [x] Verify both tables (Confirmed Applications & High-Value External Opportunities) are populated
+  - [x] Verify 1-click `[ Apply on Company Portal → ]` buttons render properly
+- [x] **Phase 22.4: Email Dispatch & Test Suite Verification**
+  - [x] Dispatch updated email report to `sauravskt8@gmail.com`
+  - [x] Run test suite (`pytest`) and verify 100% passing tests
+
+### Phase 23: Salary Range Eligibility Ceiling Refinement (Max Range >= Floor Acceptable)
+- [x] **Phase 23.1: Salary Parser Range Ceiling Implementation**
+  - [x] Update `src/utils/salary_parser.py` so ranges starting below ₹30 LPA with ceiling $\ge$ ₹30 LPA are `ELIGIBLE`
+  - [x] Enforce rejection only when maximum range is $< 30$ LPA
+  - [x] Update rejection reason to reference maximum salary bound
+- [x] **Phase 23.2: Comprehensive Unit Test Suite Update**
+  - [x] Update `tests/unit/test_salary_parser.py` with cases for ranges exceeding ₹30 LPA (e.g., 20-35, 25-35, 25-40 LPA)
+  - [x] Verify rejection cases (e.g., 15-25, 18-28 LPA where max < 30 LPA)
+  - [x] Run full pytest suite across integration and unit tests (70/70 passing)
+- [x] **Phase 23.3: Lessons & Documentation Alignment**
+  - [x] Update `tasks/lessons.md` with operational rule for range ceiling acceptance
+  - [x] Update `walkthrough.md`
 
 

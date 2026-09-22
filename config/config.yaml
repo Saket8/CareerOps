@@ -24,7 +24,7 @@ schedule:
 application:
   match_threshold: 75.0
   high_match_threshold: 85.0
-  min_salary_lpa: null  # Raised floor to ₹25 LPA; no ceiling
+  min_salary_lpa: null  # Raised floor to ₹30 LPA (user's current CTC); no ceiling
   undisclosed_salary_allowed: true
   max_applications_per_day: 35
   dry_run: false  # LIVE mode enabled per user preference

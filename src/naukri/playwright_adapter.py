@@ -27,9 +27,10 @@ AUTH_STATE_FILE = Path("artifacts/naukri_auth.json")
 class PlaywrightBrowserAdapter(BaseNaukriClient):
     """Production Playwright adapter executing verified end-to-end applications."""
 
-    def __init__(self, offline_mode: bool = False, headless: bool = False):
+    def __init__(self, offline_mode: bool = False, headless: bool = False, min_salary_lpa: float = 30.0):
         self.offline_mode = offline_mode or os.environ.get("NAUKRI_MOCK", "0") == "1"
         self.headless = headless
+        self.min_salary_lpa = min_salary_lpa
         self.url_validator = UrlValidator()
         self.verifier = ApplicationVerifier()
 
@@ -153,7 +154,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                     job_id_match = re.search(r"-(\d{6,})", url)
                     job_id = job_id_match.group(1) if job_id_match else f"nk_{abs(hash(url))}"
 
-                    parsed_salary = parse_salary(raw_sal, min_threshold_lpa=25.0)
+                    parsed_salary = parse_salary(raw_sal, min_threshold_lpa=self.min_salary_lpa)
 
                     # Extract tags, description snippet, and full card text
                     tags_el = t.locator("ul.tags-gt li, ul.tags li, .tag-li, .dot-gt, [class*='tag']").all()
@@ -324,12 +325,33 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                 page.goto(canonical_url, timeout=35000, wait_until="domcontentloaded")
                 time.sleep(2)
 
-                # Ensure session is authenticated
-                self._ensure_authenticated(page, context)
+                # Ensure session is authenticated (Fail-Closed Gate)
+                if not self.offline_mode:
+                    is_auth = self._ensure_authenticated(page, context)
+                    if not is_auth:
+                        page.screenshot(path=evidence_path)
+                        browser.close()
+                        logger.error(f"Authentication failed for {canonical_url}: Unable to establish valid logged-in Naukri session.")
+                        return ApplicationRecord(
+                            application_id=app_id,
+                            job_id=job.job_id,
+                            application_method=ApplicationMethod.NAUKRI_DIRECT.value,
+                            source_job_url=job.url,
+                            canonical_job_url=canonical_url,
+                            started_at=started_at,
+                            status=JobStatus.APPLICATION_BLOCKED,
+                            failure_reason="Authentication failed: valid Naukri session could not be established (Fail-Closed Safety Gate)",
+                            error_code="AUTH_REQUIRED",
+                            evidence_path=evidence_path,
+                            dry_run=False,
+                        )
+                    if canonical_url not in page.url:
+                        page.goto(canonical_url, timeout=35000, wait_until="domcontentloaded")
+                        time.sleep(2)
 
-                # Step 2: Check for Anti-Automation Challenges
+                # Step 2: Check for Anti-Automation Challenges & Safety Barriers (Fail-Closed)
                 page_text = page.content().lower()
-                if "recaptcha" in page_text or "cf-turnstile" in page_text or "verify you are human" in page_text:
+                if any(x in page_text for x in ["recaptcha", "cf-turnstile", "verify you are human", "hcaptcha", "g-recaptcha"]):
                     page.screenshot(path=evidence_path)
                     browser.close()
                     logger.warning(f"CAPTCHA / Bot detection challenged on {canonical_url}")
@@ -343,6 +365,42 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         status=JobStatus.APPLICATION_BLOCKED,
                         failure_reason="Anti-automation challenge (CAPTCHA/Bot detection) encountered",
                         error_code="CAPTCHA_BLOCKED",
+                        evidence_path=evidence_path,
+                        dry_run=False,
+                    )
+
+                if any(x in page_text for x in ["otp verification", "enter otp", "enter the otp", "two-factor authentication", "mfa"]):
+                    page.screenshot(path=evidence_path)
+                    browser.close()
+                    logger.warning(f"MFA/OTP barrier detected on {canonical_url}")
+                    return ApplicationRecord(
+                        application_id=app_id,
+                        job_id=job.job_id,
+                        application_method=ApplicationMethod.NAUKRI_DIRECT.value,
+                        source_job_url=job.url,
+                        canonical_job_url=canonical_url,
+                        started_at=started_at,
+                        status=JobStatus.NEEDS_MANUAL_INTERVENTION,
+                        failure_reason="MFA/OTP challenge detected; manual candidate verification required",
+                        error_code="MFA_REQUIRED",
+                        evidence_path=evidence_path,
+                        dry_run=False,
+                    )
+
+                if any(x in page_text for x in ["payment required", "application fee", "membership required", "upgrade to apply"]):
+                    page.screenshot(path=evidence_path)
+                    browser.close()
+                    logger.warning(f"Payment barrier detected on {canonical_url}")
+                    return ApplicationRecord(
+                        application_id=app_id,
+                        job_id=job.job_id,
+                        application_method=ApplicationMethod.NAUKRI_DIRECT.value,
+                        source_job_url=job.url,
+                        canonical_job_url=canonical_url,
+                        started_at=started_at,
+                        status=JobStatus.APPLICATION_BLOCKED,
+                        failure_reason="Payment wall encountered; free application invariant enforced",
+                        error_code="PAYMENT_REQUIRED",
                         evidence_path=evidence_path,
                         dry_run=False,
                     )
@@ -449,26 +507,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         if any(c in latest_q.lower() for c in ["successfully applied", "application sent", "applied to"]):
                             break
 
-                        text_area = page.locator(".textArea[contenteditable='true']").first
-                        yes_chip = drawer.locator("xpath=.//*[normalize-space(text())='YES' or normalize-space(text())='Yes']").first
-
-                        if yes_chip.is_visible():
-                            # Radio / chip option detected
-                            yes_chip.click()
-                            time.sleep(1)
-                            save_btn = drawer.locator("xpath=.//*[normalize-space(text())='Save']").all()
-                            for sb in save_btn:
-                                if sb.is_visible():
-                                    sb.click()
-                                    break
-                            questions_answered[latest_q] = "YES"
-                            time.sleep(4)
-                            continue
-
-                        if not text_area.is_visible():
-                            time.sleep(2)
-                            continue
-
+                        # Resolve question strictly against candidate truth layer (Finding 4)
                         ans_res = resolver.resolve_question(latest_q)
                         if not ans_res.can_answer:
                             page.screenshot(path=evidence_path)
@@ -482,20 +521,58 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                 canonical_job_url=canonical_url,
                                 started_at=started_at,
                                 status=JobStatus.NEEDS_MANUAL_INTERVENTION,
-                                failure_reason=f"Unverified candidate question: '{latest_q}'",
+                                failure_reason=f"Unverified candidate question in screening chat: '{latest_q}'",
                                 questions_detected=questions_detected,
                                 evidence_path=evidence_path,
                                 dry_run=False,
                             )
 
+                        ans_val_str = str(ans_res.answer_value).strip()
+                        ans_val_lower = ans_val_str.lower()
+                        text_area = page.locator(".textArea[contenteditable='true']").first
+
+                        # Check if a chip / radio option matching the resolved answer is available
+                        matching_chip = None
+                        if ans_val_lower in ["yes", "true"]:
+                            chip = drawer.locator("xpath=.//*[normalize-space(translate(text(), 'yes', 'YES'))='YES']").first
+                            if chip.is_visible():
+                                matching_chip = chip
+                        elif ans_val_lower in ["no", "false"]:
+                            chip = drawer.locator("xpath=.//*[normalize-space(translate(text(), 'no', 'NO'))='NO']").first
+                            if chip.is_visible():
+                                matching_chip = chip
+                        else:
+                            chip = drawer.locator(f"xpath=.//*[normalize-space(text())='{ans_val_str}']").first
+                            if chip.is_visible():
+                                matching_chip = chip
+
+                        if matching_chip:
+                            matching_chip.click()
+                            time.sleep(1)
+                            save_btn = drawer.locator("xpath=.//*[normalize-space(text())='Save']").all()
+                            for sb in save_btn:
+                                if sb.is_visible():
+                                    sb.click()
+                                    break
+                            questions_answered[latest_q] = ans_val_str
+                            time.sleep(4)
+                            continue
+
+                        if not text_area.is_visible():
+                            time.sleep(2)
+                            continue
+
                         text_area.click()
                         time.sleep(0.5)
-                        text_area.fill(str(ans_res.answer_value))
+                        text_area.fill(ans_val_str)
                         time.sleep(0.5)
-                        questions_answered[latest_q] = ans_res.answer_value
+                        questions_answered[latest_q] = ans_val_str
 
                         send_btn = page.locator(".sendMsg, div[id*='sendMsg']").first
-                        send_btn.click()
+                        if send_btn.is_visible():
+                            send_btn.click()
+                        else:
+                            text_area.press("Enter")
                         time.sleep(4)
 
                 # Step 7: Handle dynamic form inputs if standard modal is displayed
@@ -530,50 +607,73 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                     inp.fill(str(ans_result.answer_value))
                     questions_answered[label] = ans_result.answer_value
 
+                # Upload tailored PDF (configured and validated format per Finding 8)
+                upload_file = resume_pdf_path if (resume_pdf_path and Path(resume_pdf_path).exists()) else resume_docx_path
                 file_input = page.locator("input[type='file']")
-                if file_input.count() > 0 and Path(resume_docx_path).exists():
-                    file_input.first.set_input_files(resume_docx_path)
-                    time.sleep(1)
+                if file_input.count() > 0 and upload_file and Path(upload_file).exists():
+                    file_input.first.set_input_files(str(upload_file))
+                    logger.info(f"Uploaded tailored resume ({Path(upload_file).suffix.upper()}) to application form: {upload_file}")
+                    time.sleep(2)
 
                 submit_btn = page.locator("button:has-text('Submit'), button:has-text('Apply Now'), button:has-text('Send Application')").first
                 if submit_btn.is_visible():
                     submit_btn.click()
                     time.sleep(4)
 
-                # Step 8: Verify Confirmation Evidence
+                # Step 8: Verify Confirmation Evidence via Mandatory Canonical Reload (Finding 1)
                 time.sleep(2)
-                evidence = self.verifier.verify_submission(
-                    page_content=page.content(),
-                    final_url=page.url,
+                initial_page_content = page.content()
+                initial_url = page.url
+                intermediate_evidence = self.verifier.verify_submission(
+                    page_content=initial_page_content,
+                    final_url=initial_url,
                     page_title=page.title(),
                 )
 
-                # Check if landed on Naukri saveApply confirmation screen
-                if not evidence.confirmed and ("saveapply" in page.url.lower() or "applied to" in page.content().lower()):
+                # Mandatory post-submit reload of canonical listing to assert live green badge
+                logger.info(f"Reloading canonical job listing to assert green applied badge: {canonical_url}")
+                page.goto(canonical_url, timeout=35000, wait_until="networkidle")
+                time.sleep(2)
+
+                applied_badge = page.locator(".already-applied, span.already-applied, span[class*='already-applied']")
+                badge_confirmed = False
+                if applied_badge.count() > 0:
+                    badge_text = applied_badge.first.inner_text().strip().lower()
+                    if badge_text in ["applied", "already applied"]:
+                        badge_confirmed = True
+
+                if badge_confirmed:
                     evidence = VerificationEvidence(
                         confirmed=True,
                         status=JobStatus.APPLIED_CONFIRMED,
-                        verification_level="LEVEL_1_DIRECT_MODAL",
-                        confirmation_text="Applied confirmation screen reached",
-                        confirmation_reference="SAVE_APPLY_REDIRECT",
+                        verification_level="LEVEL_3_BUTTON_ALREADY_APPLIED",
+                        confirmation_text="Applied badge confirmed on listing",
+                        confirmation_reference="ALREADY_APPLIED",
                         final_url=page.url,
-                        evidence_summary="Naukri saveApply confirmation page confirmed.",
+                        evidence_summary="Mandatory reload confirms official green '.already-applied' badge.",
                     )
-
-                if not evidence.confirmed:
-                    page.goto(canonical_url, timeout=30000, wait_until="networkidle")
-                    time.sleep(2)
-                    applied_badge = page.locator(".already-applied, span.already-applied, span[class*='already-applied']")
-                    if applied_badge.count() > 0 and applied_badge.first.inner_text().strip().lower() in ["applied", "already applied"]:
-                        evidence = VerificationEvidence(
-                            confirmed=True,
-                            status=JobStatus.APPLIED_CONFIRMED,
-                            verification_level="LEVEL_3_BUTTON_ALREADY_APPLIED",
-                            confirmation_text="Applied badge confirmed on listing",
-                            confirmation_reference="ALREADY_APPLIED",
-                            final_url=page.url,
-                            evidence_summary="Reloaded listing confirms green 'Applied' badge.",
-                        )
+                elif intermediate_evidence.confirmed or "saveapply" in initial_url.lower() or "applied to" in initial_page_content.lower():
+                    # Weaker transient signal without reloaded badge -> SUBMISSION_UNVERIFIED
+                    logger.warning(f"Submission had transient confirmation cues but green badge was not asserted on reload for {job.job_id}")
+                    evidence = VerificationEvidence(
+                        confirmed=False,
+                        status=JobStatus.SUBMISSION_UNVERIFIED,
+                        verification_level="SUBMISSION_UNVERIFIED",
+                        confirmation_text="Transient confirmation detected without reloaded badge assertion",
+                        confirmation_reference=intermediate_evidence.confirmation_reference or "TRANSIENT_CONFIRMATION",
+                        final_url=page.url,
+                        evidence_summary="Transient apply cues detected, but green badge was absent on post-submit reload.",
+                    )
+                else:
+                    evidence = VerificationEvidence(
+                        confirmed=False,
+                        status=JobStatus.APPLICATION_FAILED,
+                        verification_level="UNVERIFIED",
+                        confirmation_text=None,
+                        confirmation_reference=None,
+                        final_url=page.url,
+                        evidence_summary="Submission could not be confirmed on reload.",
+                    )
 
                 page.screenshot(path=evidence_path)
                 browser.close()

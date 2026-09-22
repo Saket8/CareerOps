@@ -152,7 +152,7 @@ class ApplicationModel(Base):
     __tablename__ = "applications"
 
     application_id = Column(String(128), primary_key=True)
-    job_id = Column(String(128), ForeignKey("jobs.job_id"), nullable=False)
+    job_id = Column(String(128), ForeignKey("jobs.job_id"), nullable=False, unique=True, index=True)
     resume_version_id = Column(String(128), ForeignKey("resume_versions.version_id"), nullable=True)
     resume_version = Column(String(128), nullable=True)
     application_method = Column(String(64), default="NAUKRI_DIRECT")

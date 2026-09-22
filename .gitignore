@@ -30,8 +30,11 @@ htmlcov/
 
 # Local databases & state
 *.sqlite
+*.sqlite-wal
+*.sqlite-shm
 *.db
 *.db-journal
+evidence/
 
 # Logs
 *.log

@@ -3,7 +3,7 @@
 ## 1. Scope & Objective
 Build a production-quality, long-running personal career automation and intelligence system that:
 - Periodically searches Naukri for high-tier Cloud & AI architecture roles.
-- Strictly filters on salary (Disclosed $\ge$ ₹20 LPA or Undisclosed; reject Disclosed $< 20$ LPA).
+- Strictly filters on salary (Disclosed $\ge$ ₹30 LPA or Undisclosed; reject Disclosed $< 30$ LPA).
 - Scores jobs against verified candidate facts extracted from [`Saket_Saurav_OCI.docx`](file:///c:/Users/2016tu/Desktop/Projects/Naukri/Saket_Saurav_OCI.docx).
 - Automatically tailors truthful, ATS-optimized resumes (DOCX & PDF).
 - Autonomously applies to qualifying opportunities (match $\ge$ 75%) without manual approval friction.
@@ -16,7 +16,7 @@ Build a production-quality, long-running personal career automation and intellig
 ## 2. Key Constraints & Non-Negotiables
 1. **Zero Hallucination / Zero Fabrication**: Candidate truth layer (`candidate/candidate_facts.yaml`) is the supreme boundary. Never fabricate experience, titles, skills, or certifications.
 2. **Master Resume Immutability**: [`Saket_Saurav_OCI.docx`](file:///c:/Users/2016tu/Desktop/Projects/Naukri/Saket_Saurav_OCI.docx) is read-only and preserved in `resumes/master/`.
-3. **Hard Salary Filter**: Immediate rejection of any disclosed minimum salary under ₹20 LPA (e.g. ₹15–25 LPA rejected). Undisclosed salary is accepted.
+3. **Hard Salary Filter**: Immediate rejection of any disclosed minimum salary under ₹30 LPA (e.g. ₹25–35 LPA rejected). Undisclosed salary is accepted.
 4. **Safety & Compliance**: No CAPTCHA bypassing, bot cloaking, or credential sharing. Transition blocked applications to `BLOCKED` status.
 5. **Dry Run Safety**: Default `DRY_RUN=true` to test discovery, scoring, resume generation, and reporting without posting live applications.
 6. **Idempotency**: Prevent duplicate applications across runs using Naukri Job ID, canonical URL, and company/title hashes.

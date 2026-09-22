@@ -43,7 +43,11 @@ class ApplicationRepository:
 
     def record_application(self, record: ApplicationRecord) -> ApplicationModel:
         """Create or update an application record with full audit trail."""
-        existing = self.session.query(ApplicationModel).filter(ApplicationModel.application_id == record.application_id).first()
+        existing = (
+            self.session.query(ApplicationModel)
+            .filter((ApplicationModel.application_id == record.application_id) | (ApplicationModel.job_id == record.job_id))
+            .first()
+        )
         status_val = record.status.value if hasattr(record.status, "value") else str(record.status)
         method_val = record.application_method.value if hasattr(record.application_method, "value") else str(record.application_method)
 

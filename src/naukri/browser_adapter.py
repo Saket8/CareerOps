@@ -20,8 +20,9 @@ logger = get_logger("naukri_browser_adapter")
 class NaukriBrowserAdapter(BaseNaukriClient):
     """Safe adapter for Naukri job discovery and application."""
 
-    def __init__(self, offline_mode: bool = False):
+    def __init__(self, offline_mode: bool = False, min_salary_lpa: float = 30.0):
         self.offline_mode = offline_mode or os.environ.get("NAUKRI_MOCK", "0") == "1"
+        self.min_salary_lpa = min_salary_lpa
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -91,7 +92,7 @@ class NaukriBrowserAdapter(BaseNaukriClient):
                 job_id_match = re.search(r"-(\d{6,})", url)
                 job_id = job_id_match.group(1) if job_id_match else f"nk_{abs(hash(url))}"
 
-                parsed_salary = parse_salary(raw_salary, min_threshold_lpa=25.0)
+                parsed_salary = parse_salary(raw_salary, min_threshold_lpa=self.min_salary_lpa)
 
                 listing = JobListing(
                     job_id=job_id,

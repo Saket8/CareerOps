@@ -5,6 +5,7 @@ Usage:
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -60,8 +61,9 @@ def main():
         print("=" * 65 + "\n")
         sys.exit(0)
 
-    # LIVE mode is permanently enforced by default
-    if args.dry_run:
+    # LIVE mode is enforced by default unless --dry-run or DRY_RUN=true is specified
+    env_dry = os.environ.get("DRY_RUN", "").strip().lower() in ("true", "1", "yes")
+    if args.dry_run or env_dry:
         config["application"]["dry_run"] = True
     else:
         config["application"]["dry_run"] = False
@@ -80,7 +82,7 @@ def main():
     print(f"  RUN COMPLETE: {daily_report.date} (Run ID: {daily_report.run_id})")
     print("=" * 60)
     print(f"  Jobs Scanned:             {daily_report.jobs_scanned}")
-    print(f"  Salary Rejects (<20 LPA): {daily_report.salary_rejected}")
+    print(f"  Salary Rejects (<30 LPA): {daily_report.salary_rejected}")
     print(f"  Qualified Opportunities:  {daily_report.qualified_jobs}")
     print(f"  Resumes Tailored:         {daily_report.resumes_generated}")
     print(f"  Applications Submitted:   {daily_report.applications_submitted} ({'DRY RUN' if is_dry else 'LIVE'})")

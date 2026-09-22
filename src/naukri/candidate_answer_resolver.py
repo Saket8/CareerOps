@@ -167,7 +167,7 @@ class CandidateAnswerResolver:
             )
 
         if any(term in q_lower for term in ["current ctc", "current salary", "present ctc", "present salary", "current package", "ctc in lacs"]):
-            cur_ctc = getattr(self.cand, "min_acceptable_salary_lpa", None)
+            cur_ctc = getattr(self.cand, "current_salary_lpa", None) or getattr(self.cand, "min_acceptable_salary_lpa", None)
             return FormQuestionAnswerResult(
                 can_answer=True,
                 answer_value=str(int(cur_ctc)),

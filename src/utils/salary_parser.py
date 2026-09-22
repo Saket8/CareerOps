@@ -1,9 +1,10 @@
 """Salary parsing and eligibility evaluation engine.
 
 Strictly enforces:
-- Disclosed minimum salary >= 20.0 LPA -> ELIGIBLE
+- Disclosed range with maximum salary >= 30.0 LPA -> ELIGIBLE (even if range starts below 30 LPA, e.g. 25-35 LPA)
 - Undisclosed salary -> ELIGIBLE
-- Disclosed minimum salary < 20.0 LPA -> REJECTED (regardless of upper bound)
+- Disclosed range with maximum salary < 30.0 LPA -> REJECTED (e.g. 15-25 LPA, 18-28 LPA)
+- Disclosed single value < 30.0 LPA -> REJECTED
 """
 
 import re
@@ -29,7 +30,7 @@ UNDISCLOSED_PATTERNS = [
 ]
 
 
-def parse_salary(raw_text: Optional[str], min_threshold_lpa: float = 20.0) -> JobSalary:
+def parse_salary(raw_text: Optional[str], min_threshold_lpa: float = 30.0) -> JobSalary:
     """Parses raw salary string from job posting and evaluates eligibility."""
     if not raw_text or not raw_text.strip():
         return JobSalary(
@@ -89,8 +90,9 @@ def parse_salary(raw_text: Optional[str], min_threshold_lpa: float = 20.0) -> Jo
             min_val = min_val * 12.0
             max_val = max_val * 12.0
 
-        is_eligible = min_val >= min_threshold_lpa
-        rejection_reason = None if is_eligible else f"Minimum salary ₹{min_val:.1f} LPA is below required floor of ₹{min_threshold_lpa:.1f} LPA"
+        # Range ceiling rule: Acceptable if ceiling reaches or exceeds threshold; reject only if max_val < threshold
+        is_eligible = max_val >= min_threshold_lpa
+        rejection_reason = None if is_eligible else f"Maximum salary ₹{max_val:.1f} LPA is below required floor of ₹{min_threshold_lpa:.1f} LPA"
 
         return JobSalary(
             min_lpa=round(min_val, 2),
@@ -114,7 +116,7 @@ def parse_salary(raw_text: Optional[str], min_threshold_lpa: float = 20.0) -> Jo
             val = val * 12.0
 
         is_eligible = val >= min_threshold_lpa
-        rejection_reason = None if is_eligible else f"Minimum salary ₹{val:.1f} LPA is below required floor of ₹{min_threshold_lpa:.1f} LPA"
+        rejection_reason = None if is_eligible else f"Salary ₹{val:.1f} LPA is below required floor of ₹{min_threshold_lpa:.1f} LPA"
 
         return JobSalary(
             min_lpa=round(val, 2),
@@ -136,8 +138,9 @@ def parse_salary(raw_text: Optional[str], min_threshold_lpa: float = 20.0) -> Jo
             min_val *= 12.0
             max_val *= 12.0
 
-        is_eligible = min_val >= min_threshold_lpa
-        rejection_reason = None if is_eligible else f"Minimum salary ₹{min_val:.1f} LPA is below required floor of ₹{min_threshold_lpa:.1f} LPA"
+        # Range ceiling rule: Acceptable if ceiling reaches or exceeds threshold; reject only if max_val < threshold
+        is_eligible = max_val >= min_threshold_lpa
+        rejection_reason = None if is_eligible else f"Maximum salary ₹{max_val:.1f} LPA is below required floor of ₹{min_threshold_lpa:.1f} LPA"
 
         return JobSalary(
             min_lpa=round(min_val, 2),

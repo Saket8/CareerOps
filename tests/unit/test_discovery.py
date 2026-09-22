@@ -58,7 +58,7 @@ def test_mock_client():
                 "Associate Cloud Engineer",
                 "Wipro",
                 "Noida",
-                "15-22 Lacs P.A.",  # Below 20 LPA threshold
+                "12-18 Lacs P.A.",  # Below 20 LPA threshold (max 18 < 20)
                 "5-8 Yrs",
                 "https://www.naukri.com/job-listings-job_test_003",
                 "Junior cloud administration.",
@@ -115,7 +115,7 @@ def test_discovery_agent_run(test_db_session, test_mock_client):
     result = agent.run_discovery(query_limit=10)
 
     assert result.total_found > 0
-    assert result.salary_rejected >= 1  # Wipro job with 15-22 LPA
+    assert result.salary_rejected >= 1  # Wipro job with 12-18 LPA
     assert result.salary_eligible >= 3  # Oracle, Deloitte, Accenture, PwC
 
     # Verify DB state
@@ -125,7 +125,7 @@ def test_discovery_agent_run(test_db_session, test_mock_client):
     # Verify salary rejected job in DB has SALARY_REJECTED status
     rejected_jobs = job_repo.get_jobs_by_status(JobStatus.SALARY_REJECTED)
     assert len(rejected_jobs) >= 1
-    assert any("15-22" in j.salary_raw_text for j in rejected_jobs)
+    assert any("12-18" in j.salary_raw_text for j in rejected_jobs)
 
     # Verify eligible jobs in DB have SALARY_ELIGIBLE status
     eligible_jobs = job_repo.get_jobs_by_status(JobStatus.SALARY_ELIGIBLE)

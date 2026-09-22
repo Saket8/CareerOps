@@ -30,6 +30,10 @@ def test_end_to_end_dry_run_pipeline(tmp_path):
             "generate_pdf": True,
             "generate_docx": True,
         },
+        "reporting": {
+            "daily_dir": str(reports_daily_dir),
+            "weekly_dir": str(reports_weekly_dir),
+        },
         "email": {"enabled": False},
         "search": {
             "queries": {
@@ -96,7 +100,7 @@ def test_end_to_end_dry_run_pipeline(tmp_path):
         ]
         results = []
         for j_id, title, comp, loc, sal_raw, exp_raw, url, jd in sample_jobs:
-            sal = parse_salary(sal_raw, min_threshold_lpa=20.0)
+            sal = parse_salary(sal_raw, min_threshold_lpa=30.0)
             listing = JobListing(
                 job_id=j_id,
                 title=title,
@@ -120,7 +124,7 @@ def test_end_to_end_dry_run_pipeline(tmp_path):
 
     # 1. Pipeline execution verification
     assert daily_report.jobs_scanned > 0, "Jobs must be scanned"
-    assert daily_report.salary_rejected >= 1, "Salary filter must reject jobs < 20 LPA"
+    assert daily_report.salary_rejected >= 1, "Salary filter must reject jobs < 30 LPA"
     assert daily_report.qualified_jobs >= 1, "Eligible high-tier jobs must qualify"
     assert daily_report.resumes_generated >= 1, "ATS resumes must be generated for qualifying jobs"
     assert daily_report.applications_confirmed == 0, "Zero dummy applies confirmed in DRY_RUN"

@@ -62,3 +62,10 @@
 - Mon–Fri 09:00 IST schedule with concurrency control.
 - Secrets mapping and artifact storage.
 - Comprehensive end-to-end dry run verification.
+
+### Phase 10: Automated External ATS Application Engine (PARKED / BACKLOG)
+- Detailed specification in `tasks/TASK-001-external-ats-apply.md`.
+- External ATS classification (Greenhouse, Lever, Ashby, SmartRecruiters vs. Workday, Taleo).
+- Tier 1 public form auto-submission via Playwright with tailored PDF upload and candidate truth answering.
+- Graceful fallback to `EXTERNAL_APPLICATION_REQUIRED` with 1-click apply links when CAPTCHA or custom unresolvable questions are encountered.
+

@@ -1,5 +1,6 @@
 """Discovery Agent for executing multi-query job search and early salary filtering."""
 
+import re
 from typing import List, Dict, Any, Set
 from sqlalchemy.orm import Session
 
@@ -27,7 +28,7 @@ class DiscoveryAgent:
         self.client = client
         self.job_repo = job_repo
         self.config = config
-        self.min_salary_lpa = float(config.get("application", {}).get("min_salary_lpa", 20.0))
+        self.min_salary_lpa = float(config.get("application", {}).get("min_salary_lpa", 30.0))
         self.blocked_companies = [
             c.lower().strip() for c in config.get("safety", {}).get("blocked_companies", ["cognizant", "cts"])
         ]
@@ -35,7 +36,14 @@ class DiscoveryAgent:
     def is_blocked_company(self, company_name: str) -> bool:
         """Checks if company matches any blocked employer string (e.g. current employer)."""
         comp_lower = company_name.lower().strip()
-        return any(b in comp_lower for b in self.blocked_companies)
+        for b in self.blocked_companies:
+            if len(b) <= 4:
+                if re.search(rf"\b{re.escape(b)}\b", comp_lower):
+                    return True
+            else:
+                if b in comp_lower:
+                    return True
+        return False
 
     def run_discovery(self, query_limit: int = 25) -> DiscoveryResult:
         """Runs discovery across all configured search query categories."""

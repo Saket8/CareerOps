@@ -9,7 +9,7 @@ from src.naukri.interface import BaseNaukriClient, SafetyBarrierException
 from src.database.repositories.job_repo import JobRepository
 from src.database.repositories.application_repo import ApplicationRepository
 from src.database.repositories.resume_repo import ResumeRepository
-from src.models.job import JobListing, JobStatus, ApplicationRecord
+from src.models.job import JobListing, JobStatus, ApplicationRecord, ApplicationMethod
 from src.models.candidate import CandidateTruth
 from src.models.score import JobScore
 from src.utils.logger import get_logger
@@ -70,6 +70,43 @@ class ApplicationAgent:
             self.job_repo.update_status(job_id, JobStatus.REJECTED)
             return ApplicationOutcome(job_id, False, JobStatus.REJECTED, f"Blocked current employer: {job.company}")
 
+        # 0b. External Portal Opportunities Handling (Does not consume direct on-platform apply quota)
+        if job.status == JobStatus.EXTERNAL_APPLICATION_REQUIRED:
+            app_rec = self.app_repo.get_by_job_id(job_id)
+            if not app_rec:
+                app_id = f"app_{job_id}_{int(datetime.now(timezone.utc).timestamp())}"
+                app_record = ApplicationRecord(
+                    application_id=app_id,
+                    job_id=job.job_id,
+                    application_method=ApplicationMethod.EXTERNAL_PORTAL.value,
+                    source_job_url=job.url,
+                    canonical_job_url=getattr(job, "canonical_job_url", None) or job.url,
+                    external_application_url=getattr(job, "external_url", None) or job.url,
+                    external_portal="External Career Portal",
+                    started_at=datetime.now(timezone.utc),
+                    status=JobStatus.EXTERNAL_APPLICATION_REQUIRED,
+                    failure_reason="Application must be completed on external company career portal",
+                    dry_run=self.dry_run,
+                )
+                self.app_repo.record_application(app_record)
+            else:
+                app_record = ApplicationRecord(
+                    application_id=app_rec.application_id,
+                    job_id=app_rec.job_id,
+                    application_method=app_rec.application_method,
+                    source_job_url=app_rec.source_job_url,
+                    canonical_job_url=app_rec.canonical_job_url,
+                    external_application_url=app_rec.external_application_url or job.url,
+                    external_portal=app_rec.external_portal or "External Career Portal",
+                    started_at=app_rec.started_at or datetime.now(timezone.utc),
+                    status=JobStatus.EXTERNAL_APPLICATION_REQUIRED,
+                    failure_reason="Application must be completed on external company career portal",
+                    dry_run=self.dry_run,
+                )
+            return ApplicationOutcome(
+                job_id, True, JobStatus.EXTERNAL_APPLICATION_REQUIRED, "External company career portal application required", app_record
+            )
+
         # 1. Idempotency Check: prevent duplicate application
         if self.app_repo.has_applied_to_job(job_id):
             logger.info(f"Idempotency Guard: Application already exists for job {job_id}. Skipping.")
@@ -94,16 +131,30 @@ class ApplicationAgent:
             self.job_repo.update_status(job_id, JobStatus.NEEDS_DATA)
             return ApplicationOutcome(job_id, False, JobStatus.NEEDS_DATA, f"Missing verified fact: {missing_field}")
 
-        # Transition to APPLICATION_READY
+        # 4. Pre-Flight Atomic Lease Persistence (Durability Invariant)
         self.job_repo.update_status(job_id, JobStatus.APPLICATION_READY)
         app_id = f"app_{job_id}_{int(datetime.now(timezone.utc).timestamp())}"
+        resume_version = self.resume_repo.get_by_job_id(job_id)
+        version_id = resume_version.version_id if resume_version else None
+
+        preflight_record = ApplicationRecord(
+            application_id=app_id,
+            job_id=job.job_id,
+            resume_version_id=version_id,
+            application_method=ApplicationMethod.NAUKRI_DIRECT.value,
+            source_job_url=job.url,
+            canonical_job_url=getattr(job, "canonical_job_url", None) or job.url,
+            started_at=datetime.now(timezone.utc),
+            status=JobStatus.APPLICATION_STARTED,
+            dry_run=self.dry_run,
+        )
+        self.app_repo.record_application(preflight_record)
+        self.job_repo.update_status(job_id, JobStatus.APPLICATION_STARTED)
         self.app_repo.log_event(app_id, "ATS_VALIDATED", "APPLICATION_READY", "Prepared tailored resume and verified answers")
+        self.app_repo.log_event(app_id, "APPLICATION_READY", "APPLICATION_STARTED", "Acquired pre-flight application lease before browser submission")
 
-        # 4. Attempt Submission via Client Adapter with Safety Trap
+        # 5. Attempt Submission via Client Adapter with Safety Trap
         try:
-            resume_version = self.resume_repo.get_by_job_id(job_id)
-            version_id = resume_version.version_id if resume_version else None
-
             record = self.client.submit_application(
                 job=job,
                 resume_docx_path=str(docx_path),

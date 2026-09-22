@@ -15,7 +15,7 @@
 1. **Zero Dummy/Mock Data Policy:** At no point may synthetic, simulated, or mock jobs (e.g., `job_oci_%`, `nk_%`, `MOCK_CONF_%`) be stored in the database or emailed to the user. Every job record and application confirmation must correspond to a verifiable live employer listing on Naukri.
 2. **Candidate Truth Layer:** Zero hallucination or fabrication. All resume statements, metrics, dates, and screening answers derive strictly from verified candidate facts in [`candidate/candidate_facts.yaml`](file:///c:/Users/2016tu/Desktop/Projects/Naukri/candidate/candidate_facts.yaml) and the master resume [`resumes/master/Saket_Saurav_OCI.docx`](file:///c:/Users/2016tu/Desktop/Projects/Naukri/resumes/master/Saket_Saurav_OCI.docx).
 3. **Current Employer Safety Gate:** Under no circumstances will the agent ever interact with, apply to, or disclose information to the candidate's current employer (`Cognizant`, `CTS`, `Cognizant Cloud Solutions`). Strict hard filters are enforced in discovery, qualification, and application engines.
-4. **Strict Compensation Guardrail:** Hard compensation floor of **₹25.0 LPA** for disclosed salaries (no upper ceiling). Undisclosed salaries are accepted by default to avoid missing high-compensation executive listings.
+4. **Strict Compensation Guardrail:** Hard compensation floor of **₹30.0 LPA** for disclosed salaries (configurable via .env; no upper ceiling). Undisclosed salaries are accepted by default to avoid missing high-compensation executive listings.
 5. **Verified Proof Submissions:** Only applications displaying the official green `.already-applied` status badge on Naukri, verified via authenticated session, are marked `APPLIED_CONFIRMED`.
 6. **Dual Daily Run Schedule (9 AM & 2 PM IST):** Both daily execution windows run the core application pipeline to maximize recruiter visibility during morning login (09:00 IST) and post-lunch screening (14:00 IST).
 7. **Consolidated Interview Dossier (Weekly on Fridays):** Comprehensive unified interview preparation dossier is generated weekly on Fridays (or via `--weekly` / `--interview-briefing`) and delivered in a dedicated separate email with `.pdf` and `.docx` attachments.
@@ -33,7 +33,7 @@ flowchart TD
     subgraph Discovery & Salary Filtering
         D -->|Query Execution| E[Playwright Headed under Xvfb]
         E -->|Scrape Card Context| F[Extract Title, Comp, Exp, Sal, Tags, Snippet]
-        F --> G[Early Salary Parser: Reject < ₹25 LPA]
+        F --> G[Early Salary Parser: Reject < ₹30 LPA]
     end
     
     subgraph Dual-Track Qualification
@@ -194,13 +194,13 @@ Naukri/
 - **Live Submission (`submit_application`):**
   - Navigates to job listing URL.
   - Detects if listing already has the green `.already-applied` badge $\rightarrow$ captures screenshot to `artifacts/evidence/<job_id>_already_applied.png` $\rightarrow$ marks `JobStatus.APPLIED_CONFIRMED`.
-  - Detects external career portals (`Apply on company site` / `Employer site`) $\rightarrow$ captures external portal URL $\rightarrow$ captures screenshot $\rightarrow$ marks `JobStatus.EXTERNAL_APPLICATION_REQUIRED`.
+  - Detects external career portals (`Apply on company site` / `Employer site`) $\rightarrow$ captures external portal URL $\rightarrow$ captures screenshot $\rightarrow$ marks `JobStatus.EXTERNAL_APPLICATION_REQUIRED`. *(Note: Automated external ATS apply is parked for future milestone under [`tasks/TASK-001-external-ats-apply.md`](file:///c:/Users/2016tu/Desktop/Projects/Naukri/tasks/TASK-001-external-ats-apply.md)).*
   - For direct apply: clicks Apply, answers recruiter screening questions via [`CandidateAnswerResolver`](file:///c:/Users/2016tu/Desktop/Projects/Naukri/src/naukri/candidate_answer_resolver.py), uploads tailored PDF resume, submits, and verifies the resulting state.
 
 #### [`src/naukri/salary_parser.py`](file:///c:/Users/2016tu/Desktop/Projects/Naukri/src/naukri/salary_parser.py)
 - Parses Indian compensation strings into normalized annual LPA figures:
   - Formats handled: `25-35 Lacs PA`, `₹ 30 - 45 LPA`, `1.2 - 1.5 Cr PA`, `Not Disclosed`.
-  - Strict Rule: Minimum disclosed salary must be $\ge$ 25.0 LPA. Any range with a lower minimum (e.g. `20-35 LPA`) is marked `REJECTED`.
+  - Strict Rule: Minimum disclosed salary must be $\ge$ 30.0 LPA. Any range with a lower minimum (e.g. `25-35 LPA`, `20-35 LPA`) is marked `REJECTED`.
   - Undisclosed salaries: Classified as `SalaryEligibility.UNDISCLOSED` and accepted by default.
 
 ---

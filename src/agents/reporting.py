@@ -1,6 +1,7 @@
 """Reporting Agent for generating responsive HTML and Markdown Daily & Weekly Reports."""
 
 import os
+import html
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Tuple, Dict, Any
@@ -57,7 +58,7 @@ Date: {data.date}
 
 ## Executive Pipeline Summary
 - **Jobs discovered:** {data.jobs_scanned}
-- **Salary rejected (< ₹20 LPA):** {data.salary_rejected}
+- **Salary rejected (< ₹30 LPA):** {data.salary_rejected}
 - **Qualified:** {data.qualified_jobs}
 - **Strong matches (Score >= 85%):** {data.strong_matches}
 - **Applications confirmed:** {len(confirmed_apps)}
@@ -91,7 +92,7 @@ Date: {data.date}
 
         if external_apps:
             md_content += "### ⭐ HIGH-VALUE EXTERNAL OPPORTUNITIES (RECOMMENDED FOR 1-CLICK MANUAL APPLICATION)\n"
-            md_content += "_The following opportunities scored high for your profile (≥75% match, ₹25+ LPA) but require submission on external enterprise career portals (Workday, Greenhouse, Taleo). Direct links are provided below for 1-click manual submission:_\n\n"
+            md_content += "_The following opportunities scored high for your profile (≥75% match, ₹30+ LPA) but require submission on external enterprise career portals (Workday, Greenhouse, Taleo). Direct links are provided below for 1-click manual submission:_\n\n"
             for idx, item in enumerate(external_apps, 1):
                 factors = ", ".join(item.key_factors[:3]) if item.key_factors else "High architecture alignment"
                 md_content += f"{idx}. **{item.role}** @ **{item.company}**\n"
@@ -149,21 +150,26 @@ Date: {data.date}
                     else:
                         verify_btn_html = f'<a href="{app.url}" target="_blank" style="color: #2563eb; text-decoration: underline; font-size: 11px;">View Listing</a>'
 
+                escaped_role = html.escape(str(app.role or ''))
+                escaped_company = html.escape(str(app.company or ''))
+                escaped_salary = html.escape(str(app.salary or 'Not Disclosed'))
+                escaped_status = html.escape(str(app.status or ''))
+
                 rows.append(f"""
                 <tr>
                     <td style="padding: 12px 14px; border-bottom: 1px solid #e2e8f0; vertical-align: middle;">
                         <div style="font-weight: 700; color: #0f172a; font-size: 13px; line-height: 1.35;">
-                            <a href="{app.url or '#'}" target="_blank" style="color: #0f172a; text-decoration: none;">{app.role}</a>
+                            <a href="{app.url or '#'}" target="_blank" style="color: #0f172a; text-decoration: none;">{escaped_role}</a>
                         </div>
                         <div style="font-size: 12px; color: #64748b; margin-top: 3px; font-weight: 500;">
-                            <span style="color: #1e293b; font-weight: 600;">{app.company}</span> &bull; <span style="color: #475569;">{app.salary}</span>
+                            <span style="color: #1e293b; font-weight: 600;">{escaped_company}</span> &bull; <span style="color: #475569;">{escaped_salary}</span>
                         </div>
                     </td>
                     <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; text-align: center; vertical-align: middle; white-space: nowrap;">
                         <span style="display: inline-block; padding: 3px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700; background-color: #dcfce7; color: #166534;">{app.match_score}%</span>
                     </td>
                     <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; text-align: center; vertical-align: middle; white-space: nowrap;">
-                        <span style="display: inline-block; padding: 3px 8px; border-radius: 6px; font-weight: 700; color: {status_color}; background-color: {status_bg}; font-size: 11px;">{app.status}</span>
+                        <span style="display: inline-block; padding: 3px 8px; border-radius: 6px; font-weight: 700; color: {status_color}; background-color: {status_bg}; font-size: 11px;">{escaped_status}</span>
                     </td>
                     <td style="padding: 12px 12px; border-bottom: 1px solid #e2e8f0; text-align: center; vertical-align: middle; white-space: nowrap;">
                         {verify_btn_html}
@@ -179,17 +185,22 @@ Date: {data.date}
             for app in ext_list:
                 factors = ", ".join(app.key_factors[:3]) if app.key_factors else "High architecture alignment"
                 btn_link = app.url if app.url else "#"
+                escaped_role = html.escape(str(app.role or ''))
+                escaped_company = html.escape(str(app.company or ''))
+                escaped_salary = html.escape(str(app.salary or 'Not Disclosed'))
+                escaped_factors = html.escape(str(factors))
+
                 rows.append(f"""
                 <tr style="background-color: #ffffff;">
                     <td style="padding: 12px 14px; border-bottom: 1px solid #bae6fd; vertical-align: middle;">
                         <div style="font-weight: 700; color: #0369a1; font-size: 13px; line-height: 1.35;">
-                            <a href="{btn_link}" target="_blank" style="color: #0369a1; text-decoration: none;">{app.role}</a>
+                            <a href="{btn_link}" target="_blank" style="color: #0369a1; text-decoration: none;">{escaped_role}</a>
                         </div>
                         <div style="font-size: 12px; color: #475569; margin-top: 3px;">
-                            <span style="font-weight: 600; color: #0f172a;">{app.company}</span> &bull; <span>{app.salary}</span>
+                            <span style="font-weight: 600; color: #0f172a;">{escaped_company}</span> &bull; <span>{escaped_salary}</span>
                         </div>
                         <div style="font-size: 11px; color: #64748b; margin-top: 3px; font-style: italic;">
-                            {factors}
+                            {escaped_factors}
                         </div>
                     </td>
                     <td style="padding: 12px 10px; border-bottom: 1px solid #bae6fd; text-align: center; vertical-align: middle; white-space: nowrap;">
@@ -314,7 +325,7 @@ Date: {data.date}
         <span style="background-color: #0284c7; color: #ffffff; padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700;">Recommended for Manual Apply</span>
       </div>
       <div style="font-size: 13px; color: #0c4a6e; margin-bottom: 12px; line-height: 1.5;">
-        The following opportunities scored high for your profile (&ge;75% match, &ge;₹25 LPA) but require submission on external enterprise portals (Workday, Greenhouse, Taleo). Click <strong>"Apply on Company Portal &rarr;"</strong> below to open the external job listing directly:
+        The following opportunities scored high for your profile (&ge;75% match, &ge;₹30 LPA) but require submission on external enterprise portals (Workday, Greenhouse, Taleo). Click <strong>"Apply on Company Portal &rarr;"</strong> below to open the external job listing directly:
       </div>
       <div class="table-wrapper" style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; border: 1px solid #bae6fd; background-color: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
         <table style="width: 100%; min-width: 480px; border-collapse: collapse; text-align: left; font-size: 13px;">
@@ -366,6 +377,11 @@ Date: {data.date}
 </html>
 """
         html_file.write_text(html_content, encoding="utf-8")
+        if data.run_id:
+            run_html_file = self.daily_dir / f"{data.date}_{data.run_id}.html"
+            run_html_file.write_text(html_content, encoding="utf-8")
+            run_md_file = self.daily_dir / f"{data.date}_{data.run_id}.md"
+            run_md_file.write_text(md_content, encoding="utf-8")
         logger.info(f"Daily reports written to {md_file} and {html_file}")
         return md_file, html_file, html_content
 
@@ -381,10 +397,10 @@ Date: {data.date}
 ---
 
 ## 1. Salary Distribution
-- Disclosed >= ₹30 LPA: {data.salary_stats.get('above_30_lpa', 0)}
-- Disclosed ₹20–30 LPA: {data.salary_stats.get('min_20_to_30_lpa', 0)}
+- Disclosed >= ₹40 LPA: {data.salary_stats.get('above_40_lpa', data.salary_stats.get('above_30_lpa', 0))}
+- Disclosed ₹30–40 LPA: {data.salary_stats.get('min_30_to_40_lpa', data.salary_stats.get('min_20_to_30_lpa', 0))}
 - Undisclosed (Accepted): {data.salary_stats.get('undisclosed_count', 0)}
-- Rejected (< ₹20 LPA): {data.salary_stats.get('below_20_lpa_rejected', 0)}
+- Rejected (< ₹30 LPA): {data.salary_stats.get('below_30_lpa_rejected', data.salary_stats.get('below_20_lpa_rejected', 0))}
 
 ---
 

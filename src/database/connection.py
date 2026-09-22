@@ -19,8 +19,20 @@ def get_engine(db_url: str = "sqlite:///naukri_career_agent.sqlite"):
     """Get or create SQLAlchemy engine keyed by db_url."""
     if db_url not in _ENGINES:
         is_sqlite = db_url.startswith("sqlite")
-        connect_args = {"check_same_thread": False} if is_sqlite else {}
-        _ENGINES[db_url] = create_engine(db_url, echo=False, connect_args=connect_args)
+        connect_args = {"check_same_thread": False, "timeout": 15.0} if is_sqlite else {}
+        engine = create_engine(db_url, echo=False, connect_args=connect_args)
+        
+        if is_sqlite and not db_url.endswith(":memory:"):
+            from sqlalchemy import event
+            @event.listens_for(engine, "connect")
+            def set_sqlite_pragma(dbapi_connection, connection_record):
+                cursor = dbapi_connection.cursor()
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.execute("PRAGMA busy_timeout=15000")
+                cursor.close()
+
+        _ENGINES[db_url] = engine
     return _ENGINES[db_url]
 
 
@@ -51,17 +63,8 @@ def init_db(db_url: str = "sqlite:///naukri_career_agent.sqlite") -> None:
                 # Clean up legacy unapplied rejected jobs so they can be re-evaluated under dual-track qualification
                 conn.exec_driver_sql("DELETE FROM jobs WHERE status = 'REJECTED'")
                 conn.commit()
-
-                # Seed authentic records if DB is empty and seed file exists
-                seed_file = Path(__file__).parent / "seed.sql"
-                if seed_file.exists():
-                    job_count = conn.exec_driver_sql("SELECT count(*) FROM jobs").scalar()
-                    if job_count == 0:
-                        sql_script = seed_file.read_text(encoding="utf-8")
-                        conn.connection.executescript(sql_script)
-                        logger.info("Database seeded successfully with authentic verified applications.")
         except Exception as exc:
-            logger.warning(f"Database hygiene / seed check notice: {exc}")
+            logger.warning(f"Database hygiene notice: {exc}")
 
     logger.info("Database tables initialized and synchronized successfully.")
 

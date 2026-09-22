@@ -61,8 +61,11 @@ class MarketIntelligenceAgent:
             "undisclosed_count": 0,
             "disclosed_count": 0,
             "min_20_to_30_lpa": 0,
+            "min_30_to_40_lpa": 0,
             "above_30_lpa": 0,
+            "above_40_lpa": 0,
             "below_20_lpa_rejected": 0,
+            "below_30_lpa_rejected": 0,
         }
         for j in all_jobs:
             if not j.salary_disclosed:
@@ -72,9 +75,16 @@ class MarketIntelligenceAgent:
                 min_sal = j.salary_min or 0.0
                 if min_sal < 20.0:
                     salary_stats["below_20_lpa_rejected"] += 1
-                elif 20.0 <= min_sal <= 30.0:
-                    salary_stats["min_20_to_30_lpa"] += 1
+                if min_sal < 30.0:
+                    salary_stats["below_30_lpa_rejected"] += 1
+                elif min_sal <= 40.0:
+                    salary_stats["min_30_to_40_lpa"] += 1
                 else:
+                    salary_stats["above_40_lpa"] += 1
+
+                if 20.0 <= min_sal <= 30.0:
+                    salary_stats["min_20_to_30_lpa"] += 1
+                elif min_sal > 30.0:
                     salary_stats["above_30_lpa"] += 1
 
         # 2. Extract Skill & Platform Frequencies

@@ -21,6 +21,7 @@ class CandidateProfile(BaseModel):
     willing_to_relocate: bool = True
     work_authorization: str = "Indian Citizen"
     current_salary_disclosed: bool = False
+    current_salary_lpa: Optional[float] = None
     min_acceptable_salary_lpa: Optional[float] = None
     target_salary_lpa: Optional[float] = None
 

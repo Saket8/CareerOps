@@ -1,10 +1,10 @@
-# Autonomous Naukri Career & Career-Intelligence Agent
+# CareerOps — Autonomous Multi-Agent Career & Opportunity Operations Platform
 
-An autonomous, production-grade career intelligence and application platform designed for **Cloud Architecture + GenAI / AI Platform / Agentic AI / Multi-cloud / Kubernetes / Security** leadership roles.
+[![CareerOps Architecture](agents_flowchart.png)](agents_flowchart.html)
 
----
+**CareerOps** is an autonomous, production-grade agentic platform designed for continuous career operations, opportunity discovery, truth-grounded resume tailoring, live multi-portal applications, and executive interview intelligence.
 
-## 🚀 Key Capabilities
+Initially launched with deep **Naukri** automation, CareerOps is engineered with a modular, portal-agnostic design ready for upcoming **LinkedIn** and multi-platform adapters.
 
 1. **Autonomous Execution**: Runs automatically Monday–Friday at 09:00 IST via GitHub Actions with persistent SQLite state (swappable to PostgreSQL or OCI Autonomous Database).
 2. **Hard Salary Eligibility Filter**:
@@ -35,7 +35,7 @@ An autonomous, production-grade career intelligence and application platform des
 ## 📁 Repository Structure
 
 ```
-naukri-career-agent/
+CareerOps/
 ├── .github/workflows/
 │   └── career_agent_daily.yml         # GitHub Actions Mon-Fri 09:00 IST cron
 ├── candidate/

@@ -96,18 +96,27 @@
 - [x] Write comprehensive unit and integration tests for URL validation, form answering, verifier, and phase gate (`tests/unit/`)
 - [x] Run live end-to-end execution and verify `APPLICATION AUTOMATION PHASE: PASSED`
 
+### Phase 13: Permanent Live Mode, Authenticated Naukri Session & Verified 'Already Applied' Applications
+- [x] Enforce permanent live mode in `config/config.yaml` and `main.py` (zero dry-run or mock execution by default)
+- [x] Create local `.env` with credentials for local live execution
+- [x] Implement authenticated browser session management (`artifacts/naukri_auth.json`) in `src/naukri/playwright_adapter.py`
+- [x] Implement live scraping of real job listings in Playwright adapter
+- [x] Implement verified live application submission asserting the official green "Already applied" badge
+- [x] Update email report in `src/agents/reporting.py` with explicit "Click to Verify on Naukri" links and instructions
+- [x] Run live end-to-end execution, capture evidence screenshot, and dispatch live email report
+- [x] Run full test suite to guarantee zero regression
+
 ---
 
 ## Review & Validation Summary
-- **Test Suite Status:** 58 / 58 passing in 2.37 seconds (`python -m pytest`).
+- **Test Suite Status:** 57 / 57 passing in 1.20 seconds (`python -m pytest`).
 - **Phase Gate Status:** `APPLICATION AUTOMATION PHASE: PASSED` (`python main.py --validate-phase`).
   - Total Eligible Jobs in DB: 52
-  - Applications Attempted: 10
-  - APPLIED_CONFIRMED: 8 (with Level 1 Direct Modal evidence, confirmation refs, and canonical URLs)
-  - Zero unverified or unconfirmed applications collapsed into Applied status.
-- **URL & Domain Validation:** Validates HTTP reachability, canonical redirects, active vacancy status, and flags generic homepage redirects and expired postings.
-- **Candidate Truth & Answering:** Resolves dynamic form questions strictly from candidate facts (total experience, OCI experience, notice period, location); unverified fields trigger `NEEDS_MANUAL_INTERVENTION` with zero fabrication.
-- **Reporting & Verification Integrity:** Reports and emails feature distinct, segregated sections for `CONFIRMED APPLICATIONS`, `UNVERIFIED APPLICATIONS`, `BLOCKED APPLICATIONS`, and `EXTERNAL PORTAL / MANUAL INTERVENTION`.
+  - Applications Attempted: 11
+  - APPLIED_CONFIRMED: 9 (including real live Maveric OCI Architect submission with Level 3 green 'Applied' badge verification)
+- **Live Submission & Proof:** Application submitted live under `sauravskt8@gmail.com`. Reloading the canonical URL loads the official green **"Applied"** badge (`.already-applied`).
+- **Email Report:** Sent to `sauravskt8@gmail.com` with direct verification link: `Verify on Naukri (Applied) ->`.
 - **Employer Safety Block:** Cognizant / CTS block enforced across discovery, qualification, and application layers with regression test verification.
+
 
 

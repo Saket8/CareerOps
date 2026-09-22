@@ -40,7 +40,7 @@ class Orchestrator:
         self.config = config
         self.offline_mode = offline_mode
         self.candidate_truth = get_candidate_truth()
-        self.dry_run = bool(config.get("application", {}).get("dry_run", True))
+        self.dry_run = bool(config.get("application", {}).get("dry_run", False))
         db_url = config.get("database", {}).get("db_url", "sqlite:///naukri_career_agent.sqlite")
         init_db(db_url)
         self.db_url = db_url

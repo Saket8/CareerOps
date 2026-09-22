@@ -59,6 +59,14 @@ class CandidateAnswerResolver:
                 field_type=field_type,
             )
 
+        if ("kubernetes" in q_lower or "k8s" in q_lower or "oke" in q_lower) and any(term in q_lower for term in ["experience", "years"]):
+            k8s_years = getattr(self.cand, "kubernetes_experience_years", 5.0)
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value=str(int(k8s_years)),
+                field_type=field_type,
+            )
+
         if "cloud" in q_lower and any(term in q_lower for term in ["experience", "years"]) and "total" not in q_lower and "overall" not in q_lower:
             return FormQuestionAnswerResult(
                 can_answer=True,

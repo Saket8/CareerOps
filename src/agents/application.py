@@ -46,7 +46,7 @@ class ApplicationAgent:
         self.config = config
 
         app_cfg = config.get("application", {})
-        self.dry_run = bool(app_cfg.get("dry_run", True))
+        self.dry_run = bool(app_cfg.get("dry_run", False))
         self.max_applications_per_day = int(app_cfg.get("max_applications_per_day", 10))
 
     def process_application(

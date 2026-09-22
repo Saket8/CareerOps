@@ -80,7 +80,9 @@ def test_weekly_report_generation(tmp_path):
     assert "INCREASING (↑)" in html_content
 
 
-def test_smtp_mailer_no_credentials_safe():
+def test_smtp_mailer_no_credentials_safe(monkeypatch):
+    monkeypatch.delenv("SMTP_USERNAME", raising=False)
+    monkeypatch.delenv("SMTP_PASSWORD", raising=False)
     mailer = SmtpMailer(config={"email": {"enabled": True}})
     # No credentials in env -> should safely log warning and return False
     res = mailer.send_report("Subject", "<h1>Content</h1>")

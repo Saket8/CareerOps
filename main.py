@@ -17,8 +17,8 @@ logger = get_logger("main")
 
 def main():
     parser = argparse.ArgumentParser(description="Autonomous Naukri Career & Career-Intelligence Agent")
-    parser.add_argument("--dry-run", action="store_true", default=None, help="Run without submitting real applications (Default)")
-    parser.add_argument("--live", action="store_true", help="Enable live application submissions")
+    parser.add_argument("--dry-run", action="store_true", default=False, help="Run in dry-run mode (Debug only)")
+    parser.add_argument("--live", action="store_true", default=True, help="Enable live application submissions (Default: Always Live)")
     parser.add_argument("--weekly", action="store_true", help="Force weekly career intelligence generation")
     parser.add_argument("--offline", action="store_true", help="Run with offline verified test dataset")
     parser.add_argument("--query-limit", type=int, default=15, help="Max jobs to evaluate per search query")
@@ -33,14 +33,14 @@ def main():
 
     config = load_config()
 
-    # Determine dry run mode
-    if args.live:
-        config["application"]["dry_run"] = False
-    elif args.dry_run is not None:
+    # LIVE mode is permanently enforced by default
+    if args.dry_run:
         config["application"]["dry_run"] = True
+    else:
+        config["application"]["dry_run"] = False
 
     is_dry = config["application"]["dry_run"]
-    logger.info(f"Initiating Autonomous Career Agent (DRY_RUN={is_dry}, OFFLINE={args.offline})...")
+    logger.info(f"Initiating Autonomous Career Agent (LIVE={not is_dry}, OFFLINE={args.offline})...")
 
     orchestrator = Orchestrator(config=config, offline_mode=args.offline)
     daily_report = orchestrator.run_daily_pipeline(force_weekly=args.weekly, query_limit=args.query_limit)

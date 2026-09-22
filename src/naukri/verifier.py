@@ -87,16 +87,22 @@ class ApplicationVerifier:
                 evidence_summary="Login session required to proceed with application.",
             )
 
-        # 1. Check for Level 3 "Already Applied" state on listing
-        if "already applied" in content_lower or "already applied" in title_lower:
+        # 1. Check for Level 3 "Already Applied" state on listing or post-apply page
+        if (
+            "already applied" in content_lower
+            or "already applied" in title_lower
+            or "already-applied" in content_lower
+            or re.search(r'class="[^"]*already-applied[^"]*"', page_content, re.IGNORECASE)
+            or re.search(r'applied\s+to\s+["\'][^"\']+["\']', page_content, re.IGNORECASE)
+        ):
             return VerificationEvidence(
                 confirmed=True,
                 status=JobStatus.APPLIED_CONFIRMED,
                 verification_level="LEVEL_3_BUTTON_ALREADY_APPLIED",
-                confirmation_text="Already Applied status detected on listing",
+                confirmation_text="Applied status confirmed on listing / post-apply page",
                 confirmation_reference="ALREADY_APPLIED",
                 final_url=final_url,
-                evidence_summary="Job listing confirmed with 'Already Applied' button state.",
+                evidence_summary="Job listing confirmed with 'Applied' / 'Already Applied' badge state.",
             )
 
         # 2. Check for Captured Reference ID

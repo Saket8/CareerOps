@@ -43,6 +43,8 @@ logs/
 secrets.yaml
 creds.txt
 *credential*
+*auth*.json
+artifacts/scratch/
 
 # IDE / Editor
 .vscode/

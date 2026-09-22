@@ -4,16 +4,21 @@ import os
 from pathlib import Path
 from typing import Any, Dict
 import yaml
+from dotenv import load_dotenv
 
 from src.utils.logger import get_logger
 
 logger = get_logger("config_loader")
 
 CONFIG_FILE = Path(__file__).resolve().parent.parent.parent / "config" / "config.yaml"
+ENV_FILE = Path(__file__).resolve().parent.parent.parent / ".env"
 
 
 def load_config(config_path: Path = CONFIG_FILE) -> Dict[str, Any]:
     """Loads configuration and applies environment variable overrides."""
+    if ENV_FILE.exists():
+        load_dotenv(ENV_FILE)
+
     if not config_path.exists():
         raise FileNotFoundError(f"Configuration file not found at {config_path}")
 

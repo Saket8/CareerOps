@@ -176,12 +176,20 @@ class QualificationAgent:
         self.job_repo.save_score(score)
         self.job_repo.save_evidence(evidence)
 
-        # Update Job Status in DB
-        new_status = JobStatus.HIGH_MATCH if overall_score >= self.high_match_threshold else (
-            JobStatus.QUALIFIED if passed else JobStatus.REJECTED
-        )
-        self.job_repo.update_status(job.job_id, new_status)
-        job.status = new_status
+        # Update Job Status in DB (Preserve already APPLIED / APPLIED_CONFIRMED statuses)
+        existing_job = self.job_repo.get(job.job_id)
+        current_status = existing_job.status if existing_job else (job.status.value if hasattr(job.status, "value") else str(job.status))
+        if current_status not in (JobStatus.APPLIED.value, JobStatus.APPLIED_CONFIRMED.value):
+            new_status = JobStatus.HIGH_MATCH if overall_score >= self.high_match_threshold else (
+                JobStatus.QUALIFIED if passed else JobStatus.REJECTED
+            )
+            self.job_repo.update_status(job.job_id, new_status)
+            job.status = new_status
+        else:
+            try:
+                job.status = JobStatus(current_status)
+            except ValueError:
+                job.status = JobStatus.APPLIED_CONFIRMED
 
         logger.info(
             f"Qualified '{job.title}' @ {job.company} -> Score: {overall_score}% "

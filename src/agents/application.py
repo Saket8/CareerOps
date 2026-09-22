@@ -125,6 +125,8 @@ class ApplicationAgent:
             self.app_repo.record_application(record)
             
             is_confirmed = final_status in (JobStatus.APPLIED_CONFIRMED, JobStatus.APPLIED)
+            if is_confirmed and not self.dry_run:
+                final_status = JobStatus.APPLIED_CONFIRMED
             event_status = final_status.value
             event_desc = f"Application workflow completed: {final_status.value} (DRY_RUN={self.dry_run})"
             if record.failure_reason:

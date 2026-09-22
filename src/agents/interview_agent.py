@@ -220,6 +220,17 @@ class InterviewAgent:
         docx_path = self.reports_dir / f"Daily_Interview_Intelligence_{date_str}.docx"
         pdf_path = self.reports_dir / f"Daily_Interview_Intelligence_{date_str}.pdf"
 
+        # Strict zero-dummy filter on matched items
+        clean_matched = []
+        for item in matched_items:
+            j = item[0]
+            u = j.url or ""
+            if "job-listings-job_oci_" in u or "job-listings-job_undisclosed_" in u or "job-listings-nk_" in u:
+                continue
+            clean_matched.append(item)
+        if clean_matched:
+            matched_items = clean_matched
+
         # 1. Build Consolidated DOCX
         doc = docx.Document()
         for sec in doc.sections:

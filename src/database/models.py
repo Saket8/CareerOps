@@ -62,6 +62,49 @@ class JobModel(Base):
         Index("ix_jobs_salary_eligibility", "salary_eligibility"),
     )
 
+    def to_listing(self):
+        """Convert ORM model to JobListing domain model."""
+        from src.models.job import JobListing, JobSalary, SalaryEligibility, JobStatus
+        try:
+            eligibility = SalaryEligibility(self.salary_eligibility)
+        except Exception:
+            eligibility = SalaryEligibility.UNDISCLOSED
+
+        try:
+            status = JobStatus(self.status)
+        except Exception:
+            status = JobStatus.DISCOVERED
+
+        sal = JobSalary(
+            min_lpa=self.salary_min,
+            max_lpa=self.salary_max,
+            currency=self.salary_currency or "INR",
+            period=self.salary_period or "per_annum",
+            is_disclosed=bool(self.salary_disclosed),
+            eligibility=eligibility,
+            raw_text=self.salary_raw_text or "Not Disclosed",
+        )
+
+        return JobListing(
+            job_id=self.job_id,
+            title=self.title,
+            company=self.company,
+            location=self.location,
+            work_mode=self.work_mode or "onsite",
+            experience_min=self.experience_min,
+            experience_max=self.experience_max,
+            experience_raw=self.experience_raw or "",
+            salary=sal,
+            posted_date=self.posted_date,
+            url=self.url,
+            canonical_url=self.canonical_url,
+            jd_text=self.jd_text or "",
+            source_query=self.source_query or "",
+            source_platform=self.source_platform or "naukri",
+            application_method=self.application_method or "standard",
+            status=status,
+        )
+
 
 class JobScoreModel(Base):
     __tablename__ = "job_scores"

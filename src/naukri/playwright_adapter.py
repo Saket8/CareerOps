@@ -171,11 +171,10 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                     logger.info(f"Live search found {len(listings)} listings on {search_url}")
                     return listings
         except Exception as exc:
-            logger.warning(f"Live search encountered error: {exc}. Falling back to standard adapter.")
+            logger.warning(f"Live search encountered error on {search_url}: {exc}")
+            return []
 
-        from src.naukri.browser_adapter import NaukriBrowserAdapter
-        adapter = NaukriBrowserAdapter(offline_mode=False)
-        return adapter.search_jobs(query, locations, experience_min, experience_max, limit)
+        return []
 
     def fetch_job_details(self, job_listing: JobListing) -> JobListing:
         """Fetches full job description text for an existing listing."""

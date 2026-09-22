@@ -25,11 +25,19 @@ class ReportingAgent:
         md_file = self.daily_dir / f"{data.date}.md"
         html_file = self.daily_dir / f"{data.date}.html"
 
-        confirmed_apps = [a for a in data.top_applications if a.status in ("APPLIED_CONFIRMED", "APPLIED")]
-        unverified_apps = [a for a in data.top_applications if a.status == "SUBMISSION_UNVERIFIED"]
-        blocked_apps = [a for a in data.top_applications if a.status in ("APPLICATION_BLOCKED", "BLOCKED")]
-        external_apps = [a for a in data.top_applications if a.status in ("EXTERNAL_APPLICATION_REQUIRED", "NEEDS_MANUAL_INTERVENTION")]
-        failed_apps = [a for a in data.top_applications if a.status in ("APPLICATION_FAILED", "FAILED")]
+        # Filter out dummy/mock jobs in production reports
+        def _is_valid_report_app(a):
+            if data.dry_run:
+                return True
+            u = a.url or ""
+            return not ("job-listings-job_oci_" in u or "job-listings-job_undisclosed_" in u or "job-listings-nk_" in u or u == "#")
+
+        valid_apps = [a for a in data.top_applications if _is_valid_report_app(a)]
+        confirmed_apps = [a for a in valid_apps if a.status in ("APPLIED_CONFIRMED", "APPLIED")]
+        unverified_apps = [a for a in valid_apps if a.status == "SUBMISSION_UNVERIFIED"]
+        blocked_apps = [a for a in valid_apps if a.status in ("APPLICATION_BLOCKED", "BLOCKED")]
+        external_apps = [a for a in valid_apps if a.status in ("EXTERNAL_APPLICATION_REQUIRED", "NEEDS_MANUAL_INTERVENTION")]
+        failed_apps = [a for a in valid_apps if a.status in ("APPLICATION_FAILED", "FAILED")]
 
         # Markdown format
         md_content = f"""# CAREER AGENT — APPLICATION REPORT

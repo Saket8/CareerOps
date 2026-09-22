@@ -135,6 +135,7 @@ class Orchestrator:
                     rec = outcome.app_record
                     method = rec.application_method if rec else "Naukri Direct"
                     ref = rec.confirmation_reference if rec else None
+                    portal_url = (rec.external_application_url if (rec and rec.external_application_url) else job.url)
                     top_applications.append(
                         TopApplicationItem(
                             company=job.company,
@@ -144,7 +145,7 @@ class Orchestrator:
                             key_factors=score.strengths[:3],
                             resume_used=docx_path.name,
                             status=status.value,
-                            url=job.url,
+                            url=portal_url,
                             method=method,
                             reason=rec.failure_reason if (rec and rec.failure_reason) else outcome.reason,
                             evidence_path=rec.evidence_path if rec else None,
@@ -211,12 +212,24 @@ class Orchestrator:
             is_afternoon_2pm_run = (13 <= ist_hour <= 15)
             should_send_interview = force_interview or is_afternoon_2pm_run or (len(matched_items_for_briefing) > 0)
 
+            # Strict zero-dummy filter on matched items
+            import re
+            matched_items_for_briefing = [
+                item for item in matched_items_for_briefing
+                if re.match(r"^\d+$", str(item[0].job_id)) and not ("job_oci_" in item[0].url or "nk_" in item[0].url)
+            ]
+
             # Backfill for interview briefing if scheduled/forced but no new applies in current single run
             if should_send_interview and not matched_items_for_briefing:
-                recent_applied = job_repo.get_jobs_by_status(JobStatus.APPLIED_CONFIRMED)[:10]
-                for r_job in recent_applied:
-                    r_score, r_evidence = qualification_agent.evaluate_job(r_job)
-                    matched_items_for_briefing.append((r_job, r_score, r_evidence))
+                recent_applied = job_repo.get_jobs_by_status(JobStatus.APPLIED_CONFIRMED)
+                if not recent_applied:
+                    recent_applied = [j for j in job_repo.get_jobs_by_status(JobStatus.APPLIED) if re.match(r"^\d+$", str(j.job_id))]
+                for r_job in recent_applied[:10]:
+                    if not re.match(r"^\d+$", str(r_job.job_id)) or "job_oci_" in r_job.url or "nk_" in r_job.url:
+                        continue
+                    listing = r_job.to_listing() if hasattr(r_job, "to_listing") else r_job
+                    r_score, r_evidence = qualification_agent.evaluate_job(listing)
+                    matched_items_for_briefing.append((listing, r_score, r_evidence))
 
             if should_send_interview and matched_items_for_briefing:
                 logger.info("Generating Daily Consolidated Interview Intelligence Briefing...")

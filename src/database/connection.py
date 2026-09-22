@@ -48,6 +48,8 @@ def init_db(db_url: str = "sqlite:///naukri_career_agent.sqlite") -> None:
                 # Zero-Dummy Invariant: Purge any legacy dummy/mock records restored from older caches
                 conn.exec_driver_sql("DELETE FROM applications WHERE job_id LIKE 'job_oci_%' OR job_id LIKE 'nk_%' OR canonical_job_url LIKE '%job_oci_%' OR canonical_job_url LIKE '%nk_%'")
                 conn.exec_driver_sql("DELETE FROM jobs WHERE job_id LIKE 'job_oci_%' OR job_id LIKE 'nk_%' OR url LIKE '%job_oci_%' OR company LIKE '%Cognizant%'")
+                # Clean up legacy unapplied rejected jobs so they can be re-evaluated under dual-track qualification
+                conn.exec_driver_sql("DELETE FROM jobs WHERE status = 'REJECTED'")
                 conn.commit()
 
                 # Seed authentic records if DB is empty and seed file exists

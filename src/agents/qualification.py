@@ -106,7 +106,9 @@ class QualificationAgent:
             self.job_repo.save_job(job)
             return zero_score, empty_evidence
 
-        text = f"{job.title}\n{job.jd_text}".lower()
+        query = getattr(job, "discovered_via_query", "") or getattr(job, "source_query", "") or ""
+        skills = getattr(job, "skills_found", []) or []
+        text = f"{job.title}\n{query}\n{job.jd_text or ''}\n{' '.join(skills)}".lower()
 
         # Compute dimension matches
         arch_score = self._compute_dimension_score(text, DIMENSION_KEYWORDS["architecture"])
@@ -124,21 +126,37 @@ class QualificationAgent:
         # Skill alignment across full candidate competencies
         skill_score = (cloud_score + k8s_score + sec_score + ai_score) / 4.0
 
-        # Weighted Overall Score:
-        # Architecture weight: 25%
-        # Cloud (OCI + Multi-cloud): 25%
-        # AI/GenAI/Agentic: 20%
-        # Kubernetes: 10%
-        # Security & IAM: 10%
-        # Experience: 10%
-        overall_score = (
-            (arch_score * 0.25)
-            + (((cloud_score * 0.6) + (oci_score * 0.4)) * 0.25)
-            + (((ai_score * 0.7) + (agentic_score * 0.3)) * 0.20)
+        # Dual-Track Multi-Pillar Matching:
+        # Candidate has 2 core target tracks:
+        # Track 1: Oracle Cloud Infrastructure (OCI) / Enterprise Cloud Architect
+        track_cloud_score = (
+            (arch_score * 0.30)
+            + (((cloud_score * 0.5) + (oci_score * 0.5)) * 0.40)
             + (k8s_score * 0.10)
             + (sec_score * 0.10)
             + (exp_score * 0.10)
         )
+
+        # Track 2: AI / GenAI / LLMOps / Agentic AI Architect
+        track_ai_score = (
+            (arch_score * 0.25)
+            + (((ai_score * 0.7) + (agentic_score * 0.3)) * 0.45)
+            + (cloud_score * 0.15)
+            + (((k8s_score + sec_score) / 2.0) * 0.10)
+            + (exp_score * 0.05)
+        )
+
+        # Track 3: Hybrid Enterprise Cloud + AI Architect
+        track_hybrid_score = (
+            (arch_score * 0.25)
+            + (((cloud_score * 0.6) + (oci_score * 0.4)) * 0.25)
+            + (((ai_score * 0.7) + (agentic_score * 0.3)) * 0.25)
+            + (((k8s_score + sec_score) / 2.0) * 0.15)
+            + (exp_score * 0.10)
+        )
+
+        # Candidate overall score is evaluated against their best-aligned track
+        overall_score = max(track_cloud_score, track_ai_score, track_hybrid_score)
         overall_score = round(min(100.0, max(0.0, overall_score)), 1)
 
         # Determine Role Categories

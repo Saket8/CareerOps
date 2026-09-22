@@ -155,6 +155,14 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
 
                     parsed_salary = parse_salary(raw_sal, min_threshold_lpa=25.0)
 
+                    # Extract tags, description snippet, and full card text
+                    tags_el = t.locator("ul.tags-gt li, ul.tags li, .tag-li, .dot-gt, [class*='tag']").all()
+                    skills_found = [el.text_content().strip() for el in tags_el if el.text_content().strip()]
+
+                    desc_el = t.locator("span.job-desc, div.job-desc, span.ni-job-tuple-icon-srp-description, div.row4, span.desc").first
+                    desc_snippet = desc_el.text_content().strip() if desc_el.count() > 0 else ""
+                    full_card_text = t.text_content().strip()
+
                     listing = JobListing(
                         job_id=job_id,
                         title=title,
@@ -162,9 +170,9 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         location=location,
                         salary=parsed_salary,
                         experience_required=raw_exp,
-                        skills_found=[],
-                        description_raw="",
-                        description_cleaned="",
+                        skills_found=skills_found,
+                        description_raw=full_card_text,
+                        description_cleaned=desc_snippet or full_card_text,
                         url=url,
                         posted_date="Recent",
                         discovered_via_query=query,

@@ -52,9 +52,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: naukri_career_agent.sqlite
-          key: career-agent-db-v4-${{ github.run_id }}
+          key: career-agent-db-v5-${{ github.run_id }}
           restore-keys: |
-            career-agent-db-v4-
+            career-agent-db-v5-
 
       - name: Restore Authenticated Session
         env:

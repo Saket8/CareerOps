@@ -77,6 +77,8 @@ class JobListing(BaseModel):
     canonical_url: Optional[str] = None
     jd_text: str = ""
     source_query: str = ""
+    discovered_via_query: Optional[str] = ""
+    skills_found: List[str] = Field(default_factory=list)
     source_platform: str = "naukri"
     application_method: str = "NAUKRI_DIRECT"
     status: JobStatus = JobStatus.DISCOVERED

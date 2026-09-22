@@ -101,62 +101,69 @@ class Orchestrator:
             disc_result = discovery_agent.run_discovery(query_limit=query_limit)
 
             # 2. QUALIFICATION & SCORING
+            qualifying_jobs = []
             for job in disc_result.eligible_jobs:
                 score, evidence = qualification_agent.evaluate_job(job)
 
                 if score.overall_score >= qualification_agent.high_match_threshold:
                     strong_matches += 1
 
-                # 3. TAILOR RESUME & APPLY FOR QUALIFYING JOBS
                 if score.passed_threshold:
-                    matched_items_for_briefing.append((job, score, evidence))
-                    # Tailor ATS Resume (DOCX & PDF)
-                    docx_path, pdf_path, val_report = resume_agent.generate_tailored_resume(job, score)
-                    resumes_generated += 1
+                    qualifying_jobs.append((job, score, evidence))
 
-                    # Process Automated Application
-                    outcome = application_agent.process_application(job, score, docx_path, pdf_path)
-                    applications_attempted += 1
-                    status = outcome.status
-                    if status in (JobStatus.APPLIED, JobStatus.APPLIED_CONFIRMED):
-                        confirmed_count += 1
-                    elif status == JobStatus.SUBMISSION_UNVERIFIED:
-                        unverified_count += 1
-                    elif status in (JobStatus.APPLICATION_BLOCKED, JobStatus.BLOCKED):
-                        blocked_count += 1
-                    elif status in (JobStatus.APPLICATION_FAILED, JobStatus.FAILED):
-                        failed_count += 1
-                    elif status == JobStatus.EXTERNAL_APPLICATION_REQUIRED:
-                        external_count += 1
-                    elif status == JobStatus.NEEDS_MANUAL_INTERVENTION:
-                        manual_count += 1
+            # Prioritize top-tier opportunities first
+            qualifying_jobs.sort(key=lambda item: item[1].overall_score, reverse=True)
 
-                    # Top application item with full audit evidence
-                    rec = outcome.app_record
-                    method = rec.application_method if rec else "Naukri Direct"
-                    ref = rec.confirmation_reference if rec else None
-                    portal_url = (rec.external_application_url if (rec and rec.external_application_url) else job.url)
-                    top_applications.append(
-                        TopApplicationItem(
-                            company=job.company,
-                            role=job.title,
-                            salary=job.salary.raw_text or "Not Disclosed",
-                            match_score=score.overall_score,
-                            key_factors=score.strengths[:3],
-                            resume_used=docx_path.name,
-                            status=status.value,
-                            url=portal_url,
-                            method=method,
-                            reason=rec.failure_reason if (rec and rec.failure_reason) else outcome.reason,
-                            evidence_path=rec.evidence_path if rec else None,
-                            confirmation_ref=ref,
-                        )
+            # 3. TAILOR RESUME & APPLY FOR QUALIFYING JOBS
+            for job, score, evidence in qualifying_jobs:
+                matched_items_for_briefing.append((job, score, evidence))
+                # Tailor ATS Resume (DOCX & PDF)
+                docx_path, pdf_path, val_report = resume_agent.generate_tailored_resume(job, score)
+                resumes_generated += 1
+
+                # Process Automated Application
+                outcome = application_agent.process_application(job, score, docx_path, pdf_path)
+                applications_attempted += 1
+                status = outcome.status
+                if status in (JobStatus.APPLIED, JobStatus.APPLIED_CONFIRMED):
+                    confirmed_count += 1
+                elif status == JobStatus.SUBMISSION_UNVERIFIED:
+                    unverified_count += 1
+                elif status in (JobStatus.APPLICATION_BLOCKED, JobStatus.BLOCKED):
+                    blocked_count += 1
+                elif status in (JobStatus.APPLICATION_FAILED, JobStatus.FAILED):
+                    failed_count += 1
+                elif status == JobStatus.EXTERNAL_APPLICATION_REQUIRED:
+                    external_count += 1
+                elif status == JobStatus.NEEDS_MANUAL_INTERVENTION:
+                    manual_count += 1
+
+                # Top application item with full audit evidence
+                rec = outcome.app_record
+                method = rec.application_method if rec else "Naukri Direct"
+                ref = rec.confirmation_reference if rec else None
+                portal_url = (rec.external_application_url if (rec and rec.external_application_url) else job.url)
+                top_applications.append(
+                    TopApplicationItem(
+                        company=job.company,
+                        role=job.title,
+                        salary=job.salary.raw_text or "Not Disclosed",
+                        match_score=score.overall_score,
+                        key_factors=score.strengths[:3],
+                        resume_used=docx_path.name,
+                        status=status.value,
+                        url=portal_url,
+                        method=method,
+                        reason=rec.failure_reason if (rec and rec.failure_reason) else outcome.reason,
+                        evidence_path=rec.evidence_path if rec else None,
+                        confirmation_ref=ref,
                     )
+                )
 
-                    # 4. INTERVIEW PREPARATION (For High Matches or Applied Roles)
-                    if score.overall_score >= qualification_agent.high_match_threshold or score.architecture_score >= 85.0:
-                        interview_agent.generate_interview_pack(job, score, evidence)
-                        interview_packs_generated += 1
+                # 4. INTERVIEW PREPARATION (For High Matches or Applied Roles)
+                if score.overall_score >= qualification_agent.high_match_threshold or score.architecture_score >= 85.0:
+                    interview_agent.generate_interview_pack(job, score, evidence)
+                    interview_packs_generated += 1
 
             # Check if Friday (weekday 4 in python 0=Mon, 4=Fri) or forced weekly run
             is_friday = start_time.weekday() == 4 or force_weekly

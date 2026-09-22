@@ -19,6 +19,7 @@ logger = get_logger("qualification_agent")
 DIMENSION_KEYWORDS = {
     "architecture": [
         "architect", "architecture", "solutions architect", "enterprise architect",
+        "cloud administrator", "cloud admin", "oci administrator", "database administrator",
         "landing zone", "system design", "high availability", "disaster recovery",
         "topology", "scalability", "governance", "modernization"
     ],
@@ -28,10 +29,11 @@ DIMENSION_KEYWORDS = {
     ],
     "oci_specific": [
         "oci", "oracle cloud infrastructure", "oke", "exadata", "exacs", "autonomous database",
-        "adw", "adb", "oci iam", "oci devops"
+        "adw", "adb", "oci iam", "oci devops", "oci administrator"
     ],
     "ai_genai": [
         "genai", "generative ai", "ai", "artificial intelligence", "llm", "large language model",
+        "llmops", "mlops", "ai ops", "ai architect", "ai platform engineer",
         "rag", "retrieval augmented", "langchain", "langgraph", "agentic", "ai platform",
         "model context protocol", "mcp", "chatops", "prompt engineering"
     ],
@@ -189,6 +191,10 @@ class QualificationAgent:
 
     def _determine_categories(self, text: str) -> List[str]:
         cats = []
+        if "oracle" in text or "oci" in text:
+            cats.append("ORACLE_CLOUD_ADMIN_ARCHITECT")
+        if "llmops" in text or "llm ops" in text or "ai platform" in text or "genai" in text:
+            cats.append("LLMOPS_AI_ARCHITECT")
         if "architect" in text:
             cats.append("CLOUD_ARCHITECTURE")
         if "genai" in text or "generative ai" in text or "llm" in text:
@@ -210,10 +216,13 @@ class QualificationAgent:
         gaps = []
         reasons = []
 
-        # Verified Candidate Strengths
-        if "oci" in text or "oracle cloud" in text:
-            strengths.append("Verified OCI Deep Expertise (6+ years, multiple Professional certifications)")
-            reasons.append("Strong Oracle Cloud Infrastructure match")
+        # High Priority Focus Strengths
+        if "oracle" in text or "oci" in text:
+            strengths.append("Verified OCI Deep Expertise (6+ years, 6 Professional certifications, DBSS telecom architecture)")
+            reasons.append("High priority Oracle Cloud Admin / Architect alignment")
+        if "llmops" in text or "llm ops" in text or "genai" in text or "mcp" in text:
+            strengths.append("Verified LLMOps & GenAI platform engineering (ChatOps CLI, local LLMs, MCP servers)")
+            reasons.append("High priority LLMOps / AI Architecture match")
         if "kubernetes" in text or "oke" in text:
             strengths.append("Verified OKE private cluster architecture & persistent storage (FSS)")
             reasons.append("Kubernetes container orchestration match")

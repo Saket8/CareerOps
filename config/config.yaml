@@ -19,7 +19,7 @@ schedule:
 application:
   match_threshold: 75.0
   high_match_threshold: 85.0
-  min_salary_lpa: null
+  min_salary_lpa: null  # Raised floor to ₹25 LPA; no ceiling
   undisclosed_salary_allowed: true
   max_applications_per_day: 10
   dry_run: false  # LIVE mode enabled per user preference
@@ -63,52 +63,38 @@ search:
     - "Noida"
     - "Gurgaon"
     - "Delhi / NCR"
-    - "Bengaluru / Bangalore"
-    - "Hyderabad"
-    - "Pune"
     - "Remote"
     - "Hybrid"
+    - "Bengaluru / Bangalore"
+    - "Hyderabad"
   experience_range:
     min_years: 10
     max_years: 16
   queries:
-    primary:
+    oracle_cloud:
+      - "Oracle Cloud Infrastructure Architect"
+      - "OCI Cloud Architect"
+      - "Oracle Cloud Administrator"
+      - "OCI Cloud Administrator"
+      - "OCI Architect"
+      - "Principal OCI Architect"
+      - "OCI Solutions Architect"
+      - "Oracle Cloud Infrastructure Administrator"
+      - "Oracle Cloud Lead"
+      - "OCI DevOps Architect"
+      - "Oracle Cloud Migration Architect"
+      - "OCI Platform Architect"
+    llm_ops_ai:
+      - "LLMOps Architect"
+      - "LLMOps Engineer"
+      - "AI Architect"
+      - "GenAI Architect"
+      - "AI Solutions Architect"
+      - "AI Platform Architect"
+      - "Enterprise AI Architect"
+      - "Agentic AI Architect"
       - "Cloud GenAI Architect"
       - "GenAI Cloud Architect"
-      - "AI Cloud Architect"
       - "Generative AI Architect"
-      - "AI Solutions Architect"
-      - "Cloud Solutions Architect AI"
-      - "AI ML Solutions Architect"
-      - "GenAI Solutions Architect"
-      - "AI Platform Architect"
-      - "Cloud AI Architect"
-    oci_multicloud:
-      - "OCI AI Architect"
-      - "Oracle Cloud Architect GenAI"
-      - "OCI Solutions Architect AI"
-      - "OCI GenAI"
-      - "Multi Cloud Architect AI"
-      - "Multi Cloud Solutions Architect"
-      - "Cloud Architect OCI AWS Azure GCP"
-      - "Cloud Solutions Architect OCI AWS"
-      - "OCI Architect AI ML"
-      - "OCI Cloud Architect"
-      - "OCI Solutions Architect"
-      - "Multi Cloud Architect"
-    agentic_ai:
-      - "AI Agent Architect"
-      - "Agentic AI Architect"
-      - "AI Engineering Architect"
-      - "AI Automation Architect"
-      - "GenAI Platform Architect"
-      - "AI Agent Solutions Architect"
-      - "Enterprise AI Architect"
-      - "AI Transformation Architect"
-    security:
-      - "AI Security Architect"
-      - "AI Cybersecurity Architect"
-      - "GenAI Security Architect"
-      - "Cloud Security Architect AI"
       - "AI Platform Security"
-      - "Agentic AI Security"
+      - "AI Infrastructure Architect"

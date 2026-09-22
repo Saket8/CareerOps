@@ -9,4 +9,6 @@
 ---
 
 ## Log of Lessons Learned
-*(Entries will be added upon post-implementation review or user feedback)*
+- **Target Role Focus**: Prioritize Oracle Cloud Administrator / Architect and LLMOps / AI Architect roles specifically across search and qualification.
+- **Salary Floor Adjustment**: Minimum compensation floor updated from ₹20 LPA to ₹25 LPA (with no upper ceiling; undisclosed allowed).
+- **Application Transparency**: Explicitly distinguish between verification/offline test runs and live employer submissions in reports so the user has zero ambiguity about applied roles.

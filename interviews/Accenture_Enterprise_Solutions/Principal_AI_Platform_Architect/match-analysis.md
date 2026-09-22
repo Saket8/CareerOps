@@ -16,7 +16,7 @@
 | Experience Alignment | 95.0% | 12+ years enterprise IT tenure |
 
 ### Identified Strengths
-- **Verified OCI Deep Expertise (6+ years, multiple Professional certifications)**
+- **Verified OCI Deep Expertise (6+ years, 6 Professional certifications, DBSS telecom architecture)**
 - **Verified OKE private cluster architecture & persistent storage (FSS)**
 - **Verified IAM federation (Azure AD / Okta / SAML SSO), air-gapped isolation & PAM hardening**
 

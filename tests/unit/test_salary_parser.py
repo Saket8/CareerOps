@@ -46,3 +46,24 @@ def test_rejection_reason_is_populated():
     result = parse_salary("16-25 Lacs P.A.", min_threshold_lpa=20.0)
     assert result.eligibility == SalaryEligibility.REJECTED
     assert "below required floor of ₹20.0 LPA" in result.rejection_reason
+
+
+def test_salary_parsing_with_25lpa_floor():
+    # Min >= 25 is eligible
+    res_25 = parse_salary("25-40 LPA", min_threshold_lpa=25.0)
+    assert res_25.eligibility == SalaryEligibility.ELIGIBLE
+    assert res_25.min_lpa == 25.0
+
+    # No upper ceiling: 30-50 LPA or 50+ LPA is accepted
+    res_high = parse_salary("30-60 Lacs P.A.", min_threshold_lpa=25.0)
+    assert res_high.eligibility == SalaryEligibility.ELIGIBLE
+    assert res_high.min_lpa == 30.0
+
+    # Min < 25 is rejected (even if upper bound is high)
+    res_reject = parse_salary("20-35 Lacs P.A.", min_threshold_lpa=25.0)
+    assert res_reject.eligibility == SalaryEligibility.REJECTED
+    assert "below required floor of ₹25.0 LPA" in res_reject.rejection_reason
+
+    # Undisclosed is still accepted for analysis
+    res_undisclosed = parse_salary("Not Disclosed", min_threshold_lpa=25.0)
+    assert res_undisclosed.eligibility == SalaryEligibility.UNDISCLOSED

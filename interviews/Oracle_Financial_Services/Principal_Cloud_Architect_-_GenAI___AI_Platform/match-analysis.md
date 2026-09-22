@@ -16,7 +16,8 @@
 | Experience Alignment | 95.0% | 12+ years enterprise IT tenure |
 
 ### Identified Strengths
-- **Verified OCI Deep Expertise (6+ years, multiple Professional certifications)**
+- **Verified OCI Deep Expertise (6+ years, 6 Professional certifications, DBSS telecom architecture)**
+- **Verified LLMOps & GenAI platform engineering (ChatOps CLI, local LLMs, MCP servers)**
 - **Verified OKE private cluster architecture & persistent storage (FSS)**
 - **Verified GenAI CloudOps Dashboard, air-gapped ChatOps CLI & MCP server modernizations**
 - **Verified IAM federation (Azure AD / Okta / SAML SSO), air-gapped isolation & PAM hardening**

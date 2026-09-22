@@ -21,7 +21,7 @@ candidate:
   work_authorization: "Indian Citizen"
   current_salary_disclosed: false
   min_acceptable_salary_lpa: null
-  target_salary_lpa: null
+  target_salary_lpa: null  # No upper ceiling per user directive
 
 verified_competencies:
   cloud_platforms:

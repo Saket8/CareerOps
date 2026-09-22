@@ -69,6 +69,12 @@
 - [x] Configure concurrency groups and artifact uploads
 - [x] Run full test suite and verify end-to-end dry run
 
+### Phase 10: Schedule Optimization & Recruiter Peak Windows
+- [x] Configure 2x daily schedule at 09:00 IST (03:30 UTC) and 14:00 IST (08:30 UTC) in `.github/workflows/career_agent_daily.yml` and `config/config.yaml`
+- [x] Align application quota and discovery frequency to peak recruiter login and post-lunch screening windows
+- [x] Push workflow and configuration updates to GitHub repository
+
+
 ---
 
 ## Review & Validation Summary

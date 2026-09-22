@@ -2,8 +2,10 @@ name: Autonomous Naukri Career Agent Daily
 
 on:
   schedule:
-    # Monday through Friday at 09:00 Asia/Kolkata (03:30 UTC)
-    - cron: '30 3 * * 1-5'
+    # Monday through Friday at:
+    # 1. 09:00 IST (03:30 UTC) - Morning recruiter screening window
+    # 2. 14:00 IST (08:30 UTC) - Post-lunch recruiter review window
+    - cron: '30 3,8 * * 1-5'
   workflow_dispatch:
     inputs:
       dry_run:

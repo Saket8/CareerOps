@@ -52,7 +52,9 @@ jobs:
         id: cache-db
         uses: actions/cache@v4
         with:
-          path: naukri_career_agent.sqlite
+          path: |
+            naukri_career_agent.sqlite
+            artifacts/evidence/
           key: career-agent-db-v6-${{ runner.os }}-${{ github.run_number }}
           restore-keys: |
             career-agent-db-v6-${{ runner.os }}-

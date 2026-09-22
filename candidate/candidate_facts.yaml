@@ -1,0 +1,202 @@
+candidate:
+  name: "Saket Saurav"
+  title: "Principal Cloud Engineer"
+  current_organization: "Cognizant"
+  current_role: "Principal Cloud Engineer (OCI) / Manager-Projects"
+  email: "Saket.Saurav@cognizant.com"
+  phone: "+91-7028481800"
+  location: "Noida, India"
+  preferred_locations:
+    - "Noida"
+    - "Gurgaon"
+    - "Delhi NCR"
+    - "Bengaluru"
+    - "Hyderabad"
+    - "Pune"
+    - "Remote"
+    - "Hybrid"
+  total_experience_years: 12
+  cloud_experience_years: 6.5
+  oci_experience_years: 6.5
+  notice_period_days: 30
+  willing_to_relocate: true
+  work_authorization: "Indian Citizen"
+  current_salary_disclosed: false
+  min_acceptable_salary_lpa: null
+  target_salary_lpa: null
+
+verified_competencies:
+  cloud_platforms:
+    primary:
+      - "OCI (Oracle Cloud Infrastructure)"
+    secondary:
+      - "AWS"
+      - "Azure"
+      - "GCP"
+    multi_cloud:
+      - "Multi-cloud interconnectivity"
+      - "Cross-cloud observability and security"
+  
+  container_orchestration:
+    - "Kubernetes (OKE)"
+    - "Docker"
+    - "Helm"
+    - "RBAC"
+    - "Private OKE clusters"
+    - "FSS-backed persistent storage (StorageClass, PV, PVC)"
+  
+  iac_automation:
+    - "Terraform"
+    - "Ansible"
+    - "OCI CLI"
+    - "Bash scripting"
+    - "OCI Resource Manager"
+    - "Modular IaC workflows"
+  
+  networking:
+    - "VCN"
+    - "DRG"
+    - "LPG"
+    - "NLB"
+    - "ALB"
+    - "NSG"
+    - "FastConnect"
+    - "Palo Alto VM-Series Firewalls"
+    - "IPSec VPN"
+    - "Hub-and-spoke topology"
+    - "Private DNS"
+  
+  security_iam:
+    - "OCI IAM"
+    - "Azure Active Directory / Microsoft Entra ID federation"
+    - "SAML 2.0 / SSO"
+    - "SCIM provisioning"
+    - "Okta integration"
+    - "Linux PAM (Pluggable Authentication Modules)"
+    - "OCI IAM Database Environment Isolation"
+    - "Confidential application patterns"
+    - "Air-gapped landing zones"
+
+  ai_genai_ops:
+    - "LangChain"
+    - "LangGraph"
+    - "Local LLMs"
+    - "Agentic AI Frameworks"
+    - "Model Context Protocol (MCP)"
+    - "GenAI CloudOps Dashboard"
+    - "Offline ChatOps CLI"
+    - "Cursor IDE AI-assisted workflows"
+    - "RAG architecture concepts"
+    - "ODAOS (Oracle Database Autonomous Operations System)"
+
+  observability:
+    - "Prometheus"
+    - "Grafana"
+    - "Splunk"
+    - "Datadog"
+    - "OCI Logging Analytics"
+    - "OCI Monitoring"
+    - "Service Connector Hub"
+
+  databases:
+    - "Oracle Database 19c/12c/11g"
+    - "Oracle RAC (Real Application Clusters)"
+    - "Exadata / ExaCS"
+    - "Autonomous Data Warehouse (ADW)"
+    - "Autonomous Database (ADB)"
+    - "RMAN"
+    - "Data Guard"
+
+  devops_cicd:
+    - "OCI DevOps"
+    - "Git"
+    - "GitHub"
+    - "CI/CD Pipelines"
+
+certifications:
+  - name: "Oracle Cloud Infrastructure Architect Professional"
+    year: 2026
+    issuer: "Oracle"
+    verified: true
+    source: "resumes/master/Saket_Saurav_OCI.docx"
+  - name: "Oracle Cloud Infrastructure DevOps Professional"
+    year: 2026
+    issuer: "Oracle"
+    verified: true
+    source: "resumes/master/Saket_Saurav_OCI.docx"
+  - name: "Oracle Cloud Infrastructure Generative AI Professional"
+    year: 2026
+    issuer: "Oracle"
+    verified: true
+    source: "resumes/master/Saket_Saurav_OCI.docx"
+  - name: "Oracle Cloud Infrastructure Certified Architect Associate"
+    year: 2026
+    issuer: "Oracle"
+    verified: true
+    source: "resumes/master/Saket_Saurav_OCI.docx"
+  - name: "Oracle Cloud Infrastructure Certified Generative AI Architect"
+    year: 2026
+    issuer: "Oracle"
+    verified: true
+    source: "resumes/master/Saket_Saurav_OCI.docx"
+  - name: "Oracle Cloud Infrastructure Certified Autonomous Database Architect"
+    year: 2026
+    issuer: "Oracle"
+    verified: true
+    source: "resumes/master/Saket_Saurav_OCI.docx"
+
+employment_history:
+  - company: "Cognizant"
+    client: "KPN (Netherlands)"
+    role: "Principal Cloud Engineer (OCI)"
+    start_date: "2024-11"
+    end_date: "2026-07"
+    duration: "1.7 yrs"
+    responsibilities:
+      - "Architected production-grade air-gapped OCI telecom billing platform (DBSS Revenue Management / BRM modernization)."
+      - "Designed landing zone, VCN hub-and-spoke network, private DNS, and isolation boundaries."
+      - "Engineered private OKE clusters with layered security, FSS persistent volumes, and RBAC."
+      - "Automated full-stack infrastructure using Terraform, reducing deployment time by 60%."
+      - "Delivered GenAI CloudOps dashboard and LangChain-based air-gapped ChatOps CLI."
+      - "Modernized APIs via Model Context Protocol (MCP) servers."
+      - "Implemented SAML-based SSO federation between OCI and Azure AD."
+      - "Mentored junior engineers and led technical architecture discussions."
+
+  - company: "Emerson (EITS)"
+    role: "OCI Cloud Administrator"
+    start_date: "2018-06"
+    end_date: "2024-11"
+    duration: "6.5 yrs"
+    responsibilities:
+      - "Architected and executed cloud migration from on-prem to OCI ExaCS and IaaS."
+      - "Designed hub-and-spoke network with Palo Alto VM-Series Firewalls, NLB/ALB, and IPSec VPN."
+      - "Implemented enterprise IAM governance integrating Okta and Azure AD via SSO and SCIM."
+      - "Provisioned and scaled OCI Compute, ExaDB, ADW, OAC, Object/Block Storage."
+      - "Implemented centralized logging with OCI Logging and Splunk."
+      - "Integrated Prometheus, Grafana, Datadog, and Cloudability for multi-cloud governance."
+      - "Automated deployments using Terraform and OCI Resource Manager."
+      - "Administered Oracle DB 19c/12c RAC and Exadata environments."
+
+  - company: "ITC Infotech"
+    role: "Oracle DBA / BI Administrator"
+    start_date: "2016-11"
+    end_date: "2018-06"
+    duration: "1.7 yrs"
+    responsibilities:
+      - "Administered Oracle Database 12c/11g with performance tuning, RMAN backup/recovery, patching."
+      - "Supported OBIEE, ODI, and WebLogic Server hosting middleware."
+
+  - company: "Tech Mahindra"
+    role: "Oracle DBA / BI Administrator"
+    start_date: "2014-01"
+    end_date: "2016-10"
+    duration: "2.7 yrs"
+    responsibilities:
+      - "Delivered Oracle DBA services for production and DR environments (RAC, Data Guard)."
+      - "Supported OAS/OBIEE deployments and data migration workflows."
+
+education:
+  - degree: "Bachelor of Technology (B.Tech)"
+    field: "Electronics & Communication Engineering"
+    institution: "Suresh Gyan Vihar University, Jaipur"
+    score: "70%"

@@ -1,0 +1,114 @@
+# Autonomous Career Agent Configuration
+
+app:
+  name: "Naukri Autonomous Career Agent"
+  version: "1.0.0"
+  timezone: "Asia/Kolkata"
+  environment: "production"
+
+schedule:
+  cron_expression: "0 9 * * 1-5"  # Mon-Fri 09:00 IST
+  timezone: "Asia/Kolkata"
+  days:
+    - "monday"
+    - "tuesday"
+    - "wednesday"
+    - "thursday"
+    - "friday"
+
+application:
+  match_threshold: 75.0
+  high_match_threshold: 85.0
+  min_salary_lpa: null
+  undisclosed_salary_allowed: true
+  max_applications_per_day: 10
+  dry_run: true  # MUST default to true for safety
+  retry_attempts: 3
+  retry_backoff_seconds: 5
+
+resume:
+  source_path: "resumes/master/Saket_Saurav_OCI.docx"
+  output_dir: "resumes/generated"
+  auto_modify_master: false
+  generate_pdf: true
+  generate_docx: true
+  ats_validation: true
+
+database:
+  db_url: "sqlite:///naukri_career_agent.sqlite"
+  echo: false
+
+email:
+  enabled: true
+  daily_report: true
+  weekly_report: true
+  smtp_server: "smtp.gmail.com"
+  smtp_port: 587
+  smtp_use_tls: true
+  sender_name: "Autonomous Career Agent"
+  default_recipient: "saket.saurav@cognizant.com"
+
+safety:
+  stop_on_captcha: true
+  stop_on_mfa: true
+  stop_on_payment: true
+  stop_on_unknown_question: true
+  stop_on_external_redirect: true
+  max_daily_requests: 200
+
+search:
+  enabled: true
+  max_jobs_per_query: 25
+  locations:
+    - "Noida"
+    - "Gurgaon"
+    - "Delhi / NCR"
+    - "Bengaluru / Bangalore"
+    - "Hyderabad"
+    - "Pune"
+    - "Remote"
+    - "Hybrid"
+  experience_range:
+    min_years: 10
+    max_years: 16
+  queries:
+    primary:
+      - "Cloud GenAI Architect"
+      - "GenAI Cloud Architect"
+      - "AI Cloud Architect"
+      - "Generative AI Architect"
+      - "AI Solutions Architect"
+      - "Cloud Solutions Architect AI"
+      - "AI ML Solutions Architect"
+      - "GenAI Solutions Architect"
+      - "AI Platform Architect"
+      - "Cloud AI Architect"
+    oci_multicloud:
+      - "OCI AI Architect"
+      - "Oracle Cloud Architect GenAI"
+      - "OCI Solutions Architect AI"
+      - "OCI GenAI"
+      - "Multi Cloud Architect AI"
+      - "Multi Cloud Solutions Architect"
+      - "Cloud Architect OCI AWS Azure GCP"
+      - "Cloud Solutions Architect OCI AWS"
+      - "OCI Architect AI ML"
+      - "OCI Cloud Architect"
+      - "OCI Solutions Architect"
+      - "Multi Cloud Architect"
+    agentic_ai:
+      - "AI Agent Architect"
+      - "Agentic AI Architect"
+      - "AI Engineering Architect"
+      - "AI Automation Architect"
+      - "GenAI Platform Architect"
+      - "AI Agent Solutions Architect"
+      - "Enterprise AI Architect"
+      - "AI Transformation Architect"
+    security:
+      - "AI Security Architect"
+      - "AI Cybersecurity Architect"
+      - "GenAI Security Architect"
+      - "Cloud Security Architect AI"
+      - "AI Platform Security"
+      - "Agentic AI Security"

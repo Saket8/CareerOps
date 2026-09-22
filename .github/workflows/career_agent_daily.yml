@@ -1,0 +1,89 @@
+name: Autonomous Naukri Career Agent Daily
+
+on:
+  schedule:
+    # Monday through Friday at 09:00 Asia/Kolkata (03:30 UTC)
+    - cron: '30 3 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run mode (true/false)'
+        required: true
+        default: 'true'
+      force_weekly:
+        description: 'Force weekly career intelligence report'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: career-agent-daily
+  cancel-in-progress: false
+
+jobs:
+  career-agent:
+    name: Execute Daily Career Automation & Intelligence
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install System & Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run Test Suite Verification
+        run: |
+          python -m pytest tests/unit
+
+      - name: Restore Database State Cache
+        uses: actions/cache@v4
+        with:
+          path: naukri_career_agent.sqlite
+          key: career-agent-db-${{ github.run_id }}
+          restore-keys: |
+            career-agent-db-
+
+      - name: Execute Career Agent Pipeline
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+          NAUKRI_USERNAME: ${{ secrets.NAUKRI_USERNAME }}
+          NAUKRI_PASSWORD: ${{ secrets.NAUKRI_PASSWORD }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_RECIPIENT: ${{ secrets.EMAIL_RECIPIENT || 'saket.saurav@cognizant.com' }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          TIMEZONE: "Asia/Kolkata"
+        run: |
+          EXTRA_FLAGS=""
+          if [ "${{ github.event.inputs.force_weekly }}" == "true" ] || [ $(date +%u) -eq 5 ]; then
+            EXTRA_FLAGS="--weekly"
+          fi
+          python main.py --offline $EXTRA_FLAGS
+
+      - name: Archive Daily & Weekly Reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: career-agent-reports-${{ github.run_id }}
+          path: |
+            reports/daily/
+            reports/weekly/
+
+      - name: Archive Generated Resumes & Interview Packs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: career-agent-artifacts-${{ github.run_id }}
+          path: |
+            resumes/generated/
+            interviews/

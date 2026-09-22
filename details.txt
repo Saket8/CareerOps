@@ -1,0 +1,1993 @@
+
+# Autonomous Naukri Career & Career-Intelligence Agent
+
+## 1. ROLE
+
+Act as a senior software architect, AI-agent engineer, DevOps engineer, automation engineer, and career-intelligence system designer.
+
+Build a production-quality autonomous career/job-search platform for me.
+
+This is NOT a simple job-search script.
+
+It is a long-running personal career automation system that should:
+
+* Search Naukri automatically.
+* Identify jobs aligned with my target career.
+* Apply strict salary eligibility rules.
+* Analyze complete job descriptions.
+* Score jobs against my actual profile.
+* Tailor my existing resume for relevant jobs.
+* Generate ATS-friendly job-specific resumes.
+* Automatically apply to qualifying jobs.
+* Track every job/application/state transition.
+* Generate interview preparation for strong opportunities.
+* Analyze job-market trends from the actual jobs discovered.
+* Provide daily and weekly career intelligence.
+* Continuously improve search queries, resume positioning, and interview preparation.
+* Run automatically through GitHub Actions.
+* Keep persistent state.
+* Recover safely from failures.
+* Never fabricate my qualifications or experience.
+
+The end-user experience should be as close as possible to:
+
+SEARCH → FILTER → ANALYZE → SCORE → TAILOR RESUME → ATS VALIDATE → APPLY → TRACK → REPORT → PREPARE FOR INTERVIEW → LEARN FROM MARKET
+
+I should not need to manually operate the system every day.
+
+---
+
+# 2. PRIMARY CAREER OBJECTIVE
+
+The system should target roles aligned with this career direction:
+
+* Cloud Architecture
+* Cloud Solutions Architecture
+* GenAI Architecture
+* AI Platform Architecture
+* Agentic AI Architecture
+* Multi-cloud Architecture
+* Kubernetes / Container Platforms
+* Cloud Security Architecture
+* AI Security
+* MLOps / AI Platform
+* Enterprise AI Architecture
+* Cloud + AI transformation
+
+The system should NOT restrict searches only to titles containing "GenAI Architect".
+
+A role should qualify based on the combination of:
+
+Cloud Architecture
+
+* AI/GenAI
+* AI Platform
+* Agentic AI
+* Multi-cloud
+* Kubernetes
+* Security
+* Infrastructure/DevOps
+* Architecture responsibility
+
+when these are present in the JD.
+
+---
+
+# 3. USER PROFILE
+
+The system must create a structured candidate profile from the resume and explicitly provided configuration.
+
+Important verified areas include:
+
+* OCI
+* Oracle Cloud Infrastructure
+* OKE
+* Kubernetes
+* Terraform
+* OCI Networking
+* IAM
+* Cloud Architecture
+* DevOps
+* Prometheus
+* Grafana
+* Observability
+* Infrastructure
+* Security
+* GenAI
+* MCP / Model Context Protocol
+* AI platform concepts
+* RAG concepts
+* Agentic AI concepts
+* Multi-cloud architecture
+* AWS/Azure/GCP architecture where genuinely supported
+* Oracle technologies
+* Enterprise cloud platforms
+
+Certifications to recognize when present in the source resume/profile:
+
+* OCI Architect Associate
+* OCI GenAI Professional
+* OCI DevOps Professional
+
+Do NOT assume additional certifications or experience unless they exist in the verified candidate source.
+
+---
+
+# 4. EXISTING RESUME IS THE SOURCE OF TRUTH
+
+There is already a resume in the project folder.
+
+FIRST inspect the project directory and locate the existing resume.
+
+Supported formats may include:
+
+* DOCX
+* PDF
+* TXT
+* Markdown
+
+Do not immediately create a new resume from scratch.
+
+The workflow must be:
+
+Existing Resume
+→ Parse
+→ Validate
+→ Extract candidate facts
+→ Create immutable source version
+→ Build candidate truth profile
+→ Generate tailored versions
+
+The original resume must remain unchanged.
+
+If appropriate, copy/reference the source resume into the repository under a controlled location such as:
+
+resumes/master/
+
+The source/master resume should be treated as immutable unless I explicitly approve a permanent modification.
+
+---
+
+# 5. RESUME TRUTH LAYER
+
+Create a structured candidate truth file/database.
+
+Example:
+
+candidate/candidate_facts.yaml
+
+It should contain only verified facts extracted from:
+
+1. Existing resume
+2. Explicit user-provided information
+3. Verified project information
+4. Verified certifications
+
+Each fact should ideally contain:
+
+* category
+* statement
+* source
+* confidence
+* evidence/reference
+* dates where applicable
+
+Example:
+
+experience:
+
+* skill: Kubernetes
+  level: verified
+  evidence: resume
+  source: resume/master/resume.docx
+
+certifications:
+
+* name: OCI GenAI Professional
+  verified: true
+  source: resume
+
+The Resume Agent, Interview Agent, and Application Agent MUST use this truth layer.
+
+Never convert:
+
+* learning
+* exposure
+* interest
+* certification
+* theoretical knowledge
+
+into fake professional experience.
+
+Never fabricate:
+
+* years of experience
+* employers
+* projects
+* responsibilities
+* technologies
+* certifications
+* achievements
+* salary
+* job title
+* leadership experience
+
+---
+
+# 6. ATS-FRIENDLY RESUME ENGINE
+
+Every strong job match should be able to produce a job-specific ATS-friendly resume.
+
+Requirements:
+
+* ATS-readable structure.
+* Standard section headings.
+* No unnecessary graphics.
+* No complex tables that can break ATS parsing.
+* No text embedded in images.
+* Clean typography.
+* Consistent dates.
+* Relevant keywords from the JD.
+* Preserve truthful candidate experience.
+* Prioritize relevant achievements.
+* Optimize summary and skills for the role.
+* Maintain factual consistency with the source resume.
+
+The system should perform an ATS validation step.
+
+Validate:
+
+* text extractability
+* section recognition
+* keyword coverage
+* missing critical JD terms
+* formatting problems
+* duplicated content
+* suspicious keyword stuffing
+* factual consistency
+* contact information
+* dates
+* certification consistency
+
+Generate:
+
+* DOCX
+* PDF
+
+where technically practical.
+
+Naming convention:
+
+Company_Role_YYYYMMDD.pdf
+Company_Role_YYYYMMDD.docx
+
+Maintain resume version history.
+
+Example:
+
+resume_versions
+
+* master
+* job-specific
+* generated timestamp
+* source job ID
+* checksum/hash
+* changes made
+* ATS validation result
+
+---
+
+# 7. SALARY ELIGIBILITY — HARD RULE
+
+Salary is a mandatory eligibility filter.
+
+TARGET ONLY:
+
+## A. Salary disclosed and minimum salary >= ₹20 LPA
+
+Examples:
+
+₹20–30 LPA → ACCEPT
+
+₹25–40 LPA → ACCEPT
+
+₹30 LPA+ → ACCEPT
+
+## B. Salary not disclosed
+
+Salary not disclosed → ACCEPT for further analysis.
+
+## C. Salary range whose minimum is below ₹20 LPA
+
+Reject.
+
+Examples:
+
+₹15–25 LPA → REJECT
+
+₹18–30 LPA → REJECT
+
+₹10–20 LPA → REJECT
+
+₹12–18 LPA → REJECT
+
+Do not assume that the upper end makes the job acceptable.
+
+The rule is:
+
+IF salary disclosed:
+minimum_salary >= 20 LPA
+
+ELSE IF salary undisclosed:
+continue
+
+ELSE:
+reject
+
+This should happen as early as practical to reduce unnecessary processing.
+
+Store:
+
+salary_min
+salary_max
+salary_currency
+salary_period
+salary_disclosed
+salary_eligibility
+salary_source
+salary_raw_text
+
+If salary information is ambiguous, do not invent a value.
+
+---
+
+# 8. TARGET JOB SEARCH QUERIES
+
+Implement a configurable search-query engine.
+
+Primary queries:
+
+* Cloud GenAI Architect
+* GenAI Cloud Architect
+* AI Cloud Architect
+* Generative AI Architect
+* AI Solutions Architect
+* Cloud Solutions Architect AI
+* AI/ML Solutions Architect
+* GenAI Solutions Architect
+* AI Platform Architect
+* Cloud AI Architect
+
+OCI / Multicloud:
+
+* OCI AI Architect
+* Oracle Cloud Architect GenAI
+* OCI Solutions Architect AI
+* OCI GenAI
+* Multi Cloud Architect AI
+* Multi Cloud Solutions Architect
+* Cloud Architect OCI AWS Azure GCP
+* Cloud Solutions Architect OCI AWS
+* OCI Architect AI ML
+* OCI Cloud Architect
+* OCI Solutions Architect
+* OCI AI Architect
+* OCI GenAI
+* Multi Cloud Architect
+* Multi Cloud Solutions Architect
+
+Agentic AI:
+
+* AI Agent Architect
+* Agentic AI Architect
+* AI Platform Architect
+* AI Engineering Architect
+* AI Automation Architect
+* GenAI Platform Architect
+* AI Agent Solutions Architect
+* Enterprise AI Architect
+* AI Transformation Architect
+
+Security:
+
+* AI Security Architect
+* AI Cybersecurity Architect
+* GenAI Security Architect
+* Cloud Security Architect AI
+* AI Platform Security
+* Agentic AI Security
+
+Also discover related titles dynamically from high-quality jobs.
+
+Potential titles include:
+
+* Senior Cloud Solutions Architect – AI/ML
+* Principal Cloud Architect – AI Platform
+* Principal Solutions Architect – GenAI
+* AI Platform / MLOps Architect
+* Enterprise AI Architect
+* Cloud Architect – AI/ML
+* Cloud Transformation Architect
+* AI Infrastructure Architect
+
+Do not search only for exact titles.
+
+---
+
+# 9. JOB DISCOVERY AGENT
+
+Build a Discovery Agent responsible for:
+
+* executing configured searches
+* collecting job listings
+* opening job details
+* extracting full JDs
+* capturing metadata
+* identifying source query
+* deduplicating jobs
+
+Capture:
+
+* job ID
+* title
+* company
+* location
+* remote/hybrid/onsite
+* experience range
+* salary
+* salary eligibility
+* posted date
+* URL
+* JD
+* source query
+* source platform
+* timestamp
+* application method
+
+Use stable identifiers whenever possible.
+
+---
+
+# 10. NAUKRI ACCESS
+
+Before implementing browser automation:
+
+1. Check whether an official/supported Naukri API, integration, partner API, CLI, or other supported machine interface is available.
+2. If a supported API exists and is appropriate, use it.
+3. Do NOT invent an API.
+4. If no suitable supported API is available, use browser automation.
+
+The browser layer must be isolated behind an interface so that it can later be replaced by an API.
+
+Never bypass:
+
+* CAPTCHA
+* OTP
+* MFA
+* bot detection
+* anti-automation controls
+* access restrictions
+* rate limits
+
+Do not implement:
+
+* CAPTCHA solving
+* fingerprint spoofing
+* stealth automation
+* proxy rotation for evasion
+* fake browser identity
+* credential sharing
+* access-control bypass
+
+If such a barrier occurs:
+
+* stop the affected workflow
+* record the event
+* continue other safe work where possible
+* report it in the daily report
+
+---
+
+# 11. QUALIFICATION AGENT
+
+Every eligible job should be analyzed against the candidate profile.
+
+Score dimensions such as:
+
+* Cloud Architecture
+* OCI
+* AWS
+* Azure
+* GCP
+* Multi-cloud
+* Kubernetes
+* OKE/EKS/AKS/GKE
+* Terraform
+* DevOps
+* GenAI
+* LLM
+* RAG
+* AI Agents
+* Agentic AI
+* MCP
+* AI Platform
+* MLOps
+* IAM
+* Cloud Security
+* AI Security
+* Observability
+* Enterprise Architecture
+* Architecture leadership
+* Years of experience
+* Domain relevance
+
+Generate:
+
+overall_score
+architecture_score
+cloud_score
+ai_score
+agentic_ai_score
+kubernetes_score
+security_score
+multicloud_score
+experience_alignment
+skill_alignment
+salary_eligibility
+
+Use a configurable threshold:
+
+DEFAULT_MATCH_THRESHOLD = 75
+
+---
+
+# 12. JOB EVIDENCE STORE
+
+Do not rely only on the overall score.
+
+Create structured evidence extracted from every important JD.
+
+Store:
+
+job_requirements
+skill_mentions
+cloud_requirements
+architecture_requirements
+ai_requirements
+genai_requirements
+agentic_ai_requirements
+kubernetes_requirements
+security_requirements
+iam_requirements
+terraform_requirements
+experience_requirements
+certification_requirements
+responsibilities
+architecture_patterns
+interview_topics
+salary_evidence
+
+Every extracted market signal must be traceable back to actual job evidence.
+
+Distinguish:
+
+OBSERVED
+INFERRED
+GENERATED
+
+Example:
+
+OBSERVED:
+"RAG" appears in 34 collected JDs.
+
+INFERRED:
+RAG is increasingly associated with AI platform roles.
+
+GENERATED:
+Prepare RAG architecture interview questions.
+
+Never present generated/inferred information as observed fact.
+
+---
+
+# 13. APPLICATION DECISION ENGINE
+
+A job can be automatically applied to when ALL required conditions are satisfied:
+
+1. Salary eligible.
+2. Role relevant.
+3. Match score >= threshold.
+4. No duplicate application.
+5. Resume can be generated truthfully.
+6. Required application information is available.
+7. Application follows normal supported Naukri workflow.
+8. No CAPTCHA/MFA/automation restriction is encountered.
+9. No suspicious external redirect.
+10. No payment or fee is requested.
+11. No unsupported/fabricated answer is required.
+
+There is NO GENERAL HUMAN APPROVAL GATE.
+
+The system should automatically apply to qualifying jobs.
+
+---
+
+# 14. EXCEPTION SAFETY BOUNDARIES
+
+Automatic application should stop only for exceptional conditions such as:
+
+* CAPTCHA
+* OTP/MFA
+* bot detection
+* payment/fee
+* suspicious redirect
+* unexpected sensitive information request
+* unsupported question
+* missing candidate fact required to answer truthfully
+* major UI change
+* technical failure
+* explicit access restriction
+
+These are not normal approval steps.
+
+The objective is autonomous operation while preventing unsafe or false applications.
+
+---
+
+# 15. APPLICATION QUESTION ENGINE
+
+For standard application questions:
+
+Automatically answer from verified candidate configuration.
+
+Examples:
+
+* notice period
+* current location
+* preferred location
+* willingness to relocate
+* work authorization
+* salary expectation
+* years of experience
+* certification information
+
+Never guess.
+
+If an answer cannot be established truthfully:
+
+* do not fabricate
+* mark application as BLOCKED/NEEDS_DATA
+* record the exact question
+
+---
+
+# 16. APPLICATION AGENT
+
+Application Agent responsibilities:
+
+* open eligible job
+* validate job state
+* upload tailored ATS resume
+* populate standard fields
+* answer supported questions
+* submit application
+* capture confirmation
+* record timestamp
+* record resume version
+* record application URL/job ID
+* record application outcome
+
+Store:
+
+application_id
+job_id
+resume_version_id
+submitted_at
+status
+application_method
+confirmation_reference
+questions_answered
+failure_reason
+events
+
+---
+
+# 17. JOB LIFECYCLE STATE MACHINE
+
+Implement explicit job/application states.
+
+Example:
+
+DISCOVERED
+→ PARSED
+→ SALARY_REJECTED / SALARY_ELIGIBLE
+→ QUALIFIED / REJECTED
+→ HIGH_MATCH
+→ RESUME_READY
+→ ATS_VALIDATED
+→ APPLICATION_READY
+→ APPLIED
+→ INTERVIEW
+→ OFFER / REJECTED / CLOSED
+
+Exceptional states:
+
+BLOCKED
+FAILED
+NEEDS_DATA
+
+Every transition must be logged.
+
+No job should silently disappear.
+
+---
+
+# 18. ORCHESTRATOR AGENT
+
+Build an explicit Orchestrator Agent.
+
+It coordinates:
+
+* Discovery Agent
+* Qualification Agent
+* Resume Agent
+* Application Agent
+* Tracking Agent
+* Interview Intelligence Agent
+* Career Intelligence Agent
+* Market Signal Engine
+
+Responsibilities:
+
+* start workflows
+* pass data between agents
+* enforce state transitions
+* handle retries
+* detect failures
+* prevent duplicate work
+* recover interrupted runs
+* produce run summaries
+* stop unsafe workflows
+
+The Orchestrator is the central workflow controller.
+
+---
+
+# 19. INTERVIEW INTELLIGENCE AGENT
+
+For strong jobs, automatically create interview preparation.
+
+Prioritize:
+
+* score >= 85
+* score >= 75 with strong architecture alignment
+* jobs already applied to
+* jobs showing high-value architecture patterns
+
+For each important job create:
+
+interview/<company>/<role>/
+
+```
+JD.md
+match-analysis.md
+likely-questions.md
+model-answers.md
+architecture-exercises.md
+candidate-gaps.md
+7-day-preparation-plan.md
+```
+
+Generate:
+
+* conceptual questions
+* architecture questions
+* scenario questions
+* security questions
+* Kubernetes questions
+* cloud questions
+* GenAI questions
+* RAG questions
+* agentic AI questions
+* MCP questions
+* IAM questions
+* observability questions
+* cost optimization questions
+* multi-cloud questions
+* Principal Architect questions
+
+For each question provide:
+
+* question
+* why interviewer may ask it
+* model answer
+* likely follow-up
+* candidate-specific angle
+* difficulty
+* priority
+* source evidence
+
+---
+
+# 20. INTERVIEW LEVELS
+
+Interview preparation must operate at three levels.
+
+LEVEL 1 — KNOWLEDGE
+
+Technology concepts and fundamentals.
+
+LEVEL 2 — ARCHITECTURE
+
+Designing complete enterprise systems.
+
+LEVEL 3 — PRINCIPAL ARCHITECT
+
+Trade-offs, strategy, governance, security, cost, scalability, organizational concerns, migration, executive communication, and cross-cloud architecture.
+
+Include cross-questioning.
+
+Example:
+
+Question:
+"Design a GenAI platform on OCI."
+
+Follow-up:
+"Why OCI Generative AI instead of another model provider?"
+
+Follow-up:
+"How do you handle data residency?"
+
+Follow-up:
+"How do you secure the agents?"
+
+Follow-up:
+"How do you control cost?"
+
+Follow-up:
+"What happens if the model provider is unavailable?"
+
+---
+
+# 21. INTERACTIVE INTERVIEW SIMULATOR
+
+Create an optional interactive interview mode.
+
+Example:
+
+START INTERVIEW
+→ choose job
+→ interviewer asks question
+→ user answers
+→ evaluate answer
+→ ask follow-up
+→ continue
+
+Evaluate:
+
+* technical correctness
+* architecture thinking
+* clarity
+* trade-off reasoning
+* security awareness
+* cost awareness
+* scalability
+* leadership/communication
+
+Do not claim the evaluation is an objective measure of interview performance.
+
+Use it as preparation feedback.
+
+---
+
+# 22. MARKET SIGNAL ENGINE
+
+Analyze actual collected JDs.
+
+Track:
+
+* skill frequency
+* role frequency
+* salary frequency
+* company frequency
+* cloud platform frequency
+* AI technology frequency
+* security requirements
+* Kubernetes requirements
+* architecture requirements
+
+Compare:
+
+* current week
+* previous week
+* previous 4 weeks
+* previous 12 weeks
+
+Classify trends:
+
+↑ increasing
+↓ decreasing
+→ stable
+NEW
+DISAPPEARING
+
+Do not manufacture trends from insufficient data.
+
+---
+
+# 23. CAREER INTELLIGENCE AGENT
+
+Every Friday generate a weekly report covering:
+
+### Job Market
+
+* jobs discovered
+* eligible jobs
+* rejected jobs
+* strong matches
+* applications
+* interviews
+
+### Salary
+
+* salary-disclosed jobs
+* salary distributions
+* ₹20L+ opportunities
+* undisclosed opportunities
+
+### Skills
+
+* most requested skills
+* increasing skills
+* emerging technologies
+* security requirements
+* cloud requirements
+
+### Resume
+
+* missing recurring keywords
+* skills appearing in strong jobs but absent from resume
+* suggested truthful resume improvements
+
+### Applications
+
+* number applied
+* application conversion
+* companies
+* role categories
+* application outcomes
+
+### Interview
+
+* interview questions generated
+* recurring topics
+* preparation gaps
+* high-priority areas
+
+### Search Strategy
+
+* best-performing queries
+* low-value queries
+* suggested new queries
+
+### Career Development
+
+* skill gaps
+* recommended learning areas
+* certification relevance
+* architecture topics to study
+
+---
+
+# 24. DAILY REPORT
+
+Every successful daily run must generate a report.
+
+Include:
+
+* jobs searched
+* jobs discovered
+* jobs rejected by salary
+* jobs rejected by relevance
+* jobs rejected as duplicates
+* strong matches
+* resumes generated
+* applications submitted
+* blocked applications
+* failed applications
+* interview packs generated
+* errors
+* warnings
+
+Include a Top Applications section.
+
+For each:
+
+* company
+* role
+* salary
+* match score
+* key matching factors
+* resume used
+* application status
+
+---
+
+# 25. EMAIL REPORTING
+
+Email is the PRIMARY end-user notification mechanism.
+
+Send the daily report by email after the scheduled run.
+
+Example subject:
+
+Career Agent — Daily Report — YYYY-MM-DD
+
+Friday:
+
+Career Agent — Weekly Career Intelligence — YYYY-WXX
+
+The email should be HTML formatted and readable on desktop/mobile.
+
+Use configured SMTP/email provider credentials from GitHub Secrets.
+
+Never store email credentials in source code.
+
+Never put secrets in reports.
+
+The system should also retain the report as Markdown/HTML in the repository/artifact storage.
+
+---
+
+# 26. EMAIL CONTENT
+
+Daily email should contain:
+
+* Run status
+* Jobs scanned
+* Salary rejects
+* Qualified jobs
+* Applications
+* Top matches
+* Application failures
+* Blocked items
+* Interview preparation generated
+* Important market signals
+
+Friday email should contain the full weekly career-intelligence report.
+
+If email delivery fails:
+
+* retry
+* log failure
+* preserve report locally/artifact
+* do not rerun job applications unnecessarily
+
+---
+
+# 27. DATABASE
+
+Start with SQLite for MVP.
+
+Abstract database access behind repository interfaces:
+
+JobRepository
+ApplicationRepository
+ResumeRepository
+InterviewRepository
+ReportRepository
+MarketSignalRepository
+RunRepository
+
+Tables:
+
+jobs
+applications
+resume_versions
+search_runs
+job_scores
+job_evidence
+application_events
+interview_questions
+interview_packs
+weekly_reports
+market_signals
+agent_runs
+manual_interventions
+candidate_facts
+
+Design the system so SQLite can later be replaced with:
+
+* PostgreSQL
+* Oracle Database
+* OCI Database
+* another managed persistent database
+
+without rewriting business logic.
+
+---
+
+# 28. GITHUB
+
+Create/use a GitHub repository.
+
+Suggested:
+
+naukri-career-agent
+
+Recommended structure:
+
+src/
+agents/
+orchestrator/
+discovery/
+qualification/
+resume/
+application/
+interview/
+intelligence/
+market/
+reporting/
+database/
+browser/
+models/
+security/
+utilities/
+
+config/
+config.yaml
+
+candidate/
+candidate_facts.yaml
+
+resumes/
+master/
+generated/
+
+reports/
+daily/
+weekly/
+
+interviews/
+
+tests/
+
+scripts/
+
+.github/
+workflows/
+
+README.md
+
+SECURITY.md
+
+Never commit:
+
+* passwords
+* Naukri credentials
+* API keys
+* OpenAI keys
+* SMTP passwords
+* tokens
+* session cookies
+* MFA secrets
+
+---
+
+# 29. GITHUB SECRETS
+
+Use GitHub Actions Secrets/Variables.
+
+Potential secrets:
+
+NAUKRI_USERNAME
+NAUKRI_PASSWORD
+NAUKRI_API_KEY
+OPENAI_API_KEY
+SMTP_USERNAME
+SMTP_PASSWORD
+EMAIL_RECIPIENT
+
+Potential configuration variables:
+
+MATCH_THRESHOLD
+MIN_SALARY_LPA
+MAX_APPLICATIONS_PER_DAY
+DRY_RUN
+TIMEZONE
+SEARCH_ENABLED
+EMAIL_ENABLED
+
+Do not hardcode secrets.
+
+---
+
+# 30. GITHUB ACTIONS SCHEDULER
+
+Schedule Monday-Friday at:
+
+09:00 Asia/Kolkata
+
+Workflow:
+
+GitHub Actions
+→ checkout
+→ restore database/state
+→ load configuration
+→ load candidate truth profile
+→ initialize run
+→ Discovery
+→ salary filtering
+→ deduplication
+→ JD extraction
+→ qualification
+→ resume generation
+→ ATS validation
+→ automatic application
+→ tracking
+→ interview intelligence
+→ report generation
+→ email
+→ persist state
+→ upload artifacts
+→ commit required non-secret state if appropriate
+
+Friday should additionally run weekly career intelligence.
+
+Use workflow concurrency to prevent overlapping runs.
+
+---
+
+# 31. DRY RUN
+
+DRY_RUN must exist.
+
+When:
+
+DRY_RUN=true
+
+The system must:
+
+* search
+* extract
+* score
+* generate resumes
+* prepare applications
+* generate reports
+
+but MUST NOT submit applications.
+
+Production mode:
+
+DRY_RUN=false
+
+allows real submission when all conditions are satisfied.
+
+Make the mode obvious in reports.
+
+---
+
+# 32. IDEMPOTENCY
+
+The same job must never be applied to twice.
+
+Use:
+
+* Naukri job ID
+* canonical URL
+* company + role + location hash
+* application history
+
+Before applying:
+
+check database.
+
+If already applied:
+
+SKIP_DUPLICATE
+
+If already processed but not applied:
+
+resume from correct state.
+
+If workflow crashes after submission but before recording confirmation:
+
+reconcile before retrying.
+
+Never blindly retry an application submission.
+
+---
+
+# 33. APPLICATION LIMIT
+
+Default:
+
+MAX_APPLICATIONS_PER_DAY = 10
+
+Make configurable.
+
+Do not apply beyond the configured daily limit.
+
+When limit is reached:
+
+stop submissions but continue:
+
+* discovery
+* analysis
+* scoring
+* interview preparation
+* reporting
+
+---
+
+# 34. ERROR HANDLING
+
+Implement:
+
+* retries
+* exponential backoff
+* timeouts
+* structured errors
+* screenshots on browser failures where appropriate
+* state recovery
+* idempotency
+* run IDs
+* structured logs
+
+Errors must not corrupt application state.
+
+Every agent run should have:
+
+run_id
+start_time
+end_time
+status
+records_processed
+records_failed
+error_summary
+
+---
+
+# 35. OBSERVABILITY
+
+Implement structured logging.
+
+Track:
+
+* jobs discovered
+* jobs parsed
+* salary rejected
+* jobs scored
+* resumes generated
+* applications submitted
+* application failures
+* interview packs generated
+* email delivery
+* agent failures
+* execution time
+
+Provide useful summaries without exposing secrets.
+
+---
+
+# 36. SECURITY
+
+Follow least privilege.
+
+Protect:
+
+* Naukri credentials
+* email credentials
+* AI API keys
+* candidate personal information
+* resume
+* application history
+
+Never log:
+
+* passwords
+* tokens
+* session cookies
+* full authentication headers
+* secrets
+
+Sanitize logs.
+
+Use secure secret injection.
+
+---
+
+# 37. PRIVACY
+
+Treat candidate information as sensitive.
+
+Avoid unnecessarily sending the full resume/JD to external services.
+
+Only send the minimum required data to AI services.
+
+Document what information is processed by external APIs.
+
+Do not store unnecessary personal information.
+
+---
+
+# 38. RESUME OPTIMIZATION RULES
+
+For every selected job:
+
+1. Parse JD.
+2. Extract important requirements.
+3. Compare against candidate truth.
+4. Identify relevant existing experience.
+5. Tailor resume.
+6. Optimize ATS structure.
+7. Validate keyword alignment.
+8. Check factual consistency.
+9. Generate PDF/DOCX.
+10. Store version metadata.
+11. Use that version for the application.
+
+Never keyword-stuff.
+
+Never fabricate.
+
+Never change factual dates or employment history.
+
+Never claim experience simply because the JD asks for it.
+
+---
+
+# 39. MASTER RESUME POLICY
+
+The master resume is immutable by default.
+
+The system may generate proposals:
+
+suggested-master-resume-improvements.md
+
+But it must NOT permanently change the master resume automatically.
+
+Job-specific resumes are allowed.
+
+Permanent master-resume changes require explicit user action.
+
+---
+
+# 40. CAREER FEEDBACK LOOP
+
+The system should continuously learn from:
+
+* jobs discovered
+* jobs rejected
+* jobs applied to
+* interview invitations
+* interview outcomes
+* recurring JD requirements
+* resume keyword gaps
+* search-query performance
+
+Use these signals to recommend:
+
+* new search queries
+* resume improvements
+* skills to study
+* interview topics
+* role categories
+
+Do not modify core career strategy automatically without recording the recommendation and rationale.
+
+---
+
+# 41. CANDIDATE GAPS
+
+For each high-match job identify:
+
+MATCHING STRENGTHS
+GAPS
+PARTIAL MATCHES
+TRANSFERABLE EXPERIENCE
+REQUIRED EXPERIENCE NOT CURRENTLY VERIFIED
+
+Example:
+
+Strong:
+
+* OCI
+* Kubernetes
+* Terraform
+* GenAI
+* Cloud architecture
+
+Gap:
+
+* Production AWS MLOps experience
+
+The system must distinguish a genuine gap from a keyword that is merely phrased differently.
+
+---
+
+# 42. ROLE RELEVANCE
+
+Do not optimize purely for keyword count.
+
+A role with many AI keywords but primarily requiring software development may be less aligned than a Cloud Architect role containing:
+
+* AI platform
+* GenAI
+* Kubernetes
+* cloud architecture
+* security
+* Terraform
+* multi-cloud
+
+Architecture responsibility should carry significant weight.
+
+---
+
+# 43. TARGET ROLE CATEGORIES
+
+Create role categories:
+
+CLOUD_ARCHITECTURE
+GENAI_ARCHITECTURE
+AI_PLATFORM
+AGENTIC_AI
+MULTI_CLOUD
+KUBERNETES_PLATFORM
+CLOUD_SECURITY
+AI_SECURITY
+MLOPS
+ENTERPRISE_AI
+CLOUD_TRANSFORMATION
+
+Each job can belong to multiple categories.
+
+Track category performance over time.
+
+---
+
+# 44. REPORT ARTIFACTS
+
+Persist:
+
+reports/daily/YYYY-MM-DD.md
+reports/daily/YYYY-MM-DD.html
+
+reports/weekly/YYYY-WXX.md
+reports/weekly/YYYY-WXX.html
+
+Store generated resumes and interview packs as appropriate.
+
+Upload important artifacts to GitHub Actions artifacts.
+
+---
+
+# 45. IMPLEMENTATION PHASES
+
+## PHASE 1 — FOUNDATION
+
+Build:
+
+* GitHub repository
+* configuration
+* candidate truth layer
+* database
+* logging
+* models
+* repository interfaces
+* tests
+
+Acceptance:
+
+* application starts
+* configuration loads
+* resume parses
+* candidate facts generated
+* SQLite initialized
+* tests pass
+
+---
+
+## PHASE 2 — DISCOVERY
+
+Build:
+
+* Naukri access abstraction
+* API/support detection
+* browser adapter if required
+* search engine
+* job parser
+* salary parser
+* deduplication
+
+Acceptance:
+
+* searches execute
+* jobs are stored
+* salary eligibility works
+* duplicates are removed
+
+---
+
+## PHASE 3 — QUALIFICATION
+
+Build:
+
+* JD analysis
+* evidence extraction
+* scoring
+* candidate matching
+* gap analysis
+
+Acceptance:
+
+* every job receives transparent scoring
+* evidence is stored
+* salary rules are enforced
+
+---
+
+## PHASE 4 — RESUME ENGINE
+
+Build:
+
+* source resume handling
+* candidate truth layer
+* ATS optimizer
+* job-specific resume generation
+* DOCX/PDF generation
+* ATS validation
+
+Acceptance:
+
+* master resume remains unchanged
+* tailored resume generated
+* no fabrication
+* ATS checks pass
+
+---
+
+## PHASE 5 — APPLICATION
+
+Build:
+
+* application agent
+* standard-question engine
+* resume upload
+* submission
+* confirmation tracking
+* idempotency
+
+Acceptance:
+
+DRY_RUN=true:
+
+* no real applications.
+
+DRY_RUN=false:
+
+* qualifying applications are submitted automatically.
+
+---
+
+## PHASE 6 — INTERVIEW INTELLIGENCE
+
+Build:
+
+* JD-specific interview packs
+* question database
+* model answers
+* architecture exercises
+* candidate gaps
+* 7-day preparation plans
+* interview simulator
+
+---
+
+## PHASE 7 — MARKET INTELLIGENCE
+
+Build:
+
+* skill trends
+* market signals
+* query performance
+* weekly career intelligence
+* resume gap analysis
+
+---
+
+## PHASE 8 — EMAIL & REPORTING
+
+Build:
+
+* daily HTML email
+* Friday weekly HTML email
+* Markdown reports
+* GitHub artifacts
+* failure notifications
+
+---
+
+## PHASE 9 — GITHUB ACTIONS
+
+Automate:
+
+Monday-Friday 09:00 IST.
+
+Friday:
+
+daily workflow
++
+weekly intelligence
+
+Implement concurrency protection.
+
+---
+
+# 46. TESTING
+
+Create unit tests for:
+
+* salary parsing
+* ₹20L filter
+* undisclosed salary handling
+* score calculation
+* deduplication
+* candidate truth validation
+* resume keyword matching
+* ATS validation
+* application eligibility
+* application idempotency
+* state transitions
+* report generation
+
+Integration tests:
+
+* discovery
+* JD parsing
+* resume generation
+* database persistence
+* email generation
+
+Browser tests should use mocked/test environments wherever possible.
+
+Do NOT perform uncontrolled live applications during testing.
+
+---
+
+# 47. CONFIGURATION EXAMPLE
+
+config/config.yaml
+
+timezone: Asia/Kolkata
+
+schedule:
+hour: 9
+minute: 0
+days:
+- monday
+- tuesday
+- wednesday
+- thursday
+- friday
+
+application:
+match_threshold: 75
+min_salary_lpa: null
+undisclosed_salary_allowed: true
+max_applications_per_day: 10
+dry_run: true
+
+resume:
+source_path: resumes/master/
+auto_modify_master: false
+generate_pdf: true
+generate_docx: true
+ats_validation: true
+
+email:
+enabled: true
+daily_report: true
+weekly_report: true
+
+safety:
+stop_on_captcha: true
+stop_on_mfa: true
+stop_on_payment: true
+stop_on_unknown_question: true
+stop_on_external_redirect: true
+
+search:
+enabled: true
+
+---
+
+# 48. END-USER EXPERIENCE
+
+The system should feel like a personal autonomous career assistant.
+
+Every weekday I should receive an email similar to:
+
+CAREER AGENT — DAILY REPORT
+
+Jobs scanned: 186
+Salary rejected: 71
+Qualified: 31
+Strong matches: 14
+Resumes generated: 11
+Applications submitted: 9
+Blocked: 1
+
+TOP APPLICATIONS
+
+1. Principal Cloud Architect – AI
+   Match: 94%
+   Salary: Not disclosed
+   Status: Applied
+
+2. AI Platform Architect
+   Match: 91%
+   Salary: ₹25–35 LPA
+   Status: Applied
+
+3. Cloud Architect – GenAI
+   Match: 87%
+   Salary: ₹22–30 LPA
+   Status: Applied
+
+No manual approval should be required for normal qualifying applications.
+
+---
+
+# 49. FRIDAY USER EXPERIENCE
+
+Every Friday I should receive:
+
+CAREER AGENT — WEEKLY CAREER INTELLIGENCE
+
+Jobs analyzed
+Applications
+Interviews
+Salary trends
+Top companies
+Top roles
+Most requested skills
+Emerging technologies
+Resume gaps
+Interview gaps
+Search performance
+Recommended learning
+Recommended search queries
+
+The system should help answer:
+
+"What is the market currently asking for in the Cloud + AI Architect space?"
+
+"Which skills are becoming more common?"
+
+"Which requirements am I repeatedly missing?"
+
+"How should my resume be positioned?"
+
+"What should I prepare for interviews?"
+
+"Which search queries are producing the best opportunities?"
+
+---
+
+# 50. SUCCESS CRITERIA
+
+The project is successful when:
+
+1. It runs automatically Monday-Friday at 09:00 IST.
+2. It finds relevant Naukri jobs.
+3. It rejects disclosed salaries below ₹20 LPA.
+4. It allows undisclosed-salary jobs.
+5. It scores jobs against the actual candidate profile.
+6. It does not rely solely on title matching.
+7. It uses the existing resume as the source.
+8. It creates ATS-friendly job-specific resumes.
+9. It never fabricates candidate information.
+10. It automatically applies to qualifying jobs.
+11. It prevents duplicate applications.
+12. It safely handles CAPTCHA/MFA/automation barriers.
+13. It records every application.
+14. It creates interview preparation.
+15. It tracks market skill trends.
+16. It generates daily reports.
+17. It sends daily reports by email.
+18. It sends enhanced Friday career-intelligence reports.
+19. It preserves historical data.
+20. It can recover from failed/interrupted runs.
+21. It operates securely using GitHub Secrets.
+22. It is testable.
+23. Its architecture can scale from SQLite to PostgreSQL/OCI Database.
+24. The system can eventually support an interactive interview simulator.
+25. The user does not need to manually operate the system every morning.
+
+---
+
+# 51. FINAL IMPLEMENTATION INSTRUCTION
+
+Do not merely provide an architecture document.
+
+Actually build the project.
+
+Start by:
+
+1. Inspecting the current project directory.
+2. Locating the existing resume.
+3. Inspecting any existing code/configuration.
+4. Determining the current repository state.
+5. Creating/updating the GitHub repository structure.
+6. Creating the configuration.
+7. Creating the candidate truth layer from the existing resume.
+8. Implementing the database abstraction.
+9. Implementing the job models and lifecycle.
+10. Implementing the salary eligibility engine.
+11. Implementing discovery.
+12. Implementing qualification.
+13. Implementing ATS resume generation.
+14. Implementing application automation behind a safe adapter.
+15. Implementing interview intelligence.
+16. Implementing market intelligence.
+17. Implementing daily/weekly reporting.
+18. Implementing email notifications.
+19. Implementing GitHub Actions scheduling.
+20. Writing tests.
+21. Running tests.
+22. Running the system in DRY_RUN mode first.
+23. Producing a clear implementation summary.
+
+Do not skip existing project inspection.
+
+Do not overwrite the existing resume.
+
+Do not invent a Naukri API.
+
+Do not bypass CAPTCHA/MFA/anti-bot mechanisms.
+
+Do not fabricate candidate information.
+
+Do not submit applications while DRY_RUN=true.
+
+Do not commit secrets.
+
+Do not silently discard failed jobs or applications.
+
+Build this as a real maintainable software project, not as a one-off script.
+
+The final system should function as an autonomous career agent focused on:
+
+CLOUD ARCHITECTURE
++
+GENAI
++
+AI PLATFORM
++
+AGENTIC AI
++
+MULTI-CLOUD
++
+KUBERNETES
++
+SECURITY
+
+with a hard compensation filter of:
+
+₹20 LPA minimum when salary is disclosed
+
+and:
+
+Salary undisclosed = eligible for analysis.
+
+Normal qualifying applications should be submitted automatically without requiring user approval.
+
+The user should primarily interact through:
+
+1. Daily email report
+2. Friday career-intelligence email
+3. Generated ATS resumes
+4. Interview preparation packs
+5. Historical application/report data
+6. Optional interview simulator

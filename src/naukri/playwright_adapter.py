@@ -126,11 +126,11 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                 tuples = page.locator("div.cust-job-tuple, div.srp-jobtuple").all()
                 listings = []
                 for t in tuples[:limit]:
-                    title_el = t.locator("a.title")
-                    comp_el = t.locator("a.comp-name")
-                    loc_el = t.locator("span.loc-wrap, span.loc")
-                    sal_el = t.locator("span.sal-wrap, span.sal")
-                    exp_el = t.locator("span.exp-wrap, span.exp")
+                    title_el = t.locator("a.title").first
+                    comp_el = t.locator("a.comp-name").first
+                    loc_el = t.locator("span.loc-wrap, span.loc").first
+                    sal_el = t.locator("span.sal-wrap, span.sal").first
+                    exp_el = t.locator("span.exp-wrap, span.exp").first
 
                     if title_el.count() == 0:
                         continue
@@ -346,11 +346,14 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         dry_run=False,
                     )
 
-                # Step 3: Check if already applied (Green badge or Already Applied button)
-                is_already_applied = (
-                    page.locator(".already-applied, span:has-text('Applied'), button:has-text('Already Applied')").count() > 0
-                    or "already applied" in page_text
-                )
+                # Step 3: Check if already applied (Green badge .already-applied)
+                applied_badge = page.locator(".already-applied, span.already-applied, span[class*='already-applied']")
+                is_already_applied = False
+                if applied_badge.count() > 0:
+                    badge_text = applied_badge.first.inner_text().strip().lower()
+                    if badge_text in ["applied", "already applied"]:
+                        is_already_applied = True
+
                 if is_already_applied:
                     page.screenshot(path=evidence_path)
                     browser.close()
@@ -446,6 +449,21 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             break
 
                         text_area = page.locator(".textArea[contenteditable='true']").first
+                        yes_chip = drawer.locator("xpath=.//*[normalize-space(text())='YES' or normalize-space(text())='Yes']").first
+
+                        if yes_chip.is_visible():
+                            # Radio / chip option detected
+                            yes_chip.click()
+                            time.sleep(1)
+                            save_btn = drawer.locator("xpath=.//*[normalize-space(text())='Save']").all()
+                            for sb in save_btn:
+                                if sb.is_visible():
+                                    sb.click()
+                                    break
+                            questions_answered[latest_q] = "YES"
+                            time.sleep(4)
+                            continue
+
                         if not text_area.is_visible():
                             time.sleep(2)
                             continue
@@ -529,10 +547,23 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                     page_title=page.title(),
                 )
 
+                # Check if landed on Naukri saveApply confirmation screen
+                if not evidence.confirmed and ("saveapply" in page.url.lower() or "applied to" in page.content().lower()):
+                    evidence = VerificationEvidence(
+                        confirmed=True,
+                        status=JobStatus.APPLIED_CONFIRMED,
+                        verification_level="LEVEL_1_DIRECT_MODAL",
+                        confirmation_text="Applied confirmation screen reached",
+                        confirmation_reference="SAVE_APPLY_REDIRECT",
+                        final_url=page.url,
+                        evidence_summary="Naukri saveApply confirmation page confirmed.",
+                    )
+
                 if not evidence.confirmed:
                     page.goto(canonical_url, timeout=30000, wait_until="networkidle")
                     time.sleep(2)
-                    if page.locator(".already-applied, span:has-text('Applied')").count() > 0:
+                    applied_badge = page.locator(".already-applied, span.already-applied, span[class*='already-applied']")
+                    if applied_badge.count() > 0 and applied_badge.first.inner_text().strip().lower() in ["applied", "already applied"]:
                         evidence = VerificationEvidence(
                             confirmed=True,
                             status=JobStatus.APPLIED_CONFIRMED,

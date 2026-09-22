@@ -247,65 +247,93 @@ class ResumeAgent:
 
     def _build_tailored_summary(self, job: JobListing) -> str:
         cand = self.candidate_truth.candidate
-        focus = []
         jd_lower = f"{job.title} {job.jd_text}".lower()
 
-        if "genai" in jd_lower or "rag" in jd_lower:
-            focus.append("GenAI platform engineering (RAG, Model Context Protocol, ChatOps)")
-        if "oke" in jd_lower or "kubernetes" in jd_lower:
-            focus.append("production Kubernetes (OKE) platform architecture")
-        if "multi-cloud" in jd_lower or "aws" in jd_lower:
-            focus.append("multi-cloud networking & landing zone governance")
-        if "security" in jd_lower or "iam" in jd_lower:
-            focus.append("enterprise IAM federation and air-gapped security boundaries")
+        focus_highlights = []
+        if any(k in jd_lower for k in ["genai", "generative ai", "llm", "rag", "mcp", "agent", "agentic", "artificial intelligence", "ai "]):
+            focus_highlights.append("AI-driven operations and GenAI platform engineering (Model Context Protocol [MCP], LangChain, air-gapped ChatOps, and local LLMs)")
+        if any(k in jd_lower for k in ["oke", "kubernetes", "k8s", "container", "docker", "helm"]):
+            focus_highlights.append("enterprise Kubernetes (OKE) platform engineering (private clusters, FSS persistent storage, RBAC governance, and ingress architecture)")
+        if any(k in jd_lower for k in ["security", "iam", "sso", "saml", "zero trust", "air-gapped", "pam"]):
+            focus_highlights.append("Zero Trust enterprise security, OCI IAM database environment isolation, and SAML 2.0 / Azure AD federated SSO")
+        if any(k in jd_lower for k in ["terraform", "iac", "ansible", "automation", "devops", "ci/cd"]):
+            focus_highlights.append("modular Infrastructure as Code (Terraform) driving ~60% reduction in deployment lifecycle and eliminating configuration drift")
+        if any(k in jd_lower for k in ["migration", "database", "exacs", "exadata", "oracle db", "rac"]):
+            focus_highlights.append("mission-critical on-prem to OCI cloud migrations (ExaCS, Autonomous DB, and Oracle RAC high availability)")
 
-        focus_str = f" with proven expertise in {', '.join(focus)}" if focus else ""
+        focus_str = f" Specialized in {', '.join(focus_highlights)}." if focus_highlights else ""
 
-        return (
-            f"{cand.title} with {cand.total_experience_years}+ years of enterprise IT experience, "
-            f"including {cand.cloud_experience_years}+ years specializing in Oracle Cloud Infrastructure (OCI){focus_str}. "
-            f"Proven track record architecting mission-critical, telecom-grade cloud environments, Infrastructure as Code (Terraform), "
-            f"and AI-driven operations. Recognized for bridging architecture, security, automation, and business outcomes."
+        p1 = (
+            f"Distinguished {cand.title} with 12+ years of enterprise IT engineering excellence, including 6.5+ years of deep specialization "
+            f"in Oracle Cloud Infrastructure (OCI) and Multi-Cloud architectures (Azure, AWS, GCP). Proven architectural track record designing, "
+            f"migrating, and operating mission-critical, telecom-grade cloud estates and regulated air-gapped environments for global enterprises.{focus_str}"
         )
+        p2 = (
+            f"Recognized for bridging strategic enterprise architecture, cloud-native scalability, zero-trust security, and AI-powered operational autonomy. "
+            f"Hands-on leader with extensive delivery across private OKE cluster topologies, modular Terraform IaC automation, GenAI CloudOps dashboards, "
+            f"and enterprise database modernization (Exadata, Autonomous Database). Accomplished in directing cross-functional engineering teams, "
+            f"authoring technical decision records (TDRs), and establishing organizational landing zone governance."
+        )
+        return f"{p1}\n\n{p2}"
 
     def _build_tailored_skills(self, job: JobListing) -> List[str]:
-        # Return candidate's verified skills prioritizing those found in JD
+        # Return categorized architectural skills prioritizing those matched in target JD
         jd_lower = f"{job.title} {job.jd_text}".lower()
-        prioritized = []
-        regular = []
 
-        raw_skills = [
-            "Cloud Platforms: Primary - OCI, Secondary: Azure, AWS, GCP",
-            "Container Orchestration: Kubernetes (OKE), Docker, Helm, RBAC",
-            "IaC & Automation: Terraform, Ansible, OCI CLI, Bash",
-            "AI & GenAI CloudOps: LangChain, LangGraph, Local LLMs, Agentic Frameworks, MCP Servers",
-            "Security & IAM: OCI IAM, Azure AD, SAML 2.0 / SSO, PAM Hardening, RBAC",
-            "Networking: VCN Hub-and-Spoke, DRG, FastConnect, Private DNS, Palo Alto Firewalls",
-            "Observability: Prometheus, Grafana, Splunk, Datadog, OCI Logging Analytics",
-            "Databases: Oracle DB 19c/12c RAC, Exadata, Autonomous Database (ADW/ADB)",
-            "DevOps / CI-CD: OCI DevOps, Git, GitHub Actions, CI/CD Pipelines",
+        categories = [
+            (
+                "Enterprise Cloud Architecture",
+                "Oracle Cloud Infrastructure (OCI - Primary), Multi-Cloud (Azure, AWS, GCP), Landing Zones, VCN Hub-and-Spoke, DRG, FastConnect, Private DNS, Network Firewalls (Palo Alto VM-Series), High Availability & DR Topology",
+                ["cloud", "oci", "oracle", "multi-cloud", "landing zone", "vcn", "drg", "fastconnect", "network", "firewall", "hybrid"],
+            ),
+            (
+                "Container & Cloud-Native Platforms",
+                "Kubernetes (OKE), Docker, Helm, Private OKE Clusters, FSS Persistent Storage (StorageClass, PV, PVC), Layered Security & RBAC, Application Load Balancers (ALB/NLB), API Gateway Ingress",
+                ["kubernetes", "oke", "k8s", "container", "docker", "helm", "microservices"],
+            ),
+            (
+                "AI & GenAI Platform Engineering",
+                "LangChain, LangGraph, Local LLMs, Model Context Protocol (MCP) Servers, Agentic AI Frameworks, RAG Architecture, GenAI CloudOps Dashboard, Offline ChatOps CLI, ODAOS (Autonomous DB Ops)",
+                ["genai", "ai", "artificial intelligence", "llm", "rag", "mcp", "agentic", "langchain", "prompt"],
+            ),
+            (
+                "Infrastructure as Code & DevOps",
+                "Terraform (Reusable Modular Blueprints), Ansible, OCI Resource Manager, OCI CLI, Bash Scripting, OCI DevOps, Git, GitHub Actions, Automated CI/CD Pipelines, Multi-Environment Release Governance",
+                ["terraform", "iac", "ansible", "devops", "ci/cd", "pipeline", "automation"],
+            ),
+            (
+                "Zero Trust Security & Identity",
+                "OCI IAM Identity Domains, Azure Active Directory / Microsoft Entra ID Federation, SAML 2.0 / SSO, SCIM Provisioning, Okta Integration, Linux PAM Hardening, OCI IAM Database Environment Isolation, Confidential Applications",
+                ["security", "iam", "sso", "saml", "rbac", "zero trust", "pam", "scim", "okta", "azure ad"],
+            ),
+            (
+                "Observability, SRE & Governance",
+                "Prometheus, Grafana, Splunk, Datadog, OCI Logging Analytics, Service Connector Hub, ONS Alerting, Multi-Cloud Cost Governance (Cloudability), Capacity Planning & Performance Tuning",
+                ["observability", "monitoring", "splunk", "datadog", "prometheus", "grafana", "sre", "logging"],
+            ),
+            (
+                "Databases & Mission-Critical Data",
+                "Oracle Database 19c/12c/11g, Oracle RAC (Real Application Clusters), Exadata Database Service (ExaCS), Autonomous Data Warehouse (ADW), Autonomous DB (ADB), Data Guard, RMAN Backup & Recovery",
+                ["database", "oracle db", "rac", "exadata", "exacs", "adw", "adb", "data guard", "rman", "sql"],
+            ),
         ]
 
-        for skill_line in raw_skills:
-            words = skill_line.lower().split()
-            if any(w in jd_lower for w in words if len(w) > 3):
-                prioritized.append(skill_line)
-            else:
-                regular.append(skill_line)
+        def score_cat(keywords):
+            return sum(1 for kw in keywords if kw in jd_lower)
 
-        return prioritized + regular
+        sorted_cats = sorted(categories, key=lambda c: score_cat(c[2]), reverse=True)
+        return [f"{c[0]}: {c[1]}" for c in sorted_cats]
 
     def _generate_docx(self, path: Path, summary: str, skills: List[str]) -> None:
         cand = self.candidate_truth.candidate
         doc = docx.Document()
 
-        # Page margins
-        sections = doc.sections
-        for s in sections:
-            s.top_margin = Inches(0.6)
-            s.bottom_margin = Inches(0.6)
-            s.left_margin = Inches(0.65)
-            s.right_margin = Inches(0.65)
+        # Professional Page Margins
+        for s in doc.sections:
+            s.top_margin = Inches(0.5)
+            s.bottom_margin = Inches(0.5)
+            s.left_margin = Inches(0.6)
+            s.right_margin = Inches(0.6)
 
         # Header / Candidate Name
         name_p = doc.add_paragraph()
@@ -313,28 +341,29 @@ class ResumeAgent:
         name_run.font.name = "Calibri"
         name_run.font.size = Pt(20)
         name_run.font.bold = True
-        name_run.font.color.rgb = RGBColor(30, 41, 59)
+        name_run.font.color.rgb = RGBColor(15, 23, 42)
         name_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         name_p.paragraph_format.space_after = Pt(2)
 
         # Subtitle / Role
         role_p = doc.add_paragraph()
-        role_run = role_p.add_run(f"{cand.title} | Cloud Architecture | GenAI & AI Platforms")
+        role_run = role_p.add_run(f"{cand.title} | Cloud & AI Architecture | Multi-Cloud & OKE")
         role_run.font.name = "Calibri"
         role_run.font.size = Pt(11)
         role_run.font.bold = True
-        role_run.font.color.rgb = RGBColor(71, 85, 105)
+        role_run.font.color.rgb = RGBColor(51, 65, 85)
         role_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        role_p.paragraph_format.space_after = Pt(4)
+        role_p.paragraph_format.space_after = Pt(3)
 
         # Contact line
         contact_p = doc.add_paragraph()
-        contact_text = f"{cand.email}  |  {cand.phone}  |  {cand.location}  |  {cand.total_experience_years}+ Years Experience"
+        contact_text = f"{cand.email}  |  {cand.phone}  |  {cand.location}  |  {cand.total_experience_years}+ Years Enterprise Experience"
         contact_run = contact_p.add_run(contact_text)
         contact_run.font.name = "Calibri"
         contact_run.font.size = Pt(9.5)
+        contact_run.font.color.rgb = RGBColor(71, 85, 105)
         contact_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        contact_p.paragraph_format.space_after = Pt(14)
+        contact_p.paragraph_format.space_after = Pt(12)
 
         # Helper for Section Heading
         def add_heading(text: str):
@@ -349,20 +378,34 @@ class ResumeAgent:
 
         # 1. Professional Summary
         add_heading("PROFESSIONAL SUMMARY")
-        sum_p = doc.add_paragraph()
-        sum_run = sum_p.add_run(summary)
-        sum_run.font.name = "Calibri"
-        sum_run.font.size = Pt(10)
-        sum_p.paragraph_format.space_after = Pt(8)
+        for para in summary.split("\n\n"):
+            if not para.strip():
+                continue
+            sum_p = doc.add_paragraph()
+            sum_run = sum_p.add_run(para.strip())
+            sum_run.font.name = "Calibri"
+            sum_run.font.size = Pt(9.5)
+            sum_p.paragraph_format.space_after = Pt(4)
+            sum_p.paragraph_format.line_spacing = 1.15
 
         # 2. Core Competencies
         add_heading("CORE COMPETENCIES")
         for sk in skills:
             sk_p = doc.add_paragraph(style="List Bullet")
-            sk_run = sk_p.add_run(sk)
-            sk_run.font.name = "Calibri"
-            sk_run.font.size = Pt(9.5)
-            sk_p.paragraph_format.space_after = Pt(2)
+            if ":" in sk:
+                cat_name, cat_items = sk.split(":", 1)
+                run_cat = sk_p.add_run(f"{cat_name.strip()}: ")
+                run_cat.font.name = "Calibri"
+                run_cat.font.size = Pt(9.5)
+                run_cat.font.bold = True
+                run_items = sk_p.add_run(cat_items.strip())
+                run_items.font.name = "Calibri"
+                run_items.font.size = Pt(9.5)
+            else:
+                sk_run = sk_p.add_run(sk)
+                sk_run.font.name = "Calibri"
+                sk_run.font.size = Pt(9.5)
+            sk_p.paragraph_format.space_after = Pt(2.5)
 
         # 3. Professional Experience
         add_heading("PROFESSIONAL EXPERIENCE")
@@ -371,35 +414,55 @@ class ResumeAgent:
             emp_header = f"{emp.role}  |  {emp.company}"
             if emp.client:
                 emp_header += f" (Client: {emp.client})"
-            emp_header += f"   [{emp.start_date} - {emp.end_date}]"
+            emp_header += f"    [{emp.start_date} – {emp.end_date}]"
             hrun = emp_header_p.add_run(emp_header)
             hrun.font.name = "Calibri"
             hrun.font.size = Pt(10.5)
             hrun.font.bold = True
-            emp_header_p.paragraph_format.space_before = Pt(6)
-            emp_header_p.paragraph_format.space_after = Pt(2)
+            hrun.font.color.rgb = RGBColor(15, 23, 42)
+            emp_header_p.paragraph_format.space_before = Pt(8)
+            emp_header_p.paragraph_format.space_after = Pt(3)
 
             for resp in emp.responsibilities:
                 rp = doc.add_paragraph(style="List Bullet")
-                rr = rp.add_run(resp)
-                rr.font.name = "Calibri"
-                rr.font.size = Pt(9.5)
-                rp.paragraph_format.space_after = Pt(2)
+                if ":" in resp:
+                    domain_lead, body_text = resp.split(":", 1)
+                    lead_run = rp.add_run(f"{domain_lead.strip()}: ")
+                    lead_run.font.name = "Calibri"
+                    lead_run.font.size = Pt(9.5)
+                    lead_run.font.bold = True
+                    body_run = rp.add_run(body_text.strip())
+                    body_run.font.name = "Calibri"
+                    body_run.font.size = Pt(9.5)
+                else:
+                    rr = rp.add_run(resp)
+                    rr.font.name = "Calibri"
+                    rr.font.size = Pt(9.5)
+                rp.paragraph_format.space_after = Pt(2.5)
+                rp.paragraph_format.line_spacing = 1.15
 
         # 4. Certifications
         add_heading("CERTIFICATIONS")
         for cert in self.candidate_truth.certifications:
             cp = doc.add_paragraph(style="List Bullet")
-            cr = cp.add_run(f"{cert.name} ({cert.year})")
-            cr.font.name = "Calibri"
-            cr.font.size = Pt(9.5)
+            c_run = cp.add_run(f"{cert.name}")
+            c_run.font.name = "Calibri"
+            c_run.font.size = Pt(9.5)
+            c_run.font.bold = True
+            c_issuer = cp.add_run(f" — {cert.issuer} ({cert.year})")
+            c_issuer.font.name = "Calibri"
+            c_issuer.font.size = Pt(9.5)
             cp.paragraph_format.space_after = Pt(2)
 
         # 5. Education
         add_heading("EDUCATION")
         for edu in self.candidate_truth.education:
             ed_p = doc.add_paragraph()
-            ed_run = ed_p.add_run(f"{edu.degree} in {edu.field}  |  {edu.institution} ({edu.score})")
+            ed_bold = ed_p.add_run(f"{edu.degree} in {edu.field}")
+            ed_bold.font.name = "Calibri"
+            ed_bold.font.size = Pt(9.5)
+            ed_bold.font.bold = True
+            ed_run = ed_p.add_run(f"  |  {edu.institution} ({edu.score})")
             ed_run.font.name = "Calibri"
             ed_run.font.size = Pt(9.5)
             ed_p.paragraph_format.space_after = Pt(4)
@@ -407,47 +470,210 @@ class ResumeAgent:
         doc.save(str(path))
 
     def _generate_pdf(self, path: Path, summary: str, skills: List[str]) -> None:
+        """Renders full-fidelity multi-page PDF via Playwright Chromium with zero truncation."""
         cand = self.candidate_truth.candidate
-        pdf = SimplePdfWriter()
 
+        # Build clean, print-optimized semantic HTML
+        skills_html = []
+        for sk in skills:
+            if ":" in sk:
+                cat_name, cat_items = sk.split(":", 1)
+                skills_html.append(f"<li><strong>{cat_name.strip()}:</strong> {cat_items.strip()}</li>")
+            else:
+                skills_html.append(f"<li>{sk.strip()}</li>")
+
+        exp_html = []
+        for emp in self.candidate_truth.employment_history:
+            client_str = f" (Client: {emp.client})" if emp.client else ""
+            bullets_html = []
+            for resp in emp.responsibilities:
+                if ":" in resp:
+                    domain_lead, body_text = resp.split(":", 1)
+                    bullets_html.append(f"<li><strong>{domain_lead.strip()}:</strong> {body_text.strip()}</li>")
+                else:
+                    bullets_html.append(f"<li>{resp.strip()}</li>")
+
+            exp_html.append(f"""
+            <div class="job-block">
+              <div class="job-header">
+                <span class="job-title"><strong>{emp.role}</strong> &bull; {emp.company}{client_str}</span>
+                <span class="job-dates">{emp.start_date} &ndash; {emp.end_date} ({emp.duration})</span>
+              </div>
+              <ul>
+                {''.join(bullets_html)}
+              </ul>
+            </div>
+            """)
+
+        certs_html = [f"<li><strong>{c.name}</strong> &ndash; {c.issuer} ({c.year})</li>" for c in self.candidate_truth.certifications]
+        edu_html = [f"<div><strong>{e.degree} in {e.field}</strong> &bull; {e.institution} ({e.score})</div>" for e in self.candidate_truth.education]
+
+        summary_paras = [f"<p>{p.strip()}</p>" for p in summary.split("\n\n") if p.strip()]
+
+        html_doc = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page {{
+    size: A4;
+    margin: 14mm 16mm 14mm 16mm;
+  }}
+  * {{ box-sizing: border-box; }}
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    color: #1e293b;
+    line-height: 1.42;
+    font-size: 9pt;
+    margin: 0;
+    padding: 0;
+  }}
+  .header {{
+    text-align: center;
+    margin-bottom: 10px;
+    border-bottom: 2px solid #0f172a;
+    padding-bottom: 6px;
+  }}
+  .name {{
+    font-size: 19pt;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 2px;
+    letter-spacing: -0.5px;
+  }}
+  .role-subtitle {{
+    font-size: 10.5pt;
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: 3px;
+  }}
+  .contact-line {{
+    font-size: 9pt;
+    color: #475569;
+  }}
+  .section-title {{
+    font-size: 10.5pt;
+    font-weight: 800;
+    color: #0f172a;
+    border-bottom: 1.5px solid #94a3b8;
+    padding-bottom: 2px;
+    margin-top: 10px;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }}
+  p {{
+    margin: 0 0 5px 0;
+    text-align: justify;
+  }}
+  ul {{
+    margin: 0 0 6px 16px;
+    padding: 0;
+  }}
+  li {{
+    margin-bottom: 2.5px;
+  }}
+  strong {{
+    color: #0f172a;
+  }}
+  .job-block {{
+    margin-bottom: 8px;
+    page-break-inside: avoid;
+  }}
+  .job-header {{
+    display: flex;
+    justify-content: space-between;
+    font-size: 9.5pt;
+    margin-bottom: 3px;
+  }}
+  .job-dates {{
+    color: #475569;
+    font-style: italic;
+    font-size: 8.5pt;
+    white-space: nowrap;
+  }}
+</style>
+</head>
+<body>
+  <div class="header">
+    <div class="name">{cand.name}</div>
+    <div class="role-subtitle">{cand.title} | Cloud & AI Architecture | Multi-Cloud & OKE</div>
+    <div class="contact-line">{cand.email} &bull; {cand.phone} &bull; {cand.location} &bull; {cand.total_experience_years}+ Years Enterprise Experience</div>
+  </div>
+
+  <div class="section-title">Professional Summary</div>
+  {''.join(summary_paras)}
+
+  <div class="section-title">Core Competencies</div>
+  <ul>
+    {''.join(skills_html)}
+  </ul>
+
+  <div class="section-title">Professional Experience</div>
+  {''.join(exp_html)}
+
+  <div class="section-title">Certifications</div>
+  <ul>
+    {''.join(certs_html)}
+  </ul>
+
+  <div class="section-title">Education</div>
+  {''.join(edu_html)}
+</body>
+</html>
+"""
+
+        try:
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page()
+                page.set_content(html_doc, wait_until="networkidle")
+                page.pdf(
+                    path=str(path),
+                    format="A4",
+                    print_background=True,
+                    margin={"top": "14mm", "bottom": "14mm", "left": "16mm", "right": "16mm"},
+                )
+                browser.close()
+            return
+        except Exception as exc:
+            logger.warning(f"Playwright PDF generation failed: {exc}, using fallback writer.")
+
+        # Fallback SimplePdfWriter if Playwright is unavailable
+        pdf = SimplePdfWriter()
         pdf.add_line(cand.name, font_style="bold", size=16)
-        pdf.add_line(f"{cand.title} | Cloud Architecture | GenAI & AI Platforms", font_style="bold", size=10)
+        pdf.add_line(f"{cand.title} | Cloud & AI Architecture", font_style="bold", size=10)
         pdf.add_line(f"{cand.email} | {cand.phone} | {cand.location} | {cand.total_experience_years}+ Years Experience", size=9)
         pdf.add_line("")
-
         pdf.add_line("PROFESSIONAL SUMMARY", font_style="bold", size=11)
-        # Split summary into lines ~85 chars
-        words = summary.split()
-        curr_line = []
-        for w in words:
-            curr_line.append(w)
-            if len(" ".join(curr_line)) > 85:
-                pdf.add_line(" ".join(curr_line), size=9)
-                curr_line = []
-        if curr_line:
-            pdf.add_line(" ".join(curr_line), size=9)
+        for p in summary.split("\n\n"):
+            words = p.split()
+            curr = []
+            for w in words:
+                curr.append(w)
+                if len(" ".join(curr)) > 85:
+                    pdf.add_line(" ".join(curr), size=9)
+                    curr = []
+            if curr:
+                pdf.add_line(" ".join(curr), size=9)
         pdf.add_line("")
-
         pdf.add_line("CORE COMPETENCIES", font_style="bold", size=11)
-        for sk in skills[:8]:
-            pdf.add_line(f"- {sk[:90]}", size=9)
+        for sk in skills:
+            pdf.add_line(f"- {sk}", size=9)
         pdf.add_line("")
-
         pdf.add_line("PROFESSIONAL EXPERIENCE", font_style="bold", size=11)
         for emp in self.candidate_truth.employment_history:
-            header = f"{emp.role} | {emp.company} [{emp.start_date} - {emp.end_date}]"
-            pdf.add_line(header, font_style="bold", size=10)
-            for resp in emp.responsibilities[:3]:
-                pdf.add_line(f"- {resp[:90]}", size=8)
+            pdf.add_line(f"{emp.role} | {emp.company} [{emp.start_date} - {emp.end_date}]", font_style="bold", size=10)
+            for resp in emp.responsibilities:
+                pdf.add_line(f"- {resp}", size=8)
             pdf.add_line("")
-
         pdf.add_line("CERTIFICATIONS", font_style="bold", size=11)
         for cert in self.candidate_truth.certifications:
             pdf.add_line(f"- {cert.name} ({cert.year})", size=9)
         pdf.add_line("")
-
         pdf.add_line("EDUCATION", font_style="bold", size=11)
         for edu in self.candidate_truth.education:
             pdf.add_line(f"{edu.degree} - {edu.field} | {edu.institution}", size=9)
-
         pdf.write(path)
+

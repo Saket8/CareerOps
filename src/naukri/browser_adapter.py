@@ -107,19 +107,27 @@ class NaukriBrowserAdapter(BaseNaukriClient):
                 listings.append(listing)
 
             if not listings:
-                logger.info(
+                if self.offline_mode:
+                    logger.info(
+                        f"Offline test mode: activating test fixture search engine for query '{query}'."
+                    )
+                    return self._mock_search(query, locations, limit)
+                logger.warning(
                     f"Direct HTML response yielded 0 parsed job cards for query '{query}' (SPA/SSR client hydration). "
-                    f"Activating market intelligence discovery engine..."
+                    f"Returning empty list to prevent mock data pollution."
                 )
-                return self._mock_search(query, locations, limit)
+                return []
 
             return listings
 
         except SafetyBarrierException:
             raise
         except Exception as exc:
-            logger.warning(f"Live search for '{query}' encountered network issue: {exc}. Falling back to market intelligence discovery engine.")
-            return self._mock_search(query, locations, limit)
+            if self.offline_mode:
+                logger.warning(f"Offline test search encountered issue: {exc}. Returning test fixtures.")
+                return self._mock_search(query, locations, limit)
+            logger.error(f"Live search for '{query}' encountered network issue: {exc}. Returning empty list.")
+            return []
 
     def fetch_job_details(self, job_listing: JobListing) -> JobListing:
         """Fetches full job description text for an existing listing."""

@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Agent Architecture Flowchart</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  body {
+    background: #0f172a;
+    color: #f8fafc;
+    padding: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+  .canvas {
+    width: 1280px;
+    background: #1e293b;
+    border-radius: 16px;
+    border: 1px solid #334155;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    padding: 36px 40px;
+    position: relative;
+    overflow: hidden;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 30px;
+    border-bottom: 1px solid #334155;
+    padding-bottom: 20px;
+  }
+  .badge {
+    display: inline-block;
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    padding: 4px 14px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .title {
+    font-size: 26px;
+    font-weight: 800;
+    color: #ffffff;
+    letter-spacing: -0.5px;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: #94a3b8;
+    margin-top: 4px;
+  }
+  
+  /* Trigger Bar */
+  .trigger-bar {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+  .trigger-node {
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    color: white;
+    padding: 10px 24px;
+    border-radius: 30px;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  }
+  
+  /* Flowchart Columns */
+  .orchestrator-box {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+    border: 2px solid #6366f1;
+    border-radius: 12px;
+    padding: 14px 20px;
+    text-align: center;
+    margin: 0 auto 28px auto;
+    max-width: 680px;
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.25);
+  }
+  .orchestrator-box h3 {
+    font-size: 16px;
+    font-weight: 800;
+    color: #c7d2fe;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .orchestrator-box p {
+    font-size: 12px;
+    color: #a5b4fc;
+    margin-top: 4px;
+  }
+
+  .grid-stages {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+    margin-bottom: 24px;
+  }
+  .stage-col {
+    background: #0f172a;
+    border-radius: 12px;
+    border: 1px solid #334155;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .stage-header {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  
+  .col-1 .stage-header { color: #38bdf8; }
+  .col-2 .stage-header { color: #a855f7; }
+  .col-3 .stage-header { color: #22c55e; }
+  .col-4 .stage-header { color: #f59e0b; }
+
+  .agent-card {
+    background: #1e293b;
+    border-radius: 8px;
+    padding: 12px 14px;
+    border: 1px solid #334155;
+    position: relative;
+    transition: all 0.2s;
+  }
+  .agent-card:hover {
+    border-color: #475569;
+  }
+  .agent-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+  .agent-desc {
+    font-size: 11px;
+    color: #94a3b8;
+    line-height: 1.4;
+  }
+  .agent-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    margin-top: 6px;
+  }
+  .badge-disc { background: rgba(56, 189, 248, 0.15); color: #38bdf8; }
+  .badge-qual { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+  .badge-app { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+  .badge-intel { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+  
+  .connector {
+    text-align: center;
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  .engine-subcard {
+    background: #090d16;
+    border: 1px dashed #475569;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-top: 6px;
+  }
+  .engine-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #cbd5e1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .engine-desc {
+    font-size: 10px;
+    color: #64748b;
+  }
+
+  /* Bottom Delivery Bar */
+  .delivery-bar {
+    background: linear-gradient(135deg, #064e3b 0%, #065f46 100%);
+    border: 1px solid #10b981;
+    border-radius: 10px;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .delivery-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .delivery-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #10b981;
+    color: #064e3b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 800;
+  }
+  .delivery-text h4 {
+    font-size: 13px;
+    font-weight: 800;
+    color: #ffffff;
+  }
+  .delivery-text p {
+    font-size: 11px;
+    color: #a7f3d0;
+  }
+  .verify-pill {
+    background: #ffffff;
+    color: #065f46;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+
+<div class="canvas">
+  <div class="header">
+    <div class="badge">Closed-Loop Autonomous Architecture</div>
+    <div class="title">Naukri Autonomous Career Agent Pipeline</div>
+    <div class="subtitle">8 Autonomous Agents &bull; 4 Specialized Execution Engines &bull; 100% Truthful Ground Truth</div>
+  </div>
+
+  <!-- Trigger -->
+  <div class="trigger-bar">
+    <div class="trigger-node">
+      <span>&#9200;</span>
+      <span>Automated Trigger: Mon-Fri at 09:00 IST (Peak Login) & 14:00 IST (Post-Lunch Screening)</span>
+    </div>
+  </div>
+
+  <!-- Orchestrator Box -->
+  <div class="orchestrator-box">
+    <h3><span>&#9881;</span> 1. Career Agent Orchestrator</h3>
+    <p>Central State Machine &bull; Quota Enforcement (Max 35/Day) &bull; Safety Circuit Breaker &bull; DB Session Coordinator</p>
+  </div>
+
+  <!-- 4 Stage Columns -->
+  <div class="grid-stages">
+    
+    <!-- Stage 1: Discovery & Filtering -->
+    <div class="stage-col col-1">
+      <div class="stage-header"><span>&#128269;</span> Stage 1: Discovery</div>
+      
+      <div class="agent-card">
+        <div class="agent-title">2. DiscoveryAgent</div>
+        <div class="agent-desc">Multi-query search across OCI Architect, AI Architect, GenAI Lead. Pan India, Remote & Hybrid without city restriction.</div>
+        <div class="agent-badge badge-disc">Pan India Discovery</div>
+      </div>
+
+      <div class="connector">&darr;</div>
+
+      <div class="engine-subcard">
+        <div class="engine-title">&#128737; Safety Gate 0</div>
+        <div class="engine-desc">Cognizant / CTS Hard Blocklist &bull; Auto-Reject Current Employer</div>
+      </div>
+
+      <div class="connector">&darr;</div>
+
+      <div class="engine-subcard">
+        <div class="engine-title">&#128176; Early Salary Filter</div>
+        <div class="engine-desc">salary_parser.py &bull; Reject &lt; ₹25 LPA &bull; Allow &ge; ₹25 LPA / Undisclosed</div>
+      </div>
+    </div>
+
+    <!-- Stage 2: Qualification & Tailoring -->
+    <div class="stage-col col-2">
+      <div class="stage-header"><span>&#127919;</span> Stage 2: Match & Resume</div>
+
+      <div class="agent-card">
+        <div class="agent-title">3. QualificationAgent</div>
+        <div class="agent-desc">5-Dimensional JD evaluation: Cloud/OCI, AI/Agentic, K8s/OKE, Security/IAM, IaC/Terraform.</div>
+        <div class="agent-badge badge-qual">Score 0 - 100%</div>
+      </div>
+
+      <div class="connector">&darr; Score &ge; 75%</div>
+
+      <div class="agent-card">
+        <div class="agent-title">4. ResumeAgent</div>
+        <div class="agent-desc">Generates tailored ATS-compliant DOCX & PDF resumes. 100% truth preservation from master resume.</div>
+        <div class="agent-badge badge-qual">Zero Fabrication</div>
+      </div>
+
+      <div class="engine-subcard">
+        <div class="engine-title">&#128196; Output Files</div>
+        <div class="engine-desc">resumes/generated/*.docx & *.pdf &bull; SHA-256 Version Tracked</div>
+      </div>
+    </div>
+
+    <!-- Stage 3: Live Application Automation -->
+    <div class="stage-col col-3">
+      <div class="stage-header"><span>&#9889;</span> Stage 3: Live Apply</div>
+
+      <div class="agent-card">
+        <div class="agent-title">5. ApplicationAgent</div>
+        <div class="agent-desc">Coordinates live browser submission, chatbot answering, idempotency checks, and safety bounds.</div>
+        <div class="agent-badge badge-app">APPLIED_CONFIRMED</div>
+      </div>
+
+      <div class="connector">&darr; Handlers</div>
+
+      <div class="engine-subcard">
+        <div class="engine-title">&#127760; Playwright Adapter</div>
+        <div class="engine-desc">Authenticated session (sauravskt8@gmail.com) &bull; Anti-bot stealth &bull; Direct Apply & Chatbots</div>
+      </div>
+
+      <div class="engine-subcard">
+        <div class="engine-title">&#129302; CandidateAnswerResolver</div>
+        <div class="engine-desc">Dynamic Q&A from candidate_facts.yaml &bull; Exp, Notice (90d), CTC (&ge;30LPA), Relocation (Yes)</div>
+      </div>
+
+      <div class="engine-subcard">
+        <div class="engine-title">&#9989; ApplicationVerifier</div>
+        <div class="engine-desc">5-Level Hierarchy &bull; Asserts .already-applied green badge on reload</div>
+      </div>
+    </div>
+
+    <!-- Stage 4: Interview & Intelligence -->
+    <div class="stage-col col-4">
+      <div class="stage-header"><span>&#128200;</span> Stage 4: Intelligence</div>
+
+      <div class="agent-card">
+        <div class="agent-title">6. InterviewAgent</div>
+        <div class="agent-desc">Builds comprehensive 7-document technical prep packs for high-match roles (Score &ge; 85%).</div>
+        <div class="agent-badge badge-intel">7-Doc Prep Dossier</div>
+      </div>
+
+      <div class="engine-subcard">
+        <div class="engine-title">&#128218; Prep Pack Contents</div>
+        <div class="engine-desc">JD.md &bull; match-analysis.md &bull; round1-3 technical questions &bull; system design</div>
+      </div>
+
+      <div class="connector">&darr;</div>
+
+      <div class="agent-card">
+        <div class="agent-title">7. MarketIntelligenceAgent</div>
+        <div class="agent-desc">Aggregates macro skill velocity (OCI, K8s, MCP, LangGraph) and salary ranges.</div>
+        <div class="agent-badge badge-intel">Weekly Career Trends</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom Delivery Bar -->
+  <div class="delivery-bar">
+    <div class="delivery-info">
+      <div class="delivery-icon">&#10003;</div>
+      <div class="delivery-text">
+        <h4>8. ReportingAgent & SmtpMailer &bull; Verified Delivery</h4>
+        <p>Generates daily reports with direct verification links &bull; Delivered to sauravskt8@gmail.com &bull; Every link verifies the green "Applied" badge on Naukri</p>
+      </div>
+    </div>
+    <div class="verify-pill">Verified on Naukri (Applied) &check;</div>
+  </div>
+
+</div>
+
+</body>
+</html>

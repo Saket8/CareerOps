@@ -23,6 +23,7 @@ def main():
     parser.add_argument("--offline", action="store_true", help="Run with offline verified test dataset")
     parser.add_argument("--query-limit", type=int, default=15, help="Max jobs to evaluate per search query")
     parser.add_argument("--validate-phase", action="store_true", help="Run Section 24 Phase Gate Audit on application records")
+    parser.add_argument("--cleanup", "--apply-retention", dest="cleanup", action="store_true", help="Execute retention policy to purge stale data and reclaim storage")
 
     args = parser.parse_args()
 
@@ -32,6 +33,31 @@ def main():
         sys.exit(0 if success else 1)
 
     config = load_config()
+
+    if args.cleanup:
+        from src.maintenance.retention_manager import RetentionManager
+        mgr = RetentionManager(config)
+        report = mgr.apply_retention_policy(dry_run=args.dry_run)
+        db = report.get("database", {})
+        storage = report.get("storage", {})
+        print("\n" + "=" * 65)
+        print("  RETENTION & STORAGE CLEANUP REPORT")
+        print("=" * 65)
+        print(f"  Status:                   {report.get('status')}")
+        print(f"  Mode:                     {'DRY RUN' if args.dry_run else 'LIVE PURGE'}")
+        print(f"  Stale Jobs Purged:        {db.get('jobs_purged', 0)}")
+        print(f"  Historical Runs Purged:   {db.get('runs_purged', 0)}")
+        print(f"  Market Signals Purged:    {db.get('signals_purged', 0)}")
+        print(f"  Draft Resumes Purged:     {db.get('resume_versions_purged', 0)}")
+        print(f"  SQLite VACUUM:            {'EXECUTED' if db.get('vacuum_executed') else 'SKIPPED'}")
+        print("-" * 65)
+        print(f"  Log Files Deleted:        {storage.get('logs_deleted', 0)}")
+        print(f"  Scratch Files Deleted:    {storage.get('scratch_files_deleted', 0)}")
+        print(f"  Orphan Resumes Deleted:   {storage.get('draft_resumes_deleted', 0)}")
+        print(f"  Scratch Evidence Deleted: {storage.get('evidence_files_deleted', 0)}")
+        print(f"  Storage Reclaimed:        {storage.get('bytes_reclaimed', 0):,} bytes")
+        print("=" * 65 + "\n")
+        sys.exit(0)
 
     # LIVE mode is permanently enforced by default
     if args.dry_run:

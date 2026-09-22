@@ -25,6 +25,7 @@ from src.agents.interview_agent import InterviewAgent
 from src.agents.market_intelligence import MarketIntelligenceAgent
 from src.agents.reporting import ReportingAgent
 from src.email_service.smtp_mailer import SmtpMailer
+from src.maintenance.retention_manager import RetentionManager
 from candidate.profile_extractor import get_candidate_truth
 from src.models.report import DailyReportData, TopApplicationItem
 from src.models.job import JobStatus
@@ -203,6 +204,10 @@ class Orchestrator:
                 blocked_count=blocked_count,
                 failed_count=failed_count,
             )
+
+            # 6. RETENTION CLEANUP (Purge stale unapplied data, old logs, compact DB)
+            retention_mgr = RetentionManager(self.config)
+            retention_mgr.apply_retention_policy(dry_run=self.dry_run)
 
         logger.info(f"================ COMPLETED RUN {run_id} ================")
         return daily_data

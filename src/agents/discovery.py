@@ -44,7 +44,7 @@ class DiscoveryAgent:
 
         search_config = self.config.get("search", {})
         queries_dict = search_config.get("queries", {})
-        locations = search_config.get("locations", ["Noida", "Gurgaon", "Delhi / NCR", "Bengaluru", "Remote"])
+        locations = search_config.get("locations", ["Pan India", "Remote", "Hybrid", "India"])
         exp_range = search_config.get("experience_range", {"min_years": 10, "max_years": 16})
 
         all_queries = []

@@ -24,7 +24,7 @@ application:
   high_match_threshold: 85.0
   min_salary_lpa: null  # Raised floor to ₹25 LPA; no ceiling
   undisclosed_salary_allowed: true
-  max_applications_per_day: 10
+  max_applications_per_day: 35
   dry_run: false  # LIVE mode enabled per user preference
   retry_attempts: 3
   retry_backoff_seconds: 5
@@ -40,6 +40,16 @@ resume:
 database:
   db_url: "sqlite:///naukri_career_agent.sqlite"
   echo: false
+
+retention:
+  enabled: true
+  unqualified_job_days: 14     # Purge rejected/unqualified jobs older than 14 days
+  run_history_days: 90         # Retain pipeline execution run logs for 90 days
+  market_signal_days: 90       # Retain market trend signals for 90 days
+  evidence_scratch_days: 14    # Prune non-confirmed/scratch screenshots older than 14 days
+  draft_resume_days: 30        # Prune unapplied draft resumes older than 30 days
+  log_days: 14                 # Prune application logs older than 14 days
+  auto_vacuum_db: true         # Execute SQLite VACUUM to reclaim disk pages
 
 email:
   enabled: true
@@ -67,15 +77,12 @@ safety:
 
 search:
   enabled: true
-  max_jobs_per_query: 25
+  max_jobs_per_query: 30
   locations:
-    - "Noida"
-    - "Gurgaon"
-    - "Delhi / NCR"
+    - "Pan India"
     - "Remote"
     - "Hybrid"
-    - "Bengaluru / Bangalore"
-    - "Hyderabad"
+    - "India"
   experience_range:
     min_years: 10
     max_years: 16

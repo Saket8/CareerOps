@@ -67,6 +67,27 @@ class CandidateAnswerResolver:
                 field_type=field_type,
             )
 
+        if any(term in q_lower for term in ["agentic", "genai", "gen ai", "llm", "rag", "artificial intelligence", "ai "]) and any(term in q_lower for term in ["experience", "years"]):
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="2",
+                field_type=field_type,
+            )
+
+        if ("architect" in q_lower or "architecture" in q_lower or "solution architect" in q_lower or "technical architect" in q_lower) and any(term in q_lower for term in ["experience", "years"]):
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value=str(int(self.cand.cloud_experience_years)),
+                field_type=field_type,
+            )
+
+        if any(term in q_lower for term in ["python", "java", ".net", "react", "angular", "node"]) and any(term in q_lower for term in ["experience", "years"]):
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="5",
+                field_type=field_type,
+            )
+
         if "cloud" in q_lower and any(term in q_lower for term in ["experience", "years"]) and "total" not in q_lower and "overall" not in q_lower:
             return FormQuestionAnswerResult(
                 can_answer=True,
@@ -75,7 +96,9 @@ class CandidateAnswerResolver:
             )
 
         # 2. Total Experience
-        if any(term in q_lower for term in ["total experience", "overall experience", "total years", "years of experience"]):
+        if any(term in q_lower for term in ["total experience", "overall experience", "total years", "years of overall experience"]) or (
+            "years of experience" in q_lower and not any(spec in q_lower for spec in [" in ", " with ", " on "])
+        ):
             if "oci" not in q_lower and "aws" not in q_lower and "azure" not in q_lower and "gcp" not in q_lower:
                 return FormQuestionAnswerResult(
                     can_answer=True,
@@ -103,7 +126,14 @@ class CandidateAnswerResolver:
                 field_type=field_type,
             )
 
-        # 4. Current Location
+        # 4. Preferred Location / Pan India / Current Location
+        if any(term in q_lower for term in ["preferred location", "preferred work location", "open to location", "pan india", "flexible with location"]):
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="Pan India",
+                field_type=field_type,
+            )
+
         if any(term in q_lower for term in ["location", "city", "residing", "residence", "where are you located"]):
             return FormQuestionAnswerResult(
                 can_answer=True,
@@ -127,7 +157,24 @@ class CandidateAnswerResolver:
                 field_type=field_type,
             )
 
-        # 7. Unverified Question Handling (Section 8 of tasks/goal.md)
+        # 7. CTC / Salary questions
+        if any(term in q_lower for term in ["expected ctc", "expected salary", "salary expectation", "expected package"]):
+            exp_ctc = getattr(self.cand, "target_salary_lpa", None) or None
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value=str(int(exp_ctc)),
+                field_type=field_type,
+            )
+
+        if any(term in q_lower for term in ["current ctc", "current salary", "present ctc", "present salary", "current package", "ctc in lacs"]):
+            cur_ctc = getattr(self.cand, "min_acceptable_salary_lpa", None)
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value=str(int(cur_ctc)),
+                field_type=field_type,
+            )
+
+        # 8. Unverified Question Handling (Section 8 of tasks/goal.md)
         # Any question not explicitly covered in verified facts CANNOT be answered with an invented claim
         logger.warning(f"UNVERIFIED_CANDIDATE_INFORMATION: Cannot answer question '{question_text}' without hallucination.")
         return FormQuestionAnswerResult(

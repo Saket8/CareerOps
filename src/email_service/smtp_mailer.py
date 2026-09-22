@@ -23,7 +23,7 @@ class SmtpMailer:
         self.username = os.environ.get("SMTP_USERNAME", "")
         self.password = os.environ.get("SMTP_PASSWORD", "")
         self.sender_name = cfg.get("sender_name", "Autonomous Career Agent")
-        self.default_recipient = os.environ.get("EMAIL_RECIPIENT", cfg.get("default_recipient", "saket.saurav@cognizant.com"))
+        self.default_recipient = os.environ.get("EMAIL_RECIPIENT", cfg.get("default_recipient", "sauravskt8@gmail.com"))
         self.enabled = cfg.get("enabled", True) and os.environ.get("EMAIL_ENABLED", "true").lower() in ("true", "1", "yes")
 
     def send_report(

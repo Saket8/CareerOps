@@ -114,46 +114,70 @@ class ApplicationAgent:
             record.application_id = app_id
             record.resume_version_id = version_id
 
+            # Determine concrete status from record
+            raw_status = record.status.value if hasattr(record.status, "value") else str(record.status)
+            try:
+                final_status = JobStatus(raw_status)
+            except ValueError:
+                final_status = JobStatus.APPLICATION_FAILED
+
             # Save application to repository
             self.app_repo.record_application(record)
+            
+            is_confirmed = final_status in (JobStatus.APPLIED_CONFIRMED, JobStatus.APPLIED)
+            event_status = final_status.value
+            event_desc = f"Application workflow completed: {final_status.value} (DRY_RUN={self.dry_run})"
+            if record.failure_reason:
+                event_desc += f" - {record.failure_reason}"
+
             self.app_repo.log_event(
                 app_id,
                 "APPLICATION_READY",
-                "APPLIED",
-                f"Application submitted successfully (DRY_RUN={self.dry_run})",
-                payload={"confirmation": record.confirmation_reference},
+                event_status,
+                event_desc,
+                payload={
+                    "confirmation": record.confirmation_reference,
+                    "method": record.application_method,
+                    "status": final_status.value,
+                },
             )
 
             # Update Job Status
-            self.job_repo.update_status(job_id, JobStatus.APPLIED)
-            logger.info(
-                f"Application successful for '{job.title}' @ {job.company} "
-                f"[{'DRY_RUN' if self.dry_run else 'LIVE'} | Ref: {record.confirmation_reference}]"
-            )
-            return ApplicationOutcome(job_id, True, JobStatus.APPLIED, "Submitted successfully", record)
+            self.job_repo.update_status(job_id, final_status)
+            if is_confirmed:
+                logger.info(
+                    f"Application CONFIRMED for '{job.title}' @ {job.company} "
+                    f"[{'DRY_RUN' if self.dry_run else 'LIVE'} | Ref: {record.confirmation_reference}]"
+                )
+                return ApplicationOutcome(job_id, True, final_status, "Submitted successfully and confirmed", record)
+            else:
+                logger.warning(
+                    f"Application NOT confirmed for '{job.title}' @ {job.company}: {final_status.value} - {record.failure_reason}"
+                )
+                return ApplicationOutcome(job_id, False, final_status, record.failure_reason or final_status.value, record)
 
         except SafetyBarrierException as barrier_err:
             logger.warning(f"Exception Safety Boundary triggered for job {job_id}: {barrier_err}")
-            self.job_repo.update_status(job_id, JobStatus.BLOCKED)
+            self.job_repo.update_status(job_id, JobStatus.APPLICATION_BLOCKED)
             self.app_repo.log_event(
                 app_id,
                 "APPLICATION_READY",
-                "BLOCKED",
+                "APPLICATION_BLOCKED",
                 f"Halted at barrier: {barrier_err.barrier_type}",
                 payload={"barrier": barrier_err.barrier_type, "message": str(barrier_err)},
             )
-            return ApplicationOutcome(job_id, False, JobStatus.BLOCKED, str(barrier_err))
+            return ApplicationOutcome(job_id, False, JobStatus.APPLICATION_BLOCKED, str(barrier_err))
 
         except Exception as exc:
             logger.error(f"Application error for job {job_id}: {exc}")
-            self.job_repo.update_status(job_id, JobStatus.FAILED)
+            self.job_repo.update_status(job_id, JobStatus.APPLICATION_FAILED)
             self.app_repo.log_event(
                 app_id,
                 "APPLICATION_READY",
-                "FAILED",
+                "APPLICATION_FAILED",
                 f"Unexpected application failure: {exc}",
             )
-            return ApplicationOutcome(job_id, False, JobStatus.FAILED, str(exc))
+            return ApplicationOutcome(job_id, False, JobStatus.APPLICATION_FAILED, str(exc))
 
     def _resolve_application_questions(self) -> Tuple[Dict[str, Any], bool, str]:
         """Resolves standard questions strictly against candidate truth."""

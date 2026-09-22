@@ -21,7 +21,12 @@ class ApplicationRepository:
         app = self.get_by_job_id(job_id)
         if not app:
             return False
-        return app.status in (JobStatus.APPLIED.value, JobStatus.APPLICATION_READY.value)
+        return app.status in (
+            JobStatus.APPLIED.value,
+            JobStatus.APPLIED_CONFIRMED.value,
+            JobStatus.APPLICATION_READY.value,
+            JobStatus.SUBMISSION_ATTEMPTED.value,
+        )
 
     def count_applications_today(self) -> int:
         """Count successful applications submitted today to enforce daily limits."""
@@ -29,7 +34,7 @@ class ApplicationRepository:
         return (
             self.session.query(func.count(ApplicationModel.application_id))
             .filter(
-                ApplicationModel.status == JobStatus.APPLIED.value,
+                ApplicationModel.status.in_([JobStatus.APPLIED.value, JobStatus.APPLIED_CONFIRMED.value]),
                 ApplicationModel.submitted_at >= today_start,
             )
             .scalar()
@@ -37,14 +42,33 @@ class ApplicationRepository:
         )
 
     def record_application(self, record: ApplicationRecord) -> ApplicationModel:
-        """Create or update an application record."""
+        """Create or update an application record with full audit trail."""
         existing = self.session.query(ApplicationModel).filter(ApplicationModel.application_id == record.application_id).first()
+        status_val = record.status.value if hasattr(record.status, "value") else str(record.status)
+        method_val = record.application_method.value if hasattr(record.application_method, "value") else str(record.application_method)
+
         if existing:
-            existing.status = record.status.value
+            existing.status = status_val
+            existing.application_method = method_val
+            existing.source_job_url = record.source_job_url
+            existing.canonical_job_url = record.canonical_job_url
+            existing.application_url = record.application_url
+            existing.external_application_url = record.external_application_url
+            existing.external_portal = record.external_portal
+            existing.started_at = record.started_at
             existing.submitted_at = record.submitted_at
+            existing.resume_version = record.resume_version
             existing.resume_version_id = record.resume_version_id
-            existing.confirmation_reference = record.confirmation_reference
+            existing.questions_detected = record.questions_detected
             existing.questions_answered = record.questions_answered
+            existing.confirmation_detected = record.confirmation_detected
+            existing.confirmation_text = record.confirmation_text
+            existing.confirmation_reference = record.confirmation_reference
+            existing.final_url = record.final_url
+            existing.verification_method = record.verification_method
+            existing.error_code = record.error_code
+            existing.error_message = record.error_message
+            existing.evidence_path = record.evidence_path
             existing.failure_reason = record.failure_reason
             existing.dry_run = record.dry_run
             self.session.flush()
@@ -54,11 +78,26 @@ class ApplicationRepository:
             application_id=record.application_id,
             job_id=record.job_id,
             resume_version_id=record.resume_version_id,
+            resume_version=record.resume_version,
+            application_method=method_val,
+            source_job_url=record.source_job_url,
+            canonical_job_url=record.canonical_job_url,
+            application_url=record.application_url,
+            external_application_url=record.external_application_url,
+            external_portal=record.external_portal,
+            started_at=record.started_at,
             submitted_at=record.submitted_at,
-            status=record.status.value,
-            application_method=record.application_method,
-            confirmation_reference=record.confirmation_reference,
+            status=status_val,
+            questions_detected=record.questions_detected,
             questions_answered=record.questions_answered,
+            confirmation_detected=record.confirmation_detected,
+            confirmation_text=record.confirmation_text,
+            confirmation_reference=record.confirmation_reference,
+            final_url=record.final_url,
+            verification_method=record.verification_method,
+            error_code=record.error_code,
+            error_message=record.error_message,
+            evidence_path=record.evidence_path,
             failure_reason=record.failure_reason,
             dry_run=record.dry_run,
         )

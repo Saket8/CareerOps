@@ -16,6 +16,7 @@ from src.database.repositories import (
     RunRepository,
 )
 from src.naukri.browser_adapter import NaukriBrowserAdapter
+from src.naukri.playwright_adapter import PlaywrightBrowserAdapter
 from src.agents.discovery import DiscoveryAgent
 from src.agents.qualification import QualificationAgent
 from src.agents.resume_agent import ResumeAgent
@@ -65,7 +66,7 @@ class Orchestrator:
             run_repo.start_run(run_id=run_id, run_type="weekly" if force_weekly else "daily", dry_run=self.dry_run)
 
             # Clients and Agents
-            naukri_client = NaukriBrowserAdapter(offline_mode=self.offline_mode)
+            naukri_client = PlaywrightBrowserAdapter(offline_mode=self.offline_mode)
             discovery_agent = DiscoveryAgent(naukri_client, job_repo, self.config)
             qualification_agent = QualificationAgent(job_repo, self.candidate_truth, self.config)
             resume_agent = ResumeAgent(resume_repo, self.candidate_truth, self.config)
@@ -79,9 +80,13 @@ class Orchestrator:
 
             top_applications = []
             resumes_generated = 0
-            applications_submitted = 0
+            applications_attempted = 0
+            confirmed_count = 0
+            unverified_count = 0
             blocked_count = 0
             failed_count = 0
+            external_count = 0
+            manual_count = 0
             interview_packs_generated = 0
             strong_matches = 0
 
@@ -103,14 +108,25 @@ class Orchestrator:
 
                     # Process Automated Application
                     outcome = application_agent.process_application(job, score, docx_path, pdf_path)
-                    if outcome.status == JobStatus.APPLIED:
-                        applications_submitted += 1
-                    elif outcome.status == JobStatus.BLOCKED:
+                    applications_attempted += 1
+                    status = outcome.status
+                    if status in (JobStatus.APPLIED, JobStatus.APPLIED_CONFIRMED):
+                        confirmed_count += 1
+                    elif status == JobStatus.SUBMISSION_UNVERIFIED:
+                        unverified_count += 1
+                    elif status in (JobStatus.APPLICATION_BLOCKED, JobStatus.BLOCKED):
                         blocked_count += 1
-                    elif outcome.status == JobStatus.FAILED:
+                    elif status in (JobStatus.APPLICATION_FAILED, JobStatus.FAILED):
                         failed_count += 1
+                    elif status == JobStatus.EXTERNAL_APPLICATION_REQUIRED:
+                        external_count += 1
+                    elif status == JobStatus.NEEDS_MANUAL_INTERVENTION:
+                        manual_count += 1
 
-                    # Top application item
+                    # Top application item with full audit evidence
+                    rec = outcome.app_record
+                    method = rec.application_method if rec else "Naukri Direct"
+                    ref = rec.confirmation_reference if rec else None
                     top_applications.append(
                         TopApplicationItem(
                             company=job.company,
@@ -119,8 +135,12 @@ class Orchestrator:
                             match_score=score.overall_score,
                             key_factors=score.strengths[:3],
                             resume_used=docx_path.name,
-                            status=outcome.status.value,
+                            status=status.value,
                             url=job.url,
+                            method=method,
+                            reason=rec.failure_reason if (rec and rec.failure_reason) else outcome.reason,
+                            evidence_path=rec.evidence_path if rec else None,
+                            confirmation_ref=ref,
                         )
                     )
 
@@ -150,10 +170,14 @@ class Orchestrator:
                 dry_run=self.dry_run,
                 jobs_scanned=disc_result.total_found,
                 salary_rejected=disc_result.salary_rejected,
-                qualified_jobs=len([j for j in disc_result.eligible_jobs if j.status in (JobStatus.QUALIFIED, JobStatus.HIGH_MATCH, JobStatus.APPLIED, JobStatus.APPLICATION_READY)]),
+                qualified_jobs=len([j for j in disc_result.eligible_jobs if j.status in (JobStatus.QUALIFIED, JobStatus.HIGH_MATCH, JobStatus.APPLIED, JobStatus.APPLIED_CONFIRMED, JobStatus.APPLICATION_READY)]),
                 strong_matches=strong_matches,
                 resumes_generated=resumes_generated,
-                applications_submitted=applications_submitted,
+                applications_submitted=applications_attempted,
+                applications_confirmed=confirmed_count,
+                applications_unverified=unverified_count,
+                applications_external=external_count,
+                applications_manual_intervention=manual_count,
                 blocked_applications=blocked_count,
                 failed_applications=failed_count,
                 interview_packs_generated=interview_packs_generated,

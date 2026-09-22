@@ -145,9 +145,9 @@ def test_safety_barrier_halts_gracefully(db_session, tmp_path):
     outcome = agent.process_application(job, score, docx, pdf)
 
     assert outcome.success is False
-    assert outcome.status == JobStatus.BLOCKED
+    assert outcome.status in (JobStatus.BLOCKED, JobStatus.APPLICATION_BLOCKED)
     assert "CAPTCHA" in outcome.reason
 
-    # DB state must reflect BLOCKED
+    # DB state must reflect BLOCKED / APPLICATION_BLOCKED
     db_job = job_repo.get("job_captcha_1")
-    assert db_job.status == JobStatus.BLOCKED.value
+    assert db_job.status in (JobStatus.BLOCKED.value, JobStatus.APPLICATION_BLOCKED.value)

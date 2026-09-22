@@ -22,8 +22,14 @@ def main():
     parser.add_argument("--weekly", action="store_true", help="Force weekly career intelligence generation")
     parser.add_argument("--offline", action="store_true", help="Run with offline verified test dataset")
     parser.add_argument("--query-limit", type=int, default=15, help="Max jobs to evaluate per search query")
+    parser.add_argument("--validate-phase", action="store_true", help="Run Section 24 Phase Gate Audit on application records")
 
     args = parser.parse_args()
+
+    if args.validate_phase:
+        from src.cli.phase_validator import validate_application_phase
+        success = validate_application_phase()
+        sys.exit(0 if success else 1)
 
     config = load_config()
 

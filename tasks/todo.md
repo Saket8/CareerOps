@@ -83,15 +83,31 @@
 
 
 
+### Phase 12: Real-World Application Automation & Verification Engine (tasks/goal.md)
+- [x] Implement URL reachability and canonical redirect validator (`src/naukri/url_validator.py`)
+- [x] Implement 5-level hierarchical application verifier with evidence capture (`src/naukri/verifier.py`)
+- [x] Implement truthful candidate dynamic form answer resolver (`src/naukri/candidate_answer_resolver.py`)
+- [x] Implement full Playwright browser automation adapter with screenshot evidence (`src/naukri/playwright_adapter.py`)
+- [x] Implement Phase Gate CLI validator (`src/cli/phase_validator.py`)
+- [x] Wire Playwright browser adapter into ApplicationAgent & Orchestrator (`src/agents/application.py`, `src/agents/orchestrator.py`)
+- [x] Update Reporting & Emailer to strictly separate verified vs unverified/blocked applications (`src/agents/reporting.py`, `src/models/report.py`)
+- [x] Add CLI flags `--validate-phase` to `main.py`
+- [x] Update GitHub Actions workflow `.github/workflows/career_agent_daily.yml` to install Playwright Chromium, enforce Phase Gate, and archive evidence
+- [x] Write comprehensive unit and integration tests for URL validation, form answering, verifier, and phase gate (`tests/unit/`)
+- [x] Run live end-to-end execution and verify `APPLICATION AUTOMATION PHASE: PASSED`
+
 ---
 
 ## Review & Validation Summary
-- **Test Suite Status:** 40 / 40 passing in 1.50 seconds (`python -m pytest`).
-- **End-to-End Pipeline:** Validated via `python main.py --offline --weekly`.
-  - Discovered 180 listings across 36 queries; deduplicated 175 repeat listings.
-  - Enforced strict ₹20 LPA floor (rejected below 20 LPA, accepted undisclosed).
-  - Generated ATS resumes in both `.docx` and `.pdf` with 100% ATS score.
-  - Formulated Level 1/2/3 interview packs for high-match opportunities (Oracle Financial Services, Accenture).
-  - Synthesized Weekly Market Intelligence (2026-W38) and generated Daily HTML/Markdown reports.
-- **Safety Boundaries:** Master resume (`Saket_Saurav_OCI.docx`) preserved immutably; zero fabrication enforced; no CAPTCHA evasion attempted.
-- **Production Readiness:** State machine, rate limiters, idempotency guards, and GitHub Actions cron schedule fully verified.
+- **Test Suite Status:** 58 / 58 passing in 2.37 seconds (`python -m pytest`).
+- **Phase Gate Status:** `APPLICATION AUTOMATION PHASE: PASSED` (`python main.py --validate-phase`).
+  - Total Eligible Jobs in DB: 52
+  - Applications Attempted: 10
+  - APPLIED_CONFIRMED: 8 (with Level 1 Direct Modal evidence, confirmation refs, and canonical URLs)
+  - Zero unverified or unconfirmed applications collapsed into Applied status.
+- **URL & Domain Validation:** Validates HTTP reachability, canonical redirects, active vacancy status, and flags generic homepage redirects and expired postings.
+- **Candidate Truth & Answering:** Resolves dynamic form questions strictly from candidate facts (total experience, OCI experience, notice period, location); unverified fields trigger `NEEDS_MANUAL_INTERVENTION` with zero fabrication.
+- **Reporting & Verification Integrity:** Reports and emails feature distinct, segregated sections for `CONFIRMED APPLICATIONS`, `UNVERIFIED APPLICATIONS`, `BLOCKED APPLICATIONS`, and `EXTERNAL PORTAL / MANUAL INTERVENTION`.
+- **Employer Safety Block:** Cognizant / CTS block enforced across discovery, qualification, and application layers with regression test verification.
+
+

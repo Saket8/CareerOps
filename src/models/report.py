@@ -14,6 +14,10 @@ class TopApplicationItem(BaseModel):
     resume_used: str
     status: str
     url: str
+    method: str = "Naukri Direct"
+    reason: Optional[str] = None
+    evidence_path: Optional[str] = None
+    confirmation_ref: Optional[str] = None
 
 
 class DailyReportData(BaseModel):
@@ -27,9 +31,13 @@ class DailyReportData(BaseModel):
     qualified_jobs: int = 0
     strong_matches: int = 0
     resumes_generated: int = 0
-    applications_submitted: int = 0
-    blocked_applications: int = 0
-    failed_applications: int = 0
+    applications_submitted: int = 0  # Total processed/attempted
+    applications_confirmed: int = 0  # Confirmed on-platform (Level 1-5)
+    applications_unverified: int = 0  # Submitted but unverified
+    applications_external: int = 0  # External portal redirected
+    applications_manual_intervention: int = 0  # Questions missing facts
+    blocked_applications: int = 0  # Blocked by safety/auth/captcha
+    failed_applications: int = 0  # Technical failures
     interview_packs_generated: int = 0
     top_applications: List[TopApplicationItem] = Field(default_factory=list)
     errors: List[str] = Field(default_factory=list)

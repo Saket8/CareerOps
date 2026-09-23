@@ -44,8 +44,18 @@ class ReportingAgent:
         ]
         unverified_apps = [a for a in valid_apps if a.status == "SUBMISSION_UNVERIFIED"]
         blocked_apps = [a for a in valid_apps if a.status in ("APPLICATION_BLOCKED", "BLOCKED")]
-        external_apps = [a for a in valid_apps if a.status in ("EXTERNAL_APPLICATION_REQUIRED", "NEEDS_MANUAL_INTERVENTION")]
+        manual_intervention_apps = [a for a in valid_apps if a.status == "NEEDS_MANUAL_INTERVENTION"]
         failed_apps = [a for a in valid_apps if a.status in ("APPLICATION_FAILED", "FAILED")]
+        external_apps = [
+            a for a in valid_apps
+            if a.status == "EXTERNAL_APPLICATION_REQUIRED"
+            and a.url
+            and not any(naukri_domain in a.url for naukri_domain in ("naukri.com", "naukri.com/"))
+        ]
+        # Any residual external_apps whose URL was actually on naukri.com belongs in manual_intervention_apps
+        for a in valid_apps:
+            if a.status == "EXTERNAL_APPLICATION_REQUIRED" and a not in external_apps and a not in manual_intervention_apps:
+                manual_intervention_apps.append(a)
 
         # Markdown format
         md_content = f"""# CAREER AGENT — APPLICATION REPORT
@@ -62,10 +72,11 @@ Date: {data.date}
 - **Qualified:** {data.qualified_jobs}
 - **Strong matches (Score >= 85%):** {data.strong_matches}
 - **Applications confirmed:** {len(confirmed_apps)}
+- **Applications requiring screening review:** {len(manual_intervention_apps)}
+- **External portal applications (True ATS):** {len(external_apps)}
 - **Applications attempted but unverified:** {len(unverified_apps)}
 - **Blocked:** {len(blocked_apps)}
 - **Failed:** {len(failed_apps)}
-- **External portal applications / Manual:** {len(external_apps)}
 - **ATS Resumes generated:** {data.resumes_generated}
 - **Interview packs built:** {data.interview_packs_generated}
 
@@ -101,6 +112,15 @@ Date: {data.date}
                 md_content += f"   - **Key Fit Factors:** {factors}\n"
                 md_content += f"   - **Recommended Resume:** `{item.resume_used}`\n"
                 md_content += f"   - **Direct Portal Link:** [Apply on Company Portal ↗]({item.url})\n\n"
+
+        if manual_intervention_apps:
+            md_content += "### APPLICATIONS REQUIRING SCREENING REVIEW\n"
+            md_content += "_The following applications paused because they require answers to custom screening questions not present in verified facts:_\n\n"
+            for idx, item in enumerate(manual_intervention_apps, 1):
+                md_content += f"{idx}. **{item.role}** @ {item.company}\n"
+                md_content += f"   - **Status:** `{item.status}`\n"
+                md_content += f"   - **Reason:** {item.reason or 'Screening review required'}\n"
+                md_content += f"   - **Listing Link:** [{item.url}]({item.url})\n\n"
 
         if unverified_apps:
             md_content += "### UNVERIFIED APPLICATIONS\n"
@@ -141,8 +161,8 @@ Date: {data.date}
             rows = []
             for app in apps_list:
                 is_confirmed = app.status in ("APPLIED_CONFIRMED", "APPLIED")
-                status_color = "#16a34a" if is_confirmed else "#d97706" if "UNVERIFIED" in app.status else "#dc2626"
-                status_bg = "#dcfce7" if is_confirmed else "#fef3c7" if "UNVERIFIED" in app.status else "#fee2e2"
+                status_color = "#16a34a" if is_confirmed else "#d97706" if ("UNVERIFIED" in app.status or "INTERVENTION" in app.status) else "#dc2626"
+                status_bg = "#dcfce7" if is_confirmed else "#fef3c7" if ("UNVERIFIED" in app.status or "INTERVENTION" in app.status) else "#fee2e2"
                 verify_btn_html = ""
                 if app.url:
                     if is_confirmed:
@@ -344,11 +364,11 @@ Date: {data.date}
     </div>
     ''') if external_apps else ''}
 
-    <!-- Unverified / Blocked Applications Section -->
+    <!-- Unverified / Blocked / Review Applications Section -->
     {(f'''
     <div class="email-padding" style="padding: 16px 24px 12px 24px;">
       <h2 style="font-size: 15px; font-weight: 700; margin-top: 0; margin-bottom: 10px; color: #9a3412; border-bottom: 1px solid #fed7aa; padding-bottom: 4px;">
-        &#9888;&#65039; Unverified / Blocked Applications
+        &#9888;&#65039; Unverified / Blocked / Review Applications
       </h2>
       <div class="table-wrapper" style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; border: 1px solid #fed7aa; background-color: #ffffff;">
         <table style="width: 100%; min-width: 480px; border-collapse: collapse; text-align: left; font-size: 13px;">
@@ -361,12 +381,12 @@ Date: {data.date}
             </tr>
           </thead>
           <tbody>
-            {build_table_rows(unverified_apps + blocked_apps + failed_apps)}
+            {build_table_rows(manual_intervention_apps + unverified_apps + blocked_apps + failed_apps)}
           </tbody>
         </table>
       </div>
     </div>
-    ''') if (unverified_apps or blocked_apps or failed_apps) else ''}
+    ''') if (manual_intervention_apps or unverified_apps or blocked_apps or failed_apps) else ''}
 
     <!-- Footer -->
     <div style="padding: 18px 24px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center; border-radius: 0 0 12px 12px;">

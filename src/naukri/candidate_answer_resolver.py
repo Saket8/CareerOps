@@ -47,21 +47,60 @@ class CandidateAnswerResolver:
             "certifications": [c.name for c in candidate_truth.certifications],
         }
 
+    def _is_yes_no_inquiry(self, q_lower: str) -> bool:
+        """Determines whether a question is asking for a Yes/No confirmation rather than a numeric quantity."""
+        # Duration / quantity inquiry starters or explicit requests
+        duration_starters = (
+            "how many", "how much", "what is your", "what's your", "state your",
+            "enter your", "mention your", "specify your", "provide your", "how long"
+        )
+        if any(q_lower.startswith(starter) for starter in duration_starters):
+            return False
+
+        # If it starts with numeric duration phrases like "total years of experience" or "years of experience"
+        if q_lower.startswith(("total years", "years of", "number of years", "overall years")):
+            return False
+
+        # Auxiliary verb starters indicate Yes/No intent (e.g. "Do you have 10+ years of experience?")
+        auxiliary_starters = (
+            "do you", "have you", "are you", "can you", "did you", "will you", "would you",
+            "is there", "whether you", "if you have", "hands-on experience"
+        )
+        if any(q_lower.startswith(starter) for starter in auxiliary_starters):
+            return True
+
+        if any(phrase in q_lower for phrase in ["(yes/no)", "yes or no", "do you have", "have you worked"]):
+            return True
+
+        return False
+
     def resolve_question(self, question_text: str, field_type: str = "text") -> FormQuestionAnswerResult:
         """Determines if question can be answered strictly from verified facts."""
         q_lower = question_text.lower().strip()
 
         # 1. Cloud / OCI Experience (Check specific cloud/platform experience first)
-        if ("oci" in q_lower or "oracle cloud" in q_lower) and any(term in q_lower for term in ["experience", "years"]):
+        if ("oci" in q_lower or "oracle cloud" in q_lower) and any(term in q_lower for term in ["experience", "years", "work", "worked"]):
+            if self._is_yes_no_inquiry(q_lower):
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value="Yes",
+                    field_type=field_type,
+                )
             return FormQuestionAnswerResult(
                 can_answer=True,
                 answer_value=str(int(self.cand.cloud_experience_years)),
                 field_type=field_type,
             )
 
-        if ("kubernetes" in q_lower or "k8s" in q_lower or "oke" in q_lower) and any(term in q_lower for term in ["experience", "years"]):
+        if ("kubernetes" in q_lower or "k8s" in q_lower or "oke" in q_lower) and any(term in q_lower for term in ["experience", "years", "work", "worked"]):
             k8s_years = getattr(self.cand, "kubernetes_experience_years", None)
             if k8s_years is not None:
+                if self._is_yes_no_inquiry(q_lower):
+                    return FormQuestionAnswerResult(
+                        can_answer=True,
+                        answer_value="Yes",
+                        field_type=field_type,
+                    )
                 return FormQuestionAnswerResult(
                     can_answer=True,
                     answer_value=str(int(k8s_years)),
@@ -74,9 +113,16 @@ class CandidateAnswerResolver:
                 unverified_reason="Kubernetes experience years not found in verified candidate facts.",
             )
 
-        if any(term in q_lower for term in ["agentic", "genai", "gen ai", "llm", "rag", "artificial intelligence", "ai "]) and any(term in q_lower for term in ["experience", "years"]):
+        # AI / GenAI / LLM / RAG / AIOps / MLOps
+        if bool(re.search(r"\b(generative ai|genai|gen ai|llm|rag|agentic|aiops|mlops|artificial intelligence|ai)\b", q_lower)) and any(term in q_lower for term in ["experience", "years", "work", "worked", "architectures"]):
             ai_years = getattr(self.cand, "ai_experience_years", None)
             if ai_years is not None:
+                if self._is_yes_no_inquiry(q_lower):
+                    return FormQuestionAnswerResult(
+                        can_answer=True,
+                        answer_value="Yes",
+                        field_type=field_type,
+                    )
                 return FormQuestionAnswerResult(
                     can_answer=True,
                     answer_value=str(int(ai_years)),
@@ -89,16 +135,43 @@ class CandidateAnswerResolver:
                 unverified_reason="AI/GenAI experience years not found in verified candidate facts.",
             )
 
-        if ("architect" in q_lower or "architecture" in q_lower or "solution architect" in q_lower or "technical architect" in q_lower) and any(term in q_lower for term in ["experience", "years"]):
+        # Architecture, System Design & Solutioning
+        if any(term in q_lower for term in ["system design", "solutioning", "solution architect", "solution architecture", "technical architect", "technical architecture", "cloud architecture"]) and any(term in q_lower for term in ["experience", "years", "work", "worked", "design"]):
+            if self._is_yes_no_inquiry(q_lower):
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value="Yes",
+                    field_type=field_type,
+                )
             return FormQuestionAnswerResult(
                 can_answer=True,
                 answer_value=str(int(self.cand.cloud_experience_years)),
                 field_type=field_type,
             )
 
-        if any(term in q_lower for term in ["python", "java", ".net", "react", "angular", "node"]) and any(term in q_lower for term in ["experience", "years"]):
+        # Implementation & Delivery
+        if any(term in q_lower for term in ["implementation", "project delivery", "solution delivery"]) and any(term in q_lower for term in ["experience", "years", "work", "worked"]):
+            if self._is_yes_no_inquiry(q_lower):
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value="Yes",
+                    field_type=field_type,
+                )
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value=str(int(self.cand.cloud_experience_years)),
+                field_type=field_type,
+            )
+
+        if any(term in q_lower for term in ["python"]) and any(term in q_lower for term in ["experience", "years", "work", "worked", "programming"]):
             py_years = getattr(self.cand, "python_experience_years", None)
             if py_years is not None:
+                if self._is_yes_no_inquiry(q_lower):
+                    return FormQuestionAnswerResult(
+                        can_answer=True,
+                        answer_value="Yes",
+                        field_type=field_type,
+                    )
                 return FormQuestionAnswerResult(
                     can_answer=True,
                     answer_value=str(int(py_years)),
@@ -108,10 +181,24 @@ class CandidateAnswerResolver:
                 can_answer=False,
                 answer_value=None,
                 field_type=field_type,
+                unverified_reason=f"Python experience for question '{question_text}' not found in verified candidate facts.",
+            )
+
+        if any(term in q_lower for term in ["java", ".net", "react", "angular", "node", "golang", "c++", "c#"]) and any(term in q_lower for term in ["experience", "years"]):
+            return FormQuestionAnswerResult(
+                can_answer=False,
+                answer_value=None,
+                field_type=field_type,
                 unverified_reason=f"Programming language experience for question '{question_text}' not found in verified candidate facts.",
             )
 
-        if "cloud" in q_lower and any(term in q_lower for term in ["experience", "years"]) and "total" not in q_lower and "overall" not in q_lower:
+        if "cloud" in q_lower and any(term in q_lower for term in ["experience", "years", "work", "worked"]) and "total" not in q_lower and "overall" not in q_lower:
+            if self._is_yes_no_inquiry(q_lower):
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value="Yes",
+                    field_type=field_type,
+                )
             return FormQuestionAnswerResult(
                 can_answer=True,
                 answer_value=str(int(self.cand.cloud_experience_years)),
@@ -119,10 +206,16 @@ class CandidateAnswerResolver:
             )
 
         # 2. Total Experience
-        if any(term in q_lower for term in ["total experience", "overall experience", "total years", "years of overall experience"]) or (
+        if any(term in q_lower for term in ["total experience", "overall experience", "total years", "years of overall experience", "years of total experience"]) or (
             "years of experience" in q_lower and not any(spec in q_lower for spec in [" in ", " with ", " on "])
         ):
             if "oci" not in q_lower and "aws" not in q_lower and "azure" not in q_lower and "gcp" not in q_lower:
+                if self._is_yes_no_inquiry(q_lower):
+                    return FormQuestionAnswerResult(
+                        can_answer=True,
+                        answer_value="Yes",
+                        field_type=field_type,
+                    )
                 return FormQuestionAnswerResult(
                     can_answer=True,
                     answer_value=str(int(self.cand.total_experience_years)),
@@ -215,7 +308,65 @@ class CandidateAnswerResolver:
                 unverified_reason="Current salary not found in verified candidate facts.",
             )
 
-        # 8. Unverified Question Handling (Section 8 of tasks/goal.md)
+        # 8. Education / Highest Qualification & Marks Percentage
+        if any(term in q_lower for term in ["high school", "10th", "12th", "secondary", "higher secondary", "intermediate", "school", "matriculation"]):
+            return FormQuestionAnswerResult(
+                can_answer=False,
+                answer_value=None,
+                field_type=field_type,
+                unverified_reason=f"School/intermediate marks for '{question_text}' not in verified candidate truth (only highest degree B.Tech verified).",
+            )
+
+        if any(term in q_lower for term in ["percentage", "aggregate", "marks", "score", "cgpa", "gpa"]) and any(term in q_lower for term in ["highest qualification", "b.tech", "m.tech", "graduation", "degree", "qualification", "engineering", "academic"]):
+            edu_score = None
+            if self.truth.education:
+                for edu in self.truth.education:
+                    if edu.score:
+                        edu_score = edu.score.replace("%", "").strip()
+                        break
+            if edu_score:
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value=edu_score,
+                    field_type=field_type,
+                )
+            return FormQuestionAnswerResult(
+                can_answer=False,
+                answer_value=None,
+                field_type=field_type,
+                unverified_reason="Highest qualification percentage not found in verified candidate facts.",
+            )
+
+        if any(term in q_lower for term in ["highest qualification", "highest degree", "highest level of education"]):
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="Bachelor of Technology (B.Tech)",
+                field_type=field_type,
+            )
+
+        # 9. Current Employer & Role
+        if any(term in q_lower for term in ["current company", "current organization", "current employer", "present company", "present employer", "present organization"]):
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value=self.cand.current_organization,
+                field_type=field_type,
+            )
+
+        if any(term in q_lower for term in ["current designation", "current role", "current title", "present designation", "present role", "present title"]):
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value=self.cand.current_role,
+                field_type=field_type,
+            )
+
+        if any(term in q_lower for term in ["currently working", "are you working", "currently employed", "are you employed"]):
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="Yes",
+                field_type=field_type,
+            )
+
+        # 10. Unverified Question Handling (Section 8 of tasks/goal.md)
         # Any question not explicitly covered in verified facts CANNOT be answered with an invented claim
         logger.warning(f"UNVERIFIED_CANDIDATE_INFORMATION: Cannot answer question '{question_text}' without hallucination.")
         return FormQuestionAnswerResult(

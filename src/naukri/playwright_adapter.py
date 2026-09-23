@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any, Tuple
+from urllib.parse import urlparse
 
 from src.naukri.interface import BaseNaukriClient, SafetyBarrierException
 from src.naukri.url_validator import UrlValidator, UrlValidationResult
@@ -328,6 +329,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
         resolver = CandidateAnswerResolver(candidate_truth)
         questions_detected = []
         questions_answered = {}
+        upload_file = resume_pdf_path if (resume_pdf_path and Path(resume_pdf_path).exists()) else resume_docx_path
 
         try:
             with sync_playwright() as p:
@@ -468,34 +470,20 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         dry_run=False,
                     )
 
-                # Step 4: Detect Application Type (Direct vs External ATS)
-                external_button = page.locator(
-                    "a:has-text('Apply on company site'), a:has-text('Apply on company website'), "
-                    "a:has-text('Apply on Employer Site'), button:has-text('Apply on company site')"
-                )
-                if external_button.count() > 0:
-                    external_url = external_button.first.get_attribute("href") or canonical_url
-                    page.screenshot(path=evidence_path)
-                    browser.close()
-                    logger.info(f"External career portal application detected for {job.title} @ {job.company}: {external_url}")
-                    return ApplicationRecord(
-                        application_id=app_id,
-                        job_id=job.job_id,
-                        application_method=ApplicationMethod.EXTERNAL_PORTAL.value,
-                        source_job_url=job.url,
-                        canonical_job_url=canonical_url,
-                        external_application_url=external_url,
-                        external_portal="External Career Portal",
-                        started_at=started_at,
-                        status=JobStatus.EXTERNAL_APPLICATION_REQUIRED,
-                        failure_reason="Application must be completed on external company career portal",
-                        evidence_path=evidence_path,
-                        dry_run=False,
-                    )
+                # Step 4: Locate Primary Application Button on Naukri
+                primary_apply = page.locator(
+                    "button#apply-button, a#apply-button, "
+                    "button.apply-button, a.apply-button, "
+                    "[class*='styles_apply-button'], "
+                    ".job-header button:has-text('Apply'), .job-header a:has-text('Apply'), "
+                    ".apply-button-container button, .apply-button-container a, "
+                    "button:has-text('Apply'), a.apply-button"
+                ).first
 
-                # Step 5: Click Apply Button on Naukri
-                apply_button = page.locator("button:has-text('Apply'), a.apply-button").first
-                if not apply_button.is_visible():
+                if not primary_apply.is_visible():
+                    primary_apply = page.locator("button:has-text('Apply'), a:has-text('Apply')").first
+
+                if not primary_apply.is_visible():
                     page.screenshot(path=evidence_path)
                     browser.close()
                     return ApplicationRecord(
@@ -511,24 +499,93 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         dry_run=False,
                     )
 
+                # Check if the primary apply button is explicitly an external anchor pointing to non-Naukri domain
+                primary_href = primary_apply.get_attribute("href")
+                if primary_href and primary_href.startswith("http"):
+                    parsed_href = urlparse(primary_href)
+                    if parsed_href.netloc and not parsed_href.netloc.endswith("naukri.com"):
+                        page.screenshot(path=evidence_path)
+                        browser.close()
+                        logger.info(f"Explicit external ATS link detected for {job.title} @ {job.company}: {primary_href}")
+                        return ApplicationRecord(
+                            application_id=app_id,
+                            job_id=job.job_id,
+                            application_method=ApplicationMethod.EXTERNAL_PORTAL.value,
+                            source_job_url=job.url,
+                            canonical_job_url=canonical_url,
+                            external_application_url=primary_href,
+                            external_portal="External Career Portal",
+                            started_at=started_at,
+                            status=JobStatus.EXTERNAL_APPLICATION_REQUIRED,
+                            failure_reason="Application must be completed on external company career portal",
+                            evidence_path=evidence_path,
+                            dry_run=False,
+                        )
+
+                # Step 5: Click Apply Button on Naukri and monitor navigation
+                new_page = None
                 try:
-                    apply_button.click(force=True, timeout=5000)
+                    with page.expect_popup(timeout=3000) as popup_info:
+                        primary_apply.click(force=True, timeout=5000)
+                    new_page = popup_info.value
                 except Exception:
                     try:
-                        page.evaluate("(el) => el.click()", apply_button.element_handle())
+                        primary_apply.click(force=True, timeout=5000)
+                    except Exception:
+                        try:
+                            page.evaluate("(el) => el.click()", primary_apply.element_handle())
+                        except Exception:
+                            pass
+                time.sleep(3)
+
+                # Check if navigation or popup led to an external ATS domain
+                active_page = page
+                if new_page:
+                    active_page = new_page
+                    try:
+                        active_page.wait_for_load_state("domcontentloaded", timeout=10000)
                     except Exception:
                         pass
-                time.sleep(3)
+
+                current_nav_url = active_page.url
+                parsed_nav = urlparse(current_nav_url)
+                if parsed_nav.netloc and not parsed_nav.netloc.endswith("naukri.com"):
+                    active_page.screenshot(path=evidence_path)
+                    browser.close()
+                    logger.info(f"Redirection to external ATS portal detected for {job.title} @ {job.company}: {current_nav_url}")
+                    return ApplicationRecord(
+                        application_id=app_id,
+                        job_id=job.job_id,
+                        application_method=ApplicationMethod.EXTERNAL_PORTAL.value,
+                        source_job_url=job.url,
+                        canonical_job_url=canonical_url,
+                        external_application_url=current_nav_url,
+                        external_portal="External Career Portal",
+                        started_at=started_at,
+                        status=JobStatus.EXTERNAL_APPLICATION_REQUIRED,
+                        failure_reason="Application must be completed on external company career portal",
+                        evidence_path=evidence_path,
+                        dry_run=False,
+                    )
 
                 # Step 6: Handle Chatbot Recruiter Drawer if present
                 drawer = page.locator(".chatbot_Drawer")
                 if drawer.is_visible():
                     logger.info("Chatbot recruiter drawer detected. Answering screening questions...")
                     chat_turns = 0
-                    while chat_turns < 10:
+                    while chat_turns < 15:
                         chat_turns += 1
                         if not drawer.is_visible():
                             break
+
+                        drawer_file_input = drawer.locator("input[type='file']")
+                        if drawer_file_input.count() > 0 and upload_file and Path(upload_file).exists():
+                            try:
+                                drawer_file_input.first.set_input_files(str(upload_file))
+                                logger.info(f"Uploaded resume in chatbot drawer: {upload_file}")
+                                time.sleep(2)
+                            except Exception:
+                                pass
 
                         drawer_text = drawer.inner_text().lower()
                         if any(c in drawer_text for c in ["applied to", "successfully applied", "application sent"]):
@@ -572,18 +629,50 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
 
                         # Check if a chip / radio option matching the resolved answer is available
                         matching_chip = None
-                        if ans_val_lower in ["yes", "true"]:
-                            chip = drawer.locator("xpath=.//*[normalize-space(translate(text(), 'yes', 'YES'))='YES']").first
-                            if chip.is_visible():
-                                matching_chip = chip
-                        elif ans_val_lower in ["no", "false"]:
-                            chip = drawer.locator("xpath=.//*[normalize-space(translate(text(), 'no', 'NO'))='NO']").first
-                            if chip.is_visible():
-                                matching_chip = chip
-                        else:
-                            chip = drawer.locator(f"xpath=.//*[normalize-space(text())='{ans_val_str}']").first
-                            if chip.is_visible():
-                                matching_chip = chip
+                        is_affirmative = ans_val_lower in ["yes", "true"] or (ans_val_str.isdigit() and int(ans_val_str) > 0)
+                        is_negative = ans_val_lower in ["no", "false"] or ans_val_str == "0"
+
+                        if is_affirmative:
+                            for sel in [
+                                "xpath=.//*[translate(normalize-space(.), 'yes', 'YES')='YES']",
+                                "xpath=.//*[translate(normalize-space(.), 'true', 'TRUE')='TRUE']",
+                                ":text-is('Yes')", ":text-is('YES')",
+                                "button:has-text('Yes')", "span:has-text('Yes')", "div:has-text('Yes')"
+                            ]:
+                                c = drawer.locator(sel).first
+                                if c.is_visible():
+                                    c_text = (c.text_content() or "").strip()
+                                    if c_text.lower() in ("yes", "true", "y"):
+                                        matching_chip = c
+                                        break
+
+                        if not matching_chip and is_negative:
+                            for sel in [
+                                "xpath=.//*[translate(normalize-space(.), 'no', 'NO')='NO']",
+                                "xpath=.//*[translate(normalize-space(.), 'false', 'FALSE')='FALSE']",
+                                ":text-is('No')", ":text-is('NO')",
+                                "button:has-text('No')", "span:has-text('No')", "div:has-text('No')"
+                            ]:
+                                c = drawer.locator(sel).first
+                                if c.is_visible():
+                                    c_text = (c.text_content() or "").strip()
+                                    if c_text.lower() in ("no", "false", "n"):
+                                        matching_chip = c
+                                        break
+
+                        if not matching_chip:
+                            for sel in [
+                                f"xpath=.//*[normalize-space(.)='{ans_val_str}']",
+                                f":text-is('{ans_val_str}')",
+                                f"button:has-text('{ans_val_str}')",
+                                f"span:has-text('{ans_val_str}')"
+                            ]:
+                                c = drawer.locator(sel).first
+                                if c.is_visible():
+                                    c_text = (c.text_content() or "").strip()
+                                    if c_text == ans_val_str:
+                                        matching_chip = c
+                                        break
 
                         if matching_chip:
                             try:
@@ -594,14 +683,22 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                 except Exception:
                                     pass
                             time.sleep(1)
-                            save_btn = drawer.locator("xpath=.//*[normalize-space(text())='Save']").all()
-                            for sb in save_btn:
-                                if sb.is_visible():
+                            # Confirm or submit choice if a button is presented
+                            confirm_btns = drawer.locator(
+                                "xpath=.//*[normalize-space(.)='Save'] | "
+                                "xpath=.//*[normalize-space(.)='Submit'] | "
+                                "xpath=.//*[normalize-space(.)='Continue'] | "
+                                "xpath=.//*[normalize-space(.)='Next'] | "
+                                "xpath=.//*[normalize-space(.)='Send'] | "
+                                ".sendMsg, div[id*='sendMsg']"
+                            ).all()
+                            for cb in confirm_btns:
+                                if cb.is_visible():
                                     try:
-                                        sb.click(force=True, timeout=5000)
+                                        cb.click(force=True, timeout=5000)
                                     except Exception:
                                         try:
-                                            page.evaluate("(el) => el.click()", sb.element_handle())
+                                            page.evaluate("(el) => el.click()", cb.element_handle())
                                         except Exception:
                                             pass
                                     break

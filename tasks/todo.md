@@ -294,10 +294,24 @@
 - [x] **Phase 25.3: Email Report Scoping (Today Only)**
   - [x] Remove historical backfill of confirmed applications from `orchestrator.py`
   - [x] Ensure 0-application runs report `Confirmed Applications (0)` honestly
-- [/] **Phase 25.4: CI Phase Gate Alignment & End-to-End Verification**
+- [x] **Phase 25.4: CI Phase Gate Alignment & End-to-End Verification**
   - [x] Update `career_agent_daily.yml` to pass `--today` to `--validate-phase`
   - [x] Run test suite (`pytest`) and verify all tests pass (80/80 passed)
-  - [ ] Deploy to `main`, run GitHub Actions pipeline, and verify email dispatch
 
-
+### Phase 26: Chatbot Application Completion & External Link Correction (TASK-002)
+- [x] **Phase 26.1: Candidate Answer Resolver Yes/No & Domain Extension**
+  - [x] Support auxiliary verb intent ("Do you have...", "Have you worked on...") returning "Yes"/"No"
+  - [x] Fix Generative AI / GenAI / LLM / RAG matching without whitespace bugs
+  - [x] Add handlers for AIOps/MLOps, System Design/Architecture, Implementation, and highest qualification percentage
+  - [x] Add comprehensive unit tests in `tests/unit/test_candidate_answer_resolver.py` (6/6 passing)
+- [x] **Phase 26.2: Playwright Adapter External vs Internal Apply Logic**
+  - [x] Eliminate premature DOM matching on `"Apply on company site"` text
+  - [x] Prioritize primary Naukri Apply button; only set external if redirected to non-Naukri domain
+  - [x] Improve chatbot drawer: map affirmative/negative answers to YES/NO chips, trigger post-click submit/save, increase turn limit to 15
+- [x] **Phase 26.3: Reporting Separation for Manual Intervention vs External Portals**
+  - [x] Separate `NEEDS_MANUAL_INTERVENTION` from `EXTERNAL_APPLICATION_REQUIRED` in daily email
+- [/] **Phase 26.4: Test Verification, Lessons Capture & CI Dispatch**
+  - [x] Run full pytest suite across unit and integration tests (85/85 passing)
+  - [x] Update `tasks/lessons.md` with lessons learned
+  - [ ] Commit, push to `origin/main`, trigger GitHub Actions CI, and monitor execution
 

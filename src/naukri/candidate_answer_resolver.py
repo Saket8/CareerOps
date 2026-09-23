@@ -226,12 +226,20 @@ class CandidateAnswerResolver:
                 unverified_reason=f"Python experience for question '{question_text}' not found in verified candidate facts.",
             )
 
-        if any(term in q_lower for term in ["java", ".net", "react", "angular", "node", "golang", "c++", "c#"]) and any(term in q_lower for term in ["experience", "years"]):
+        # Unlisted / External Technologies (e.g. ServiceNow, SAP, Salesforce, Ruby, PHP, Java, .NET, Angular, React, etc.)
+        # Factually and truthfully, candidate has 0 years of experience in unlisted technologies.
+        # Yes/No inquiry -> "No", Numeric duration inquiry -> "0"
+        if any(term in q_lower for term in ["servicenow", "service now", "sap", "salesforce", "ruby", "php", "golang", "java", ".net", "react", "angular", "node", "c++", "c#"]) and any(term in q_lower for term in ["experience", "years", "worked", "hands-on"]):
+            if self._is_yes_no_inquiry(q_lower):
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value="No",
+                    field_type=field_type,
+                )
             return FormQuestionAnswerResult(
-                can_answer=False,
-                answer_value=None,
+                can_answer=True,
+                answer_value="0",
                 field_type=field_type,
-                unverified_reason=f"Programming language experience for question '{question_text}' not found in verified candidate facts.",
             )
 
         if "cloud" in q_lower and any(term in q_lower for term in ["experience", "years", "work", "worked"]) and "total" not in q_lower and "overall" not in q_lower:

@@ -238,6 +238,20 @@ def test_resolver_expanded_screening_questions():
     assert res_hybrid.can_answer is True
     assert res_hybrid.answer_value == "Yes"
 
+    # 16. Unlisted Technologies (ServiceNow, SAP, Java) -> Truthful 0 years or No
+    res_snow = resolver.resolve_question("How many years of experience do you have in Servicenow?")
+    assert res_snow.can_answer is True
+    assert res_snow.answer_value == "0"
+
+    res_snow_yn = resolver.resolve_question("Do you have hands-on experience in ServiceNow?")
+    assert res_snow_yn.can_answer is True
+    assert res_snow_yn.answer_value == "No"
+
+    res_sap = resolver.resolve_question("Years of experience in SAP?")
+    assert res_sap.can_answer is True
+    assert res_sap.answer_value == "0"
+
+
 
 
 

@@ -63,3 +63,5 @@ Desktop.ini
 
 # Generated interview folders
 interviews/
+ci_run*/
+

@@ -773,8 +773,13 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
 
                         if not matching_chip:
                             for sel in [
-                                f"xpath=.//*[normalize-space(.)='{ans_val_str}']",
                                 f":text-is('{ans_val_str}')",
+                                f":text-is('{ans_val_str}%')",
+                                f":text-is('{ans_val_str} %')",
+                                f"xpath=.//*[normalize-space(.)='{ans_val_str}']",
+                                f"button:has-text('{ans_val_str}%')",
+                                f"span:has-text('{ans_val_str}%')",
+                                f"label:has-text('{ans_val_str}%')",
                                 f"button:has-text('{ans_val_str}')",
                                 f"span:has-text('{ans_val_str}')",
                                 f"label:has-text('{ans_val_str}')"
@@ -783,11 +788,51 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                 if c.is_visible():
                                     try:
                                         c_text = (c.text_content(timeout=1000) or "").strip()
-                                        if c_text == ans_val_str:
+                                        if c_text in (ans_val_str, f"{ans_val_str}%", f"{ans_val_str} %"):
                                             matching_chip = c
                                             break
                                     except Exception:
                                         pass
+
+                        # Percentage, Range, or Threshold Matching for numeric/percentage values
+                        is_numeric_val = False
+                        numeric_val = 0.0
+                        try:
+                            numeric_val = float(ans_val_str.replace('%', '').strip())
+                            is_numeric_val = True
+                        except ValueError:
+                            pass
+
+                        if not matching_chip and is_numeric_val:
+                            try:
+                                cand_locators = drawer.locator(
+                                    "label, button, [class*='chip'], [class*='option'], [class*='radio'], [class*='pill'], li"
+                                ).all()
+                                for cand in cand_locators:
+                                    if not cand.is_visible():
+                                        continue
+                                    cand_text = (cand.text_content(timeout=500) or "").strip().lower()
+                                    if not cand_text or cand_text in ["save", "submit", "continue", "next", "send", "apply"]:
+                                        continue
+
+                                    # Check for range: e.g. "60-70%", "70 - 80%", "10-15 years"
+                                    range_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:%|\s)*(?:-|to)\s*(\d+(?:\.\d+)?)\s*%?", cand_text)
+                                    if range_match:
+                                        low = float(range_match.group(1))
+                                        high = float(range_match.group(2))
+                                        if low <= numeric_val <= high:
+                                            matching_chip = cand
+                                            break
+
+                                    # Check for threshold: e.g. "60% & above", "70% and above", "above 60%", "60+%"
+                                    thresh_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:%|\s)*(?:\+|and above|& above|above|or more|more)", cand_text)
+                                    if thresh_match:
+                                        thresh = float(thresh_match.group(1))
+                                        if numeric_val >= thresh:
+                                            matching_chip = cand
+                                            break
+                            except Exception:
+                                pass
 
                         if matching_chip:
                             try:
@@ -837,8 +882,23 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             "input[type='number'], "
                             "textarea, "
                             ".textArea[contenteditable='true'], "
+                            "[contenteditable='true'], "
+                            "div[role='textbox'], "
                             "input:not([type='file']):not([type='radio']):not([type='checkbox'])"
                         ).first
+
+                        if not chat_input.is_visible():
+                            chat_input = page.locator(
+                                "input[placeholder*='Type message'], "
+                                "input[placeholder*='message'], "
+                                "input[type='text'], "
+                                "input[type='number'], "
+                                "textarea, "
+                                ".textArea[contenteditable='true'], "
+                                "[contenteditable='true'], "
+                                "div[role='textbox'], "
+                                "input:not([type='file']):not([type='radio']):not([type='checkbox'])"
+                            ).first
 
                         if not chat_input.is_visible():
                             time.sleep(2)
@@ -852,7 +912,22 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             except Exception:
                                 pass
                         time.sleep(0.5)
-                        chat_input.fill(ans_val_str)
+
+                        try:
+                            chat_input.fill(ans_val_str)
+                        except Exception:
+                            try:
+                                chat_input.click()
+                                page.keyboard.type(ans_val_str)
+                            except Exception:
+                                pass
+
+                        try:
+                            page.keyboard.press("Space")
+                            page.keyboard.press("Backspace")
+                        except Exception:
+                            pass
+
                         time.sleep(0.5)
                         questions_answered[latest_q] = ans_val_str
 

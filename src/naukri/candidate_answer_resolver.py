@@ -113,8 +113,8 @@ class CandidateAnswerResolver:
                 unverified_reason="Kubernetes experience years not found in verified candidate facts.",
             )
 
-        # AI / GenAI / LLM / RAG / AIOps / MLOps
-        if bool(re.search(r"\b(generative ai|genai|gen ai|llm|rag|agentic|aiops|mlops|artificial intelligence|ai)\b", q_lower)) and any(term in q_lower for term in ["experience", "years", "work", "worked", "architectures"]):
+        # AI / GenAI / LLM / RAG / AIOps / MLOps / Machine Learning
+        if bool(re.search(r"\b(generative ai|genai|gen ai|llm|rag|agentic|aiops|mlops|artificial intelligence|machine learning|deep learning|ai|ml)\b", q_lower)) and any(term in q_lower for term in ["experience", "years", "work", "worked", "architectures", "models"]):
             ai_years = getattr(self.cand, "ai_experience_years", None)
             if ai_years is not None:
                 if self._is_yes_no_inquiry(q_lower):

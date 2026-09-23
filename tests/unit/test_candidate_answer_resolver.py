@@ -214,8 +214,14 @@ def test_resolver_expanded_screening_questions():
     assert res_devops.can_answer is True
     assert res_devops.answer_value == "5"
 
-    res_tf_yn = resolver.resolve_question("Do you have experience in Terraform?")
-    assert res_tf_yn.can_answer is True
-    assert res_tf_yn.answer_value == "Yes"
+    # 12. Machine Learning / Deep Learning
+    res_ml = resolver.resolve_question("How many years of experience do you have in Machine Learning?")
+    assert res_ml.can_answer is True
+    assert res_ml.answer_value == "2"
+
+    res_ml_yn = resolver.resolve_question("Do you have hands-on experience in Machine Learning and Deep Learning?")
+    assert res_ml_yn.can_answer is True
+    assert res_ml_yn.answer_value == "Yes"
+
 
 

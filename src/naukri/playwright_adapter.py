@@ -595,6 +595,9 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                     while chat_turns < 15:
                         chat_turns += 1
                         if not drawer.is_visible():
+                            if questions_answered:
+                                logger.info(f"Chatbot drawer closed after answering {len(questions_answered)} questions.")
+                                chat_confirmed = True
                             break
 
                         drawer_text = drawer.inner_text().lower()
@@ -604,8 +607,27 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             "application has been sent",
                             "application sent to recruiter",
                             "your application is submitted",
+                            "application submitted",
+                            "applied successfully",
+                            "we have received your application",
+                            "profile has been shared",
+                            "application completed",
+                            "thank you for applying",
+                            "thanks for applying",
                         ]):
                             logger.info("Confirmation text observed in chatbot drawer.")
+                            chat_confirmed = True
+                            break
+
+                        page_text_lower = page.content().lower()
+                        if any(c in page_text_lower for c in [
+                            "applied to",
+                            "you have successfully applied",
+                            "successfully applied",
+                            "application has been sent",
+                            "saveapply"
+                        ]):
+                            logger.info("Confirmation text/URL observed on page during chatbot flow.")
                             chat_confirmed = True
                             break
 
@@ -655,6 +677,26 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                     logger.info(f"Uploaded resume in chatbot drawer: {upload_file}")
                                     time.sleep(2)
                                     questions_answered[latest_q] = Path(upload_file).name
+
+                                    # Confirm file upload by clicking Save / Send / Submit / Continue
+                                    for btn_sel in [
+                                        "button:has-text('Save')", ".save-btn",
+                                        "button:has-text('Submit')",
+                                        "button:has-text('Continue')",
+                                        "button:has-text('Send')",
+                                        ".sendMsg", "div[id*='sendMsg']"
+                                    ]:
+                                        btn = drawer.locator(btn_sel).first
+                                        if btn.is_visible():
+                                            try:
+                                                btn.click(force=True, timeout=5000)
+                                            except Exception:
+                                                try:
+                                                    page.evaluate("(el) => el.click()", btn.element_handle())
+                                                except Exception:
+                                                    pass
+                                            break
+                                    time.sleep(4)
                                     continue
                                 except Exception:
                                     pass
@@ -684,8 +726,8 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
 
                         # Check if a chip / radio option matching the resolved answer is available
                         matching_chip = None
-                        is_affirmative = ans_val_lower in ["yes", "true"] or (ans_val_str.isdigit() and int(ans_val_str) > 0)
-                        is_negative = ans_val_lower in ["no", "false"] or ans_val_str == "0"
+                        is_affirmative = ans_val_lower in ["yes", "true"]
+                        is_negative = ans_val_lower in ["no", "false"]
 
                         if is_affirmative:
                             for sel in [
@@ -749,16 +791,15 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                     pass
                             time.sleep(1)
                             # Confirm or submit choice if a button is presented
-                            confirm_btns = drawer.locator(
-                                "xpath=.//*[normalize-space(.)='Save'] | "
-                                "xpath=.//*[normalize-space(.)='Submit'] | "
-                                "xpath=.//*[normalize-space(.)='Continue'] | "
-                                "xpath=.//*[normalize-space(.)='Next'] | "
-                                "xpath=.//*[normalize-space(.)='Send'] | "
-                                "button:has-text('Save'), .save-btn, "
-                                ".sendMsg, div[id*='sendMsg']"
-                            ).all()
-                            for cb in confirm_btns:
+                            for btn_sel in [
+                                "button:has-text('Save')", ".save-btn",
+                                "button:has-text('Submit')",
+                                "button:has-text('Continue')",
+                                "button:has-text('Next')",
+                                "button:has-text('Send')",
+                                ".sendMsg", "div[id*='sendMsg']"
+                            ]:
+                                cb = drawer.locator(btn_sel).first
                                 if cb.is_visible():
                                     try:
                                         cb.click(force=True, timeout=5000)
@@ -853,7 +894,11 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                     logger.info(f"Uploaded tailored resume ({Path(upload_file).suffix.upper()}) to application form: {upload_file}")
                     time.sleep(2)
 
-                submit_btn = page.locator("button:has-text('Submit'), button:has-text('Apply Now'), button:has-text('Send Application')").first
+                submit_btn = page.locator(
+                    "button:has-text('Submit'), button:has-text('Apply Now'), "
+                    "button:has-text('Send Application'), button:has-text('Save'), .save-btn, "
+                    "button:has-text('Apply'), button:has-text('Confirm'), button:has-text('Continue')"
+                ).first
                 if submit_btn.is_visible():
                     try:
                         submit_btn.click(force=True, timeout=5000)

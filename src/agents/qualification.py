@@ -166,6 +166,11 @@ class QualificationAgent:
             logger.info(f"Confidence Gating: Job {job.job_id} lacks full JD text; capping score below qualification threshold.")
             overall_score = min(overall_score, self.match_threshold - 1.0)
 
+        # Experience Gate: Reject junior/intern roles (< 5 years max experience) for 12-year Principal Architect
+        if job.experience_max is not None and job.experience_max < 5.0:
+            logger.info(f"Experience Gate: Rejecting job '{job.title}' ({job.experience_raw}) as junior/intern role.")
+            overall_score = min(overall_score, self.match_threshold - 10.0)
+
         # Determine Role Categories
         categories = self._determine_categories(text)
 
@@ -174,6 +179,9 @@ class QualificationAgent:
         if not has_full_jd:
             gaps.append("Full JD text unavailable; scored tentatively on card snippet only.")
             match_reasons.append("Preliminary card metadata score (full JD retrieval pending).")
+        if job.experience_max is not None and job.experience_max < 5.0:
+            gaps.append(f"Role requires junior/entry-level experience ({job.experience_raw}); candidate has 12 years Principal Architect tenure.")
+            match_reasons.append("Rejected by Experience Gate: junior/intern role incompatible with 12-year Principal Architect profile.")
 
         passed = overall_score >= self.match_threshold
 
@@ -249,8 +257,12 @@ class QualificationAgent:
     def _compute_experience_alignment(self, job: JobListing) -> float:
         # Candidate has 12 years total experience
         cand_exp = self.candidate_truth.candidate.total_experience_years
-        min_exp = job.experience_min or 0.0
-        max_exp = job.experience_max or 20.0
+        min_exp = job.experience_min if job.experience_min is not None else 0.0
+        max_exp = job.experience_max if job.experience_max is not None else 20.0
+
+        # Hard guardrail: If the role is strictly for junior/interns (< 5 years maximum)
+        if job.experience_max is not None and job.experience_max < 5.0:
+            return 10.0
 
         if min_exp <= cand_exp <= max_exp:
             return 95.0
@@ -258,7 +270,9 @@ class QualificationAgent:
             return 75.0
         elif cand_exp > max_exp and (cand_exp - max_exp) <= 3:
             return 85.0
-        return 65.0
+        elif cand_exp > max_exp and (cand_exp - max_exp) <= 5:
+            return 60.0
+        return 20.0
 
     def _determine_categories(self, text: str) -> List[str]:
         cats = []

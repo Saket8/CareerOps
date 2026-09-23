@@ -140,3 +140,33 @@ def test_missing_full_jd_confidence_gating(db_session):
     assert any("Full JD text unavailable" in g for g in score.gaps)
     assert any("Preliminary card metadata score" in r for r in score.match_reasons)
 
+
+def test_junior_intern_job_experience_gate(db_session):
+    job_repo = JobRepository(db_session)
+    candidate_truth = get_candidate_truth(refresh=True)
+    config = {"application": {"match_threshold": 75.0, "high_match_threshold": 85.0}}
+    agent = QualificationAgent(job_repo, candidate_truth, config)
+
+    # NotionAce-like intern job: 0-0 years experience, cloud keywords
+    intern_job = JobListing(
+        job_id="job_intern_1",
+        title="Cloud Engineer Intern",
+        company="NotionAce Solutions",
+        location="Remote",
+        url="https://naukri.com/job/intern1",
+        experience_min=0.0,
+        experience_max=0.0,
+        experience_raw="0-0 Yrs",
+        jd_text="Looking for enthusiastic Cloud Engineer Interns trained in AWS, Azure, GCP, or OCI. Knowledge of Linux and scripting.",
+        has_full_jd=True,
+    )
+    job_repo.save_job(intern_job)
+
+    score, evidence = agent.evaluate_job(intern_job)
+
+    assert score.passed_threshold is False
+    assert score.overall_score <= 65.0
+    assert intern_job.status == JobStatus.REJECTED
+    assert any("junior/entry-level experience" in g for g in score.gaps)
+
+

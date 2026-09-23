@@ -87,6 +87,15 @@ class DiscoveryAgent:
                     )
                     continue
 
+                # 0b. Experience Gate: Skip junior/intern roles (< 5 years max experience) for 12-year Principal Architect
+                if listing.experience_max is not None and listing.experience_max < 5.0:
+                    logger.info(
+                        f"EXPERIENCE GATE: Skipping junior/intern job {listing.job_id} "
+                        f"('{listing.title}' @ {listing.company}, Exp: {listing.experience_raw}) for 12-year Principal Architect."
+                    )
+                    result.duplicates_skipped += 1
+                    continue
+
                 dedup_key = f"{listing.company.lower().strip()}::{listing.title.lower().strip()}"
 
                 # 1. Deduplicate within current run
@@ -125,6 +134,12 @@ class DiscoveryAgent:
                     # 2b. Skip if previously rejected by salary (immutable criteria)
                     if existing_job.status == JobStatus.SALARY_REJECTED.value:
                         logger.info(f"Job {listing.job_id} previously rejected by salary in DB. Skipping.")
+                        result.duplicates_skipped += 1
+                        continue
+
+                    # 2b2. Skip if junior/intern role (< 5 years max experience)
+                    if existing_job.experience_max is not None and existing_job.experience_max < 5.0:
+                        logger.info(f"Job {listing.job_id} is junior/intern role ({existing_job.experience_raw}). Skipping.")
                         result.duplicates_skipped += 1
                         continue
 

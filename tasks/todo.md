@@ -362,13 +362,26 @@
   - [x] Add unit tests in `tests/unit/test_candidate_answer_resolver.py`
 - [x] **Phase 29.3: Unit Test Suite Verification**
   - [x] Full pytest suite passed (87/87 passing)
-- [/] **Phase 29.4: Commit, Push & Trigger GitHub Actions CI Run**
+- [x] **Phase 29.4: Commit, Push & Trigger GitHub Actions CI Run**
+  - [x] Commit and push changes to `origin/main` (Commit 3b27b94)
+  - [x] Trigger `career_agent_daily.yml` and monitor run (Run 35871236663 completed successfully)
+- [x] **Phase 29.5: Autonomous Email & Delivery Report Audit Loop**
+  - [x] Download and read the delivered daily report (`2026-09-23_run_20260923_140306_f7a036.md`)
+  - [x] Confirmed Siro Clinpharm (`240826012337` - AIOps Architect) achieved `APPLIED_CONFIRMED` via chatbot screening!
+  - [x] Diagnosed NotionAce (`070926011494`) as a 0-0 year intern/fresher role that qualified due to missing experience parsing
+
+- [x] **Phase 29.6: Experience Parsing, Junior/Intern Role Gating & Screening Polish**
+  - [x] Implement `parse_experience()` in `src/utils/experience_parser.py`
+  - [x] Wire `experience_min` / `experience_max` extraction in `playwright_adapter.py` and `browser_adapter.py`
+  - [x] Add hard Experience Gate in `discovery.py` and `qualification.py` rejecting junior/intern roles (< 5 years max experience) for 12-year Principal Architect
+  - [x] Scope `submit_btn` in `playwright_adapter.py` to drawer/modal to eliminate background button clicks
+  - [x] Broaden chip selectors and add detailed turn-by-turn logging in `playwright_adapter.py`
+  - [x] Update unit tests in `test_qualification.py` and `test_experience_parser.py` (89/89 passed)
+- [/] **Phase 29.7: Autonomous CI Execution & Final Email Report Audit Loop**
   - [ ] Commit and push changes to `origin/main`
-  - [ ] Trigger `career_agent_daily.yml` and monitor run
-- [ ] **Phase 29.5: Autonomous Email & Delivery Report Audit Loop**
-  - [ ] Download and read the actual delivered daily email report markdown and html
-  - [ ] Inspect execution logs of newly attempted applications (NotionAce, Siro Clinpharm, etc.)
-  - [ ] Verify that all submitted jobs achieve `APPLIED_CONFIRMED`
-  - [ ] If any issue or unverified status remains, loop to diagnose, fix, and re-run until aligned
+  - [ ] Trigger GitHub Actions CI workflow `career_agent_daily.yml`
+  - [ ] Download and read the actual delivered daily report and logs
+  - [ ] Verify zero unverified jobs, verified confirmed applications, and complete alignment with expectations
+
 
 

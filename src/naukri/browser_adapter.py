@@ -13,6 +13,7 @@ from src.naukri.interface import BaseNaukriClient, SafetyBarrierException
 from src.models.job import JobListing, JobStatus, JobSalary, SalaryEligibility, ApplicationRecord
 from src.models.candidate import CandidateTruth
 from src.utils.salary_parser import parse_salary
+from src.utils.experience_parser import parse_experience
 from src.utils.logger import get_logger
 
 logger = get_logger("naukri_browser_adapter")
@@ -94,6 +95,7 @@ class NaukriBrowserAdapter(BaseNaukriClient):
                 job_id = job_id_match.group(1) if job_id_match else f"nk_{abs(hash(url))}"
 
                 parsed_salary = parse_salary(raw_salary, min_threshold_lpa=self.min_salary_lpa)
+                exp_min, exp_max = parse_experience(raw_exp)
 
                 listing = JobListing(
                     job_id=job_id,
@@ -101,6 +103,8 @@ class NaukriBrowserAdapter(BaseNaukriClient):
                     company=company,
                     location=location,
                     salary=parsed_salary,
+                    experience_min=exp_min,
+                    experience_max=exp_max,
                     experience_raw=raw_exp,
                     url=url,
                     source_query=query,

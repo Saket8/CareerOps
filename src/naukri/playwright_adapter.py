@@ -16,6 +16,7 @@ from src.naukri.candidate_answer_resolver import CandidateAnswerResolver
 from src.models.job import JobListing, JobStatus, ApplicationRecord, ApplicationMethod
 from src.models.candidate import CandidateTruth
 from src.utils.salary_parser import parse_salary
+from src.utils.experience_parser import parse_experience
 from src.utils.logger import get_logger
 
 logger = get_logger("playwright_adapter")
@@ -156,6 +157,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                     job_id = job_id_match.group(1) if job_id_match else f"nk_{abs(hash(url))}"
 
                     parsed_salary = parse_salary(raw_sal, min_threshold_lpa=self.min_salary_lpa)
+                    exp_min, exp_max = parse_experience(raw_exp)
 
                     # Extract tags, description snippet, and full card text
                     tags_el = t.locator("ul.tags-gt li, ul.tags li, .tag-li, .dot-gt, [class*='tag']").all()
@@ -183,6 +185,8 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         company=company,
                         location=location,
                         salary=parsed_salary,
+                        experience_min=exp_min,
+                        experience_max=exp_max,
                         experience_raw=raw_exp,
                         skills_found=skills_found,
                         jd_text=card_jd,
@@ -731,6 +735,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
 
                         ans_val_str = str(ans_res.answer_value).strip()
                         ans_val_lower = ans_val_str.lower()
+                        logger.info(f"Chatbot question [Turn {chat_turns}]: '{latest_q}' -> Resolved Answer: '{ans_val_str}'")
 
                         # Check if a chip / radio option matching the resolved answer is available
                         matching_chip = None
@@ -780,6 +785,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                 f"button:has-text('{ans_val_str}%')",
                                 f"span:has-text('{ans_val_str}%')",
                                 f"label:has-text('{ans_val_str}%')",
+                                f"div:has-text('{ans_val_str}%')",
                                 f"button:has-text('{ans_val_str}')",
                                 f"span:has-text('{ans_val_str}')",
                                 f"label:has-text('{ans_val_str}')"
@@ -806,7 +812,10 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         if not matching_chip and is_numeric_val:
                             try:
                                 cand_locators = drawer.locator(
-                                    "label, button, [class*='chip'], [class*='option'], [class*='radio'], [class*='pill'], li"
+                                    "label, button, a, [role='button'], [role='radio'], "
+                                    "[class*='chip'], [class*='option'], [class*='radio'], [class*='pill'], "
+                                    "[class*='choice'], [class*='reply'], [class*='answer'], [class*='bubble'], "
+                                    "[class*='item'], li, span, div"
                                 ).all()
                                 for cand in cand_locators:
                                     if not cand.is_visible():
@@ -835,6 +844,12 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                 pass
 
                         if matching_chip:
+                            chip_text = ""
+                            try:
+                                chip_text = (matching_chip.text_content(timeout=500) or "").strip()
+                            except Exception:
+                                pass
+                            logger.info(f"Chatbot Turn {chat_turns}: Selecting matching chip '{chip_text}' for question '{latest_q}'")
                             try:
                                 matching_chip.click(force=True, timeout=5000)
                             except Exception:
@@ -901,6 +916,15 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             ).first
 
                         if not chat_input.is_visible():
+                            if chat_turns % 3 == 0:
+                                try:
+                                    vis_opts = [c.text_content().strip() for c in drawer.locator("button, [class*='chip'], [class*='option'], label, li, span").all()[:8] if (c.text_content() or '').strip()]
+                                    logger.warning(
+                                        f"Chatbot question [Turn {chat_turns}]: '{latest_q}' has no matching option or visible input. "
+                                        f"Resolved answer: '{ans_val_str}'. Visible options: {vis_opts}"
+                                    )
+                                except Exception:
+                                    pass
                             time.sleep(2)
                             continue
 
@@ -989,11 +1013,18 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                     logger.info(f"Uploaded tailored resume ({Path(upload_file).suffix.upper()}) to application form: {upload_file}")
                     time.sleep(2)
 
-                submit_btn = page.locator(
-                    "button:has-text('Submit'), button:has-text('Apply Now'), "
-                    "button:has-text('Send Application'), button:has-text('Save'), .save-btn, "
-                    "button:has-text('Apply'), button:has-text('Confirm'), button:has-text('Continue')"
+                submit_btn = drawer.locator(
+                    "button:has-text('Submit Application'), button:has-text('Apply Now'), "
+                    "button:has-text('Send Application'), button:has-text('Save & Apply'), "
+                    "button:has-text('Submit'), button:has-text('Confirm'), button:has-text('Continue'), "
+                    "button:has-text('Done'), button:has-text('Finish'), .save-btn, .submit-btn"
                 ).first
+                if not submit_btn.is_visible():
+                    submit_btn = page.locator(
+                        ".modal button:has-text('Submit'), [class*='modal'] button:has-text('Apply'), "
+                        "button:has-text('Submit Application'), button:has-text('Send Application'), "
+                        "button:has-text('Save & Apply'), button:has-text('Confirm')"
+                    ).first
                 if submit_btn.is_visible():
                     try:
                         submit_btn.click(force=True, timeout=5000)

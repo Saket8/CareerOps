@@ -136,7 +136,7 @@ class CandidateAnswerResolver:
             )
 
         # Architecture, System Design & Solutioning
-        if any(term in q_lower for term in ["system design", "solutioning", "solution architect", "solution architecture", "technical architect", "technical architecture", "cloud architecture"]) and any(term in q_lower for term in ["experience", "years", "work", "worked", "design"]):
+        if any(term in q_lower for term in ["enterprise architecture", "enterprise architect", "system design", "solutioning", "solution architect", "solution architecture", "technical architect", "technical architecture", "cloud architecture", "architecture"]) and any(term in q_lower for term in ["experience", "years", "work", "worked", "design"]):
             if self._is_yes_no_inquiry(q_lower):
                 return FormQuestionAnswerResult(
                     can_answer=True,
@@ -146,6 +146,48 @@ class CandidateAnswerResolver:
             return FormQuestionAnswerResult(
                 can_answer=True,
                 answer_value=str(int(self.cand.cloud_experience_years)),
+                field_type=field_type,
+            )
+
+        # Multi-Cloud Platforms (GCP / AWS / Azure)
+        if any(term in q_lower for term in ["gcp", "google cloud", "google cloud platform", "aws", "amazon web services", "azure", "multi-cloud", "multicloud"]) and any(term in q_lower for term in ["experience", "years", "work", "worked"]):
+            if self._is_yes_no_inquiry(q_lower):
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value="Yes",
+                    field_type=field_type,
+                )
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="3",
+                field_type=field_type,
+            )
+
+        # Observability / Monitoring / Telemetry
+        if any(term in q_lower for term in ["observability", "telemetry", "prometheus", "grafana", "splunk", "datadog", "monitoring"]) and any(term in q_lower for term in ["experience", "years", "work", "worked"]):
+            if self._is_yes_no_inquiry(q_lower):
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value="Yes",
+                    field_type=field_type,
+                )
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="3",
+                field_type=field_type,
+            )
+
+        # DevOps / CI/CD / IaC / Terraform
+        if any(term in q_lower for term in ["devops", "ci/cd", "cicd", "terraform", "iac", "infrastructure as code", "ansible"]) and any(term in q_lower for term in ["experience", "years", "work", "worked"]):
+            if self._is_yes_no_inquiry(q_lower):
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value="Yes",
+                    field_type=field_type,
+                )
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="5",
                 field_type=field_type,
             )
 

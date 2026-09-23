@@ -330,17 +330,26 @@
   - [x] Commit, push to `origin/main`, trigger GitHub Actions workflow run, and monitor live execution (Run 35852054146 passed)
 
 ### Phase 28: Elimination of Double-Click Bug & False Login Barrier (TASK-004)
-- [/] **Phase 28.1: Playwright Adapter Single-Click & Non-Blocking Popup Capture**
-  - [ ] Replace blocking `with page.expect_popup(...)` with event-driven `page.on("popup", ...)` to eliminate TimeoutError and accidental double-clicks on Apply button
-  - [ ] Expand chatbot drawer selectors (`.chatbot_Drawer`, `.chatbot_wrapper`, `[class*='chatbot']`, `.chat-drawer`) with explicit 4000ms wait state
-  - [ ] Support message question selectors (`.botItem .botMsg span`, `.botMsg span`, `.bot-msg-item .question-header`, `div[class*='botMsg']`)
-- [/] **Phase 28.2: ApplicationVerifier False Login Barrier Elimination**
-  - [ ] Remove broad string matches (`"candidate login"`, `"login-layer"`) that trigger on legitimate authenticated Naukri pages
-  - [ ] Restrict login barrier detection strictly to `/login` URLs, explicit login page titles, or visible login form headings
-- [/] **Phase 28.3: Unit Test Suite Verification**
-  - [ ] Update and run pytest suite across unit and integration tests
-- [/] **Phase 28.4: Autonomous CI Execution & Email Delivery Audit Loop (/goal)**
-  - [ ] Commit, push to `origin/main`, trigger GitHub Actions CI
+- [x] **Phase 28.1: Playwright Adapter Single-Click & Non-Blocking Popup Capture**
+  - [x] Replace blocking `with page.expect_popup(...)` with event-driven `page.on("popup", ...)` to eliminate TimeoutError and accidental double-clicks on Apply button
+  - [x] Expand chatbot drawer selectors (`.chatbot_Drawer`, `.chatbot_wrapper`, `[class*='chatbot']`, `.chat-drawer`) with explicit 4000ms wait state
+  - [x] Support message question selectors (`.botItem .botMsg span`, `.botMsg span`, `.bot-msg-item .question-header`, `div[class*='botMsg']`)
+  - [x] Replace `.all()` and `.text_content()` loop with non-blocking `all_text_contents()` to eliminate 30-second timeout hang on animated/typing elements
+  - [x] Gate resume PDF uploads strictly to explicit resume/CV/document prompts
+- [x] **Phase 28.2: ApplicationVerifier False Login Barrier Elimination**
+  - [x] Remove broad string matches (`"candidate login"`, `"login-layer"`) that trigger on legitimate authenticated Naukri pages
+  - [x] Restrict login barrier detection strictly to `/login` URLs, explicit login page titles, or visible login form headings
+- [x] **Phase 28.3: Candidate Answer Resolver Domain Expansion**
+  - [x] Add Enterprise Architecture mappings (6 years, Yes)
+  - [x] Add Observability / Monitoring mappings (3 years, Yes)
+  - [x] Add Multi-Cloud (GCP / AWS / Azure) mappings (3 years, Yes)
+  - [x] Add DevOps / IaC / Terraform mappings (5 years, Yes)
+- [x] **Phase 28.4: Unit Test Suite Verification**
+  - [x] Update and run pytest suite across unit and integration tests (87/87 passed)
+  - [x] Verify proof-based Phase Gate validator (`python main.py --validate-phase --today`)
+- [/] **Phase 28.5: Autonomous CI Execution & Email Delivery Audit Loop (/goal)**
+  - [/] Commit, push to `origin/main`, trigger GitHub Actions CI
   - [ ] Download and read the actual daily report and CI logs of what was delivered in the email
   - [ ] Verify confirmed applications and unverified applications align with expectations
   - [ ] Loop and refine if any issue remains until goal is fully completed
+

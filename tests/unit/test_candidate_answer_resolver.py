@@ -182,3 +182,40 @@ def test_resolver_expanded_screening_questions():
     assert res_emp.can_answer is True
     assert res_emp.answer_value == "Yes"
 
+    # 8. Enterprise Architecture
+    res_ea = resolver.resolve_question("How many years of experience do you have in Enterprise Architecture?")
+    assert res_ea.can_answer is True
+    assert res_ea.answer_value == "6"
+
+    res_ea_yn = resolver.resolve_question("Do you have experience in Enterprise Architecture?")
+    assert res_ea_yn.can_answer is True
+    assert res_ea_yn.answer_value == "Yes"
+
+    # 9. Observability & Monitoring
+    res_obs = resolver.resolve_question("How many years of experience do you have in Observability?")
+    assert res_obs.can_answer is True
+    assert res_obs.answer_value == "3"
+
+    res_obs_yn = resolver.resolve_question("Do you have hands-on experience in Observability and Monitoring tools?")
+    assert res_obs_yn.can_answer is True
+    assert res_obs_yn.answer_value == "Yes"
+
+    # 10. Multi-Cloud (GCP / AWS / Azure)
+    res_gcp = resolver.resolve_question("How many years of experience do you have in GCP?")
+    assert res_gcp.can_answer is True
+    assert res_gcp.answer_value == "3"
+
+    res_gcp_yn = resolver.resolve_question("Do you have experience in Google Cloud Platform (GCP)?")
+    assert res_gcp_yn.can_answer is True
+    assert res_gcp_yn.answer_value == "Yes"
+
+    # 11. DevOps & Terraform
+    res_devops = resolver.resolve_question("How many years of experience do you have in DevOps and CI/CD?")
+    assert res_devops.can_answer is True
+    assert res_devops.answer_value == "5"
+
+    res_tf_yn = resolver.resolve_question("Do you have experience in Terraform?")
+    assert res_tf_yn.can_answer is True
+    assert res_tf_yn.answer_value == "Yes"
+
+

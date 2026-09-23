@@ -609,22 +609,31 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             chat_confirmed = True
                             break
 
-                        bot_msgs = drawer.locator(
+                        bot_locator = drawer.locator(
                             ".botItem .botMsg span, .botMsg span, .bot-msg-item .question-header, "
                             "[class*='botMsg'] span, [class*='question'], .botItem span"
-                        ).all()
-                        if not bot_msgs:
-                            bot_msgs = page.locator(".botItem .botMsg span, .botMsg span").all()
+                        )
+                        raw_texts = []
+                        try:
+                            raw_texts = bot_locator.all_text_contents()
+                        except Exception:
+                            pass
+
+                        if not raw_texts:
+                            try:
+                                raw_texts = page.locator(".botItem .botMsg span, .botMsg span").all_text_contents()
+                            except Exception:
+                                pass
 
                         valid_bot_msgs = [
-                            m for m in bot_msgs
-                            if m.text_content() and m.text_content().strip() and m.text_content().strip() not in ["...", "typing", "• • •", "•••"]
+                            t.strip() for t in raw_texts
+                            if t and t.strip() and t.strip() not in ["...", "typing", "• • •", "•••"]
                         ]
                         if not valid_bot_msgs:
                             time.sleep(2)
                             continue
 
-                        latest_q = valid_bot_msgs[-1].text_content().strip()
+                        latest_q = valid_bot_msgs[-1]
 
                         # If only greeting is visible so far, wait for question to render
                         if len(valid_bot_msgs) == 1 and ("thank you for showing interest" in latest_q.lower() or latest_q.lower().startswith("hi ")):
@@ -687,10 +696,13 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             ]:
                                 c = drawer.locator(sel).first
                                 if c.is_visible():
-                                    c_text = (c.text_content() or "").strip()
-                                    if c_text.lower() in ("yes", "true", "y"):
-                                        matching_chip = c
-                                        break
+                                    try:
+                                        c_text = (c.text_content(timeout=1000) or "").strip()
+                                        if c_text.lower() in ("yes", "true", "y"):
+                                            matching_chip = c
+                                            break
+                                    except Exception:
+                                        pass
 
                         if not matching_chip and is_negative:
                             for sel in [
@@ -701,10 +713,13 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             ]:
                                 c = drawer.locator(sel).first
                                 if c.is_visible():
-                                    c_text = (c.text_content() or "").strip()
-                                    if c_text.lower() in ("no", "false", "n"):
-                                        matching_chip = c
-                                        break
+                                    try:
+                                        c_text = (c.text_content(timeout=1000) or "").strip()
+                                        if c_text.lower() in ("no", "false", "n"):
+                                            matching_chip = c
+                                            break
+                                    except Exception:
+                                        pass
 
                         if not matching_chip:
                             for sel in [
@@ -716,10 +731,13 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             ]:
                                 c = drawer.locator(sel).first
                                 if c.is_visible():
-                                    c_text = (c.text_content() or "").strip()
-                                    if c_text == ans_val_str:
-                                        matching_chip = c
-                                        break
+                                    try:
+                                        c_text = (c.text_content(timeout=1000) or "").strip()
+                                        if c_text == ans_val_str:
+                                            matching_chip = c
+                                            break
+                                    except Exception:
+                                        pass
 
                         if matching_chip:
                             try:

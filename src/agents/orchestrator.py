@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+from src.database.models import ApplicationModel, JobModel
 from src.database.connection import get_db_session, init_db
 from src.database.repositories import (
     JobRepository,
@@ -200,10 +201,59 @@ class Orchestrator:
                         html_body=w_html_content,
                     )
 
-                # 5. DAILY REPORTING & EMAIL NOTIFICATION (Today's Run Scope Only; Zero Historical Backfill)
+                # 5. DAILY REPORTING & EMAIL NOTIFICATION (Today's Cumulative Scope; Zero Yesterday/Historical Backfill)
                 end_time = datetime.now(timezone.utc)
 
-                # Recompute summary counts strictly from current run's top_applications
+                # Aggregate all applications submitted or recorded TODAY (date == date_str) to provide a true Daily Report
+                today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+                seen_job_titles = {f"{a.company.lower()}::{a.role.lower()}" for a in top_applications}
+                seen_urls = {a.url for a in top_applications if a.url}
+
+                today_apps_query = (
+                    session.query(ApplicationModel, JobModel)
+                    .join(JobModel, ApplicationModel.job_id == JobModel.job_id)
+                    .filter(
+                        (ApplicationModel.submitted_at >= today_start) | (ApplicationModel.started_at >= today_start),
+                        ApplicationModel.status.in_([
+                            JobStatus.APPLIED_CONFIRMED.value,
+                            JobStatus.EXTERNAL_APPLICATION_REQUIRED.value,
+                        ]),
+                    )
+                    .order_by(ApplicationModel.submitted_at.desc())
+                    .all()
+                )
+
+                for app_m, job_m in today_apps_query:
+                    job_key = f"{job_m.company.lower()}::{job_m.title.lower()}"
+                    portal_url = app_m.external_application_url or job_m.canonical_url or job_m.url
+                    if job_key in seen_job_titles or (portal_url and portal_url in seen_urls):
+                        continue
+                    seen_job_titles.add(job_key)
+                    if portal_url:
+                        seen_urls.add(portal_url)
+
+                    score_m = job_repo.get_score(job_m.job_id)
+                    match_score = score_m.overall_score if score_m else 80.0
+                    key_factors = score_m.strengths[:3] if (score_m and score_m.strengths) else ["Direct match for candidate architecture profile"]
+
+                    top_applications.append(
+                        TopApplicationItem(
+                            company=job_m.company,
+                            role=job_m.title,
+                            salary=job_m.salary_raw_text or "Not Disclosed",
+                            match_score=match_score,
+                            key_factors=key_factors,
+                            resume_used=app_m.resume_version or "Tailored_Principal_Architect_Resume.pdf",
+                            status=app_m.status,
+                            url=portal_url or job_m.url,
+                            method=app_m.application_method or "NAUKRI_DIRECT",
+                            reason=app_m.failure_reason,
+                            evidence_path=app_m.evidence_path,
+                            confirmation_ref=app_m.confirmation_reference,
+                        )
+                    )
+
+                # Recompute summary counts strictly from current run's top_applications (including today's cumulative items)
                 confirmed_count = len([a for a in top_applications if a.status == JobStatus.APPLIED_CONFIRMED.value])
                 unverified_count = len([a for a in top_applications if a.status == JobStatus.SUBMISSION_UNVERIFIED.value])
                 blocked_count = len([a for a in top_applications if a.status in (JobStatus.APPLICATION_BLOCKED.value, JobStatus.BLOCKED.value)])

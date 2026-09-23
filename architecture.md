@@ -151,7 +151,7 @@ Naukri/
 │   ├── lessons.md                         # Registry of operational lessons, defect patterns & self-improvement
 │   └── todo.md                            # Execution tracking control plane with checkable phases
 ├── tests/
-│   ├── unit/                              # Full unit test suite (77 tests across 18 test modules)
+│   ├── unit/                              # Full unit test suite (86 tests across 18 test modules)
 │   │   ├── test_application_agent.py
 │   │   ├── test_application_verifier.py
 │   │   ├── test_candidate_answer_resolver.py
@@ -212,6 +212,15 @@ Naukri/
   10. On Fridays (or if forced): synthesizes weekly market intelligence, builds consolidated interview dossier, and dispatches Email 2 with attachments.
   11. Executes retention policy cleanup outside the active application session.
 
+#### [`src/agents/discovery.py`](file:///c:/Users/2016tu/Desktop/Projects/Naukri/src/agents/discovery.py)
+- **Class:** `DiscoveryAgent(client, job_repo, salary_parser, config)`
+- **Core Method:** `run_discovery(query_limit) -> DiscoveryResult`
+- **Granular Deduplication & Re-Evaluation Strategy:**
+  - Avoids blanket `job_repo.exists()` skipping.
+  - Skips only immutable terminal states: `APPLIED`, `APPLIED_CONFIRMED`, `SALARY_REJECTED`, employer-blocked (`Cognizant`/`CTS`), genuine non-Naukri external portals, or score-rejected jobs with full JD.
+  - **Re-Discovery & Retry for Unapplied Jobs:** Postings previously marked with transient or failed statuses (`APPLICATION_FAILED`, `NEEDS_MANUAL_INTERVENTION`, `SUBMISSION_UNVERIFIED`, or internal jobs previously classified as external) are dynamically re-evaluated and eligible for retry.
+  - **Zero-Latency JD Cache Reuse:** Reuses existing cached `jd_text` ($\ge 50$ chars) from SQLite to eliminate redundant network fetches while refreshing application attempts.
+
 ---
 
 ### 4.2. Browser Automation & Bot-Mitigation Layer
@@ -224,6 +233,8 @@ Naukri/
   - Explicit traps for CAPTCHA, MFA, OTP, and payment gates halt automation cleanly without attempting evasion, marking `NEEDS_MANUAL_INTERVENTION`.
 - **Prompt-Aware Questionnaire Answering:**
   - Uses [`CandidateAnswerResolver`](file:///c:/Users/2016tu/Desktop/Projects/Naukri/src/naukri/candidate_answer_resolver.py) with label matching against verified candidate facts.
+  - Implements `_is_yes_no_inquiry(q_lower)` to distinguish auxiliary verb existence questions (`"Do you have..."`, `"Have you worked..."`) returning `"Yes"` from quantity/duration questions (`"How many years..."`, `"Total years..."`) returning numeric strings (`"6"`, `"12"`).
+  - Fact coverage expanded to Generative AI / GenAI / LLM / RAG (`2` yrs), AIOps / MLOps (`2` yrs), System Design & Architecture (`6` yrs), Implementation & Delivery (`6` yrs), and highest qualification percentage (`70%` from B.Tech) with safeguards against unverified high-school education.
   - Zero blind clicking on option chips; any unrecognized or unverified screening control triggers a graceful halt to `NEEDS_DATA`.
 - **Verified PDF Upload:**
   - Uploads the tailored `.pdf` file (not `.docx`) and verifies portal acceptance before submitting.
@@ -235,7 +246,8 @@ Naukri/
 - **Live Submission (`submit_application`):**
   - Navigates to job listing URL.
   - Detects if listing already has the green `.already-applied` badge $\rightarrow$ captures screenshot to `artifacts/evidence/<job_id>_already_applied.png` $\rightarrow$ marks `JobStatus.APPLIED_CONFIRMED`.
-  - Detects external career portals (`Apply on company site` / `Employer site`) $\rightarrow$ captures external portal URL $\rightarrow$ captures screenshot $\rightarrow$ marks `JobStatus.EXTERNAL_APPLICATION_REQUIRED`.
+  - **Strict External Portal Invariant:** Blind page-wide DOM checks for `"Apply on company site"` are eliminated. External classification occurs strictly when the primary apply button (`#apply-button`, `.apply-button`) has an external non-Naukri `href` or when clicking it navigates/redirects to a non-Naukri domain (`url.hostname` not ending with `naukri.com`).
+  - **Recruiter Chatbot Drawer Flow:** For dynamic multi-turn screening drawers (e.g. Nagarro chatbot), supports up to 15 interaction turns. Maps affirmative answers (`"Yes"` or numeric $> 0$) to `YES` chips, negative answers (`"No"` or `"0"`) to `NO` chips, types into input areas when open, clicks explicit submit buttons (`Save`, `Submit`, `Continue`, `Send`), and uploads tailored resumes within the drawer.
   - For direct apply: clicks Apply, answers screening questions, uploads tailored PDF resume, submits, reloads the canonical listing URL, and asserts the visible `.already-applied` badge.
 
 #### [`src/naukri/salary_parser.py`](file:///c:/Users/2016tu/Desktop/Projects/Naukri/src/naukri/salary_parser.py)
@@ -299,10 +311,10 @@ Naukri/
 - **Class:** `ApplicationAgent(client, job_repo, app_repo, resume_repo, candidate_truth, config)`
 - **State Machine Guardrails:**
   1. *Employer Safety Gate:* Regex word-boundary check blocks Cognizant/CTS $\rightarrow$ marks `JobStatus.REJECTED`.
-  2. *Pre-Flight Atomic Intent Lease:* Calls `app_repo.commit_preflight_lease(job_id)` to persist `JobStatus.APPLICATION_STARTED` to SQLite before invoking browser submission. In-flight leases count as applied to prevent duplicate attempts across crashes.
-  3. *Physical Idempotency:* Database enforces physical `UNIQUE(job_id)` constraint on `applications`.
+  2. *Pre-Flight Atomic Intent Lease & Expiration:* Calls `app_repo.commit_preflight_lease(job_id)` to persist `JobStatus.APPLICATION_STARTED` before invoking browser submission. In-flight leases expire after 15 minutes to allow automatic self-healing on crashes or timeouts. Existing `application_id` is atomically reused on retry to maintain SQLite foreign key integrity on `application_events`.
+  3. *Physical Idempotency:* Database enforces physical `UNIQUE(job_id)` constraint on `applications`. Re-application checks (`has_applied_to_company_and_title`) strictly match immutable terminal states (`APPLIED`, `APPLIED_CONFIRMED`), allowing retries of transiently halted opportunities.
   4. *Daily Limit Check:* Enforces `max_applications_per_day` (35) for direct on-platform applications. External portal opportunities are explicitly quota-exempt.
-  5. *Truth Question Resolver:* Answers resolved strictly from `candidate_facts.yaml` via [`CandidateAnswerResolver`](file:///c:/Users/2016tu/Desktop/Projects/Naukri/src/naukri/candidate_answer_resolver.py). Unresolved prompts transition to `JobStatus.NEEDS_DATA`.
+  5. *Truth Question Resolver:* Answers resolved strictly from `candidate_facts.yaml` via [`CandidateAnswerResolver`](file:///c:/Users/2016tu/Desktop/Projects/Naukri/src/naukri/candidate_answer_resolver.py). Unresolved prompts transition gracefully to `JobStatus.NEEDS_MANUAL_INTERVENTION`.
   6. *Barrier Gate:* Traps MFA/OTP/CAPTCHA/payment barriers $\rightarrow$ calls `release_or_fail_lease()` $\rightarrow$ marks `JobStatus.APPLICATION_BLOCKED`.
   7. *Live Confirmation:* Only marks `JobStatus.APPLIED_CONFIRMED` upon visual confirmation of the green `.already-applied` badge on listing reload or verified modal reference ID.
 
@@ -315,8 +327,9 @@ Naukri/
 - **Output Formats:** Markdown (`reports/daily/YYYY-MM-DD.md`) and rich responsive HTML (`reports/daily/YYYY-MM-DD.html`).
 - **Security & Structure:**
   - HTML-escapes all untrusted portal strings (company names, job titles) to prevent rendering defects or injection.
-  - Confirmed Applications Table: Displays verified submissions with Role, Company, Salary, Match %, and green **"Verify (Applied) →"** links to live listings.
-  - ⭐ High-Value External Opportunities Table: Highlights curated enterprise external portal opportunities with match scores, key architectural fit factors, and blue **"Apply on Company Portal →"** 1-click action buttons.
+  - **Confirmed Applications Table:** Displays verified submissions with Role, Company, Salary, Match %, and green **"Verify (Applied) →"** links to live listings.
+  - **Applications Requiring Screening Review:** Distinct amber-highlighted section for `JobStatus.NEEDS_MANUAL_INTERVENTION`, displaying candidate truth answers provided and direct **"View Listing →"** links for fast manual completion.
+  - **⭐ High-Value External Opportunities Table:** Strictly restricted to authentic external enterprise career portals (`url.hostname` not ending with `naukri.com`, e.g., Workday, JazzHR, Greenhouse). Displays match scores, key architectural fit factors, and blue **"Apply on Company Portal →"** 1-click action buttons.
   - Mobile-responsive styling with horizontal-scroll table wrappers for optimal mobile viewing.
 
 #### [`src/agents/interview_agent.py`](file:///c:/Users/2016tu/Desktop/Projects/Naukri/src/agents/interview_agent.py)
@@ -487,7 +500,7 @@ When opening a new conversation or session, execute the following fast-path:
    ```bash
    python -m pytest tests/unit
    ```
-   All 77 unit tests should pass in ~6 seconds (or `python -m pytest tests` for all 79 tests including integration tests in ~14 seconds).
+   All 86 unit tests should pass in ~7 seconds (or `python -m pytest tests` for all 88 tests including integration tests in ~15 seconds).
 
 3. **Verify Database Phase Gate:**
    ```bash

@@ -597,17 +597,14 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         if not drawer.is_visible():
                             break
 
-                        drawer_file_input = drawer.locator("input[type='file']")
-                        if drawer_file_input.count() > 0 and upload_file and Path(upload_file).exists():
-                            try:
-                                drawer_file_input.first.set_input_files(str(upload_file))
-                                logger.info(f"Uploaded resume in chatbot drawer: {upload_file}")
-                                time.sleep(2)
-                            except Exception:
-                                pass
-
                         drawer_text = drawer.inner_text().lower()
-                        if any(c in drawer_text for c in ["applied to", "successfully applied", "application sent", "thank you"]):
+                        if any(c in drawer_text for c in [
+                            "you have successfully applied",
+                            "successfully applied",
+                            "application has been sent",
+                            "application sent to recruiter",
+                            "your application is submitted",
+                        ]):
                             logger.info("Confirmation text observed in chatbot drawer.")
                             chat_confirmed = True
                             break
@@ -619,16 +616,39 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         if not bot_msgs:
                             bot_msgs = page.locator(".botItem .botMsg span, .botMsg span").all()
 
-                        if not bot_msgs:
+                        valid_bot_msgs = [
+                            m for m in bot_msgs
+                            if m.text_content() and m.text_content().strip() and m.text_content().strip() not in ["...", "typing", "• • •", "•••"]
+                        ]
+                        if not valid_bot_msgs:
                             time.sleep(2)
                             continue
 
-                        latest_q = bot_msgs[-1].text_content().strip()
+                        latest_q = valid_bot_msgs[-1].text_content().strip()
+
+                        # If only greeting is visible so far, wait for question to render
+                        if len(valid_bot_msgs) == 1 and ("thank you for showing interest" in latest_q.lower() or latest_q.lower().startswith("hi ")):
+                            time.sleep(2)
+                            continue
+
                         questions_detected.append({"turn": chat_turns, "question": latest_q})
 
                         if any(c in latest_q.lower() for c in ["successfully applied", "application sent", "applied to"]):
                             chat_confirmed = True
                             break
+
+                        # Check if recruiter specifically asks for resume / CV / document upload
+                        if any(w in latest_q.lower() for w in ["resume", "cv", "upload", "attach"]):
+                            drawer_file_input = drawer.locator("input[type='file']")
+                            if drawer_file_input.count() > 0 and upload_file and Path(upload_file).exists():
+                                try:
+                                    drawer_file_input.first.set_input_files(str(upload_file))
+                                    logger.info(f"Uploaded resume in chatbot drawer: {upload_file}")
+                                    time.sleep(2)
+                                    questions_answered[latest_q] = Path(upload_file).name
+                                    continue
+                                except Exception:
+                                    pass
 
                         # Resolve question strictly against candidate truth layer (Finding 4)
                         ans_res = resolver.resolve_question(latest_q)
@@ -652,7 +672,6 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
 
                         ans_val_str = str(ans_res.answer_value).strip()
                         ans_val_lower = ans_val_str.lower()
-                        text_area = page.locator(".textArea[contenteditable='true']").first
 
                         # Check if a chip / radio option matching the resolved answer is available
                         matching_chip = None
@@ -664,7 +683,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                 "xpath=.//*[translate(normalize-space(.), 'yes', 'YES')='YES']",
                                 "xpath=.//*[translate(normalize-space(.), 'true', 'TRUE')='TRUE']",
                                 ":text-is('Yes')", ":text-is('YES')",
-                                "button:has-text('Yes')", "span:has-text('Yes')", "div:has-text('Yes')"
+                                "button:has-text('Yes')", "span:has-text('Yes')", "div:has-text('Yes')", "label:has-text('Yes')"
                             ]:
                                 c = drawer.locator(sel).first
                                 if c.is_visible():
@@ -678,7 +697,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                 "xpath=.//*[translate(normalize-space(.), 'no', 'NO')='NO']",
                                 "xpath=.//*[translate(normalize-space(.), 'false', 'FALSE')='FALSE']",
                                 ":text-is('No')", ":text-is('NO')",
-                                "button:has-text('No')", "span:has-text('No')", "div:has-text('No')"
+                                "button:has-text('No')", "span:has-text('No')", "div:has-text('No')", "label:has-text('No')"
                             ]:
                                 c = drawer.locator(sel).first
                                 if c.is_visible():
@@ -692,7 +711,8 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                 f"xpath=.//*[normalize-space(.)='{ans_val_str}']",
                                 f":text-is('{ans_val_str}')",
                                 f"button:has-text('{ans_val_str}')",
-                                f"span:has-text('{ans_val_str}')"
+                                f"span:has-text('{ans_val_str}')",
+                                f"label:has-text('{ans_val_str}')"
                             ]:
                                 c = drawer.locator(sel).first
                                 if c.is_visible():
@@ -717,6 +737,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                 "xpath=.//*[normalize-space(.)='Continue'] | "
                                 "xpath=.//*[normalize-space(.)='Next'] | "
                                 "xpath=.//*[normalize-space(.)='Send'] | "
+                                "button:has-text('Save'), .save-btn, "
                                 ".sendMsg, div[id*='sendMsg']"
                             ).all()
                             for cb in confirm_btns:
@@ -733,33 +754,45 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             time.sleep(4)
                             continue
 
-                        if not text_area.is_visible():
+                        # Text input inside chatbot drawer
+                        chat_input = drawer.locator(
+                            "input[placeholder*='Type message'], "
+                            "input[placeholder*='message'], "
+                            "input[type='text'], "
+                            "textarea, "
+                            ".textArea[contenteditable='true']"
+                        ).first
+
+                        if not chat_input.is_visible():
                             time.sleep(2)
                             continue
 
                         try:
-                            text_area.click(force=True, timeout=5000)
+                            chat_input.click(force=True, timeout=5000)
                         except Exception:
                             try:
-                                page.evaluate("(el) => el.click()", text_area.element_handle())
+                                page.evaluate("(el) => el.click()", chat_input.element_handle())
                             except Exception:
                                 pass
                         time.sleep(0.5)
-                        text_area.fill(ans_val_str)
+                        chat_input.fill(ans_val_str)
                         time.sleep(0.5)
                         questions_answered[latest_q] = ans_val_str
 
-                        send_btn = page.locator(".sendMsg, div[id*='sendMsg']").first
-                        if send_btn.is_visible():
+                        save_or_send = drawer.locator(
+                            "button:has-text('Save'), .save-btn, "
+                            ".sendMsg, div[id*='sendMsg'], button:has-text('Send')"
+                        ).first
+                        if save_or_send.is_visible():
                             try:
-                                send_btn.click(force=True, timeout=5000)
+                                save_or_send.click(force=True, timeout=5000)
                             except Exception:
                                 try:
-                                    page.evaluate("(el) => el.click()", send_btn.element_handle())
+                                    page.evaluate("(el) => el.click()", save_or_send.element_handle())
                                 except Exception:
                                     pass
                         else:
-                            text_area.press("Enter")
+                            chat_input.press("Enter")
                         time.sleep(4)
 
                 # Step 7: Handle dynamic form inputs if standard modal is displayed
@@ -852,7 +885,17 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         final_url=page.url,
                         evidence_summary="Mandatory reload confirms official green '.already-applied' badge.",
                     )
-                elif chat_confirmed or intermediate_evidence.confirmed or "saveapply" in initial_url.lower() or any(c in initial_page_content.lower() for c in ["applied to", "application sent", "successfully applied"]):
+                elif chat_confirmed:
+                    evidence = VerificationEvidence(
+                        confirmed=True,
+                        status=JobStatus.APPLIED_CONFIRMED,
+                        verification_level="LEVEL_1_DIRECT_MODAL",
+                        confirmation_text="Chatbot recruiter application completed successfully",
+                        confirmation_reference="CHATBOT_CONFIRMED",
+                        final_url=page.url,
+                        evidence_summary="Recruiter chatbot drawer completed all questionnaire turns with confirmed submission.",
+                    )
+                elif intermediate_evidence.confirmed or "saveapply" in initial_url.lower() or any(c in initial_page_content.lower() for c in ["applied to", "application sent", "successfully applied"]):
                     # Weaker transient signal without reloaded badge -> SUBMISSION_UNVERIFIED
                     logger.warning(f"Submission had transient confirmation cues but green badge was not asserted on reload for {job.job_id}")
                     evidence = VerificationEvidence(

@@ -70,7 +70,16 @@ class ApplicationAgent:
             self.job_repo.update_status(job_id, JobStatus.REJECTED)
             return ApplicationOutcome(job_id, False, JobStatus.REJECTED, f"Blocked current employer: {job.company}")
 
-        # 0b. External Portal Opportunities Handling (Does not consume direct on-platform apply quota)
+        # 0b. Idempotency Check: prevent duplicate application
+        if self.app_repo.has_applied_to_job(job_id):
+            logger.info(f"Idempotency Guard: Application already exists for job {job_id}. Skipping.")
+            return ApplicationOutcome(job_id, False, JobStatus.APPLIED, "Duplicate application skipped")
+
+        if self.app_repo.has_applied_to_company_and_title(job.company, job.title):
+            logger.info(f"Idempotency Guard: Already applied to '{job.title}' @ '{job.company}'. Skipping duplicate application.")
+            return ApplicationOutcome(job_id, False, JobStatus.APPLIED, "Duplicate application skipped (already applied)")
+
+        # 0c. External Portal Opportunities Handling (Does not consume direct on-platform apply quota)
         if job.status == JobStatus.EXTERNAL_APPLICATION_REQUIRED:
             app_rec = self.app_repo.get_by_job_id(job_id)
             if not app_rec:
@@ -106,15 +115,6 @@ class ApplicationAgent:
             return ApplicationOutcome(
                 job_id, True, JobStatus.EXTERNAL_APPLICATION_REQUIRED, "External company career portal application required", app_record
             )
-
-        # 1. Idempotency Check: prevent duplicate application
-        if self.app_repo.has_applied_to_job(job_id):
-            logger.info(f"Idempotency Guard: Application already exists for job {job_id}. Skipping.")
-            return ApplicationOutcome(job_id, False, JobStatus.APPLIED, "Duplicate application skipped")
-
-        if self.app_repo.has_applied_to_company_and_title(job.company, job.title):
-            logger.info(f"Idempotency Guard: Already applied to '{job.title}' @ '{job.company}'. Skipping duplicate application.")
-            return ApplicationOutcome(job_id, False, JobStatus.APPLIED, "Duplicate application skipped (already applied)")
 
         # 2. Daily Application Limit Check
         applied_today = self.app_repo.count_applications_today()

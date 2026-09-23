@@ -129,9 +129,7 @@ class Orchestrator:
                 qualifying_jobs.sort(key=lambda item: item[1].overall_score, reverse=True)
                 qualified_jobs_count = len(qualifying_jobs)
 
-                # 3. TAILOR RESUME & APPLY FOR QUALIFYING JOBS
                 for job, score, evidence in qualifying_jobs:
-                    matched_items_for_briefing.append((job, score, evidence))
                     # Tailor ATS Resume (DOCX & PDF)
                     docx_path, pdf_path, val_report = resume_agent.generate_tailored_resume(job, score)
                     resumes_generated += 1
@@ -142,9 +140,11 @@ class Orchestrator:
                     status = outcome.status
 
                     # If skipped because already applied in previous session, do not count as new or include in report
-                    if "already applied" in (outcome.reason or "").lower() or (rec and "already applied" in (rec.failure_reason or "").lower()):
+                    if status == JobStatus.APPLIED or "already applied" in (outcome.reason or "").lower() or (rec and "already applied" in (rec.failure_reason or "").lower()):
                         logger.info(f"Job already applied in past session: '{job.title}' @ {job.company}. Excluded from today's report.")
                         continue
+
+                    matched_items_for_briefing.append((job, score, evidence))
 
                     applications_attempted += 1
                     if status == JobStatus.APPLIED_CONFIRMED:

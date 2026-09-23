@@ -511,7 +511,13 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         dry_run=False,
                     )
 
-                apply_button.click()
+                try:
+                    apply_button.click(force=True, timeout=5000)
+                except Exception:
+                    try:
+                        page.evaluate("(el) => el.click()", apply_button.element_handle())
+                    except Exception:
+                        pass
                 time.sleep(3)
 
                 # Step 6: Handle Chatbot Recruiter Drawer if present
@@ -580,12 +586,24 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                 matching_chip = chip
 
                         if matching_chip:
-                            matching_chip.click()
+                            try:
+                                matching_chip.click(force=True, timeout=5000)
+                            except Exception:
+                                try:
+                                    page.evaluate("(el) => el.click()", matching_chip.element_handle())
+                                except Exception:
+                                    pass
                             time.sleep(1)
                             save_btn = drawer.locator("xpath=.//*[normalize-space(text())='Save']").all()
                             for sb in save_btn:
                                 if sb.is_visible():
-                                    sb.click()
+                                    try:
+                                        sb.click(force=True, timeout=5000)
+                                    except Exception:
+                                        try:
+                                            page.evaluate("(el) => el.click()", sb.element_handle())
+                                        except Exception:
+                                            pass
                                     break
                             questions_answered[latest_q] = ans_val_str
                             time.sleep(4)
@@ -595,7 +613,13 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             time.sleep(2)
                             continue
 
-                        text_area.click()
+                        try:
+                            text_area.click(force=True, timeout=5000)
+                        except Exception:
+                            try:
+                                page.evaluate("(el) => el.click()", text_area.element_handle())
+                            except Exception:
+                                pass
                         time.sleep(0.5)
                         text_area.fill(ans_val_str)
                         time.sleep(0.5)
@@ -603,7 +627,13 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
 
                         send_btn = page.locator(".sendMsg, div[id*='sendMsg']").first
                         if send_btn.is_visible():
-                            send_btn.click()
+                            try:
+                                send_btn.click(force=True, timeout=5000)
+                            except Exception:
+                                try:
+                                    page.evaluate("(el) => el.click()", send_btn.element_handle())
+                                except Exception:
+                                    pass
                         else:
                             text_area.press("Enter")
                         time.sleep(4)
@@ -650,7 +680,13 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
 
                 submit_btn = page.locator("button:has-text('Submit'), button:has-text('Apply Now'), button:has-text('Send Application')").first
                 if submit_btn.is_visible():
-                    submit_btn.click()
+                    try:
+                        submit_btn.click(force=True, timeout=5000)
+                    except Exception:
+                        try:
+                            page.evaluate("(el) => el.click()", submit_btn.element_handle())
+                        except Exception:
+                            pass
                     time.sleep(4)
 
                 # Step 8: Verify Confirmation Evidence via Mandatory Canonical Reload (Finding 1)

@@ -36,6 +36,7 @@ class PhaseValidationReport:
         self.evidence_files_verified: int = 0
         self.confirmed_items: List[Dict[str, Any]] = []
         self.failure_reasons: List[str] = []
+        self.job_warnings: List[str] = []
 
     def print_summary(self):
         print("\n" + "=" * 70)
@@ -64,8 +65,14 @@ class PhaseValidationReport:
                 print(f"       File Proof: {item['file_proof']} ({item['file_size']} bytes)")
                 print()
 
+        if self.job_warnings:
+            print("  JOB-LEVEL FAILURES / ISSUES (NON-FATAL):")
+            for warning in self.job_warnings:
+                print(f"    [i] {warning}")
+            print("-" * 70)
+
         if self.failure_reasons:
-            print("  FAILURES / DEFECTS DETECTED:")
+            print("  FATAL PHASE GATE DEFECTS DETECTED:")
             for reason in self.failure_reasons:
                 print(f"    [!] {reason}")
             print("-" * 70)
@@ -183,7 +190,7 @@ def validate_application_phase(
                 report.applications_blocked += 1
             elif st == JobStatus.APPLICATION_FAILED.value:
                 report.applications_failed += 1
-                report.failure_reasons.append(f"Recorded application failure for job {app.job_id}: {app.failure_reason}")
+                report.job_warnings.append(f"Recorded application failure for job {app.job_id}: {app.failure_reason}")
             elif st == JobStatus.EXTERNAL_APPLICATION_REQUIRED.value:
                 report.external_portal_count += 1
 

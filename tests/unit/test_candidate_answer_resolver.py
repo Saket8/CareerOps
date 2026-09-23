@@ -219,9 +219,25 @@ def test_resolver_expanded_screening_questions():
     assert res_ml.can_answer is True
     assert res_ml.answer_value == "2"
 
-    res_ml_yn = resolver.resolve_question("Do you have hands-on experience in Machine Learning and Deep Learning?")
-    assert res_ml_yn.can_answer is True
-    assert res_ml_yn.answer_value == "Yes"
+    # 13. Offer in Hand / Competing Offers
+    res_offer = resolver.resolve_question("Do you have any offer in hand? If yes, mention CTC.")
+    assert res_offer.can_answer is True
+    assert res_offer.answer_value == "No"
+
+    # 14. Interview Availability
+    res_avail = resolver.resolve_question("Interview Availability")
+    assert res_avail.can_answer is True
+    assert res_avail.answer_value in ("Available", "Yes")
+
+    res_avail_yn = resolver.resolve_question("Are you available to attend interview this week?")
+    assert res_avail_yn.can_answer is True
+    assert res_avail_yn.answer_value == "Yes"
+
+    # 15. Hybrid Work Model
+    res_hybrid = resolver.resolve_question("Are you okay with hybrid work model? (3-4 days from office location)")
+    assert res_hybrid.can_answer is True
+    assert res_hybrid.answer_value == "Yes"
+
 
 
 

@@ -284,7 +284,15 @@ class CandidateAnswerResolver:
                 field_type=field_type,
             )
 
-        # 4. Preferred Location / Pan India / Current Location
+        # 4a. Hybrid Work Model / Flexibility
+        if any(term in q_lower for term in ["hybrid", "work from office", "wfo", "work mode", "hybrid work model"]):
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="Yes",
+                field_type=field_type,
+            )
+
+        # 4b. Preferred Location / Pan India / Current Location
         if any(term in q_lower for term in ["preferred location", "preferred work location", "open to location", "pan india", "flexible with location"]):
             return FormQuestionAnswerResult(
                 can_answer=True,
@@ -292,7 +300,13 @@ class CandidateAnswerResolver:
                 field_type=field_type,
             )
 
-        if any(term in q_lower for term in ["location", "city", "residing", "residence", "where are you located"]):
+        if "hybrid" not in q_lower and any(term in q_lower for term in ["location", "city", "residing", "residence", "where are you located"]):
+            if self._is_yes_no_inquiry(q_lower):
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value="Yes",
+                    field_type=field_type,
+                )
             return FormQuestionAnswerResult(
                 can_answer=True,
                 answer_value=self.cand.location,
@@ -312,6 +326,28 @@ class CandidateAnswerResolver:
             return FormQuestionAnswerResult(
                 can_answer=True,
                 answer_value="Yes",
+                field_type=field_type,
+            )
+
+        # 6a. Offer in Hand / Competing Offers
+        if any(term in q_lower for term in ["offer in hand", "holding an offer", "any offer", "competing offer", "other offers", "offers in hand", "current offer"]):
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="No",
+                field_type=field_type,
+            )
+
+        # 6b. Interview Availability
+        if any(term in q_lower for term in ["interview availability", "availability for interview", "available for interview", "available to attend interview", "attend interview"]):
+            if self._is_yes_no_inquiry(q_lower):
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value="Yes",
+                    field_type=field_type,
+                )
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="Available",
                 field_type=field_type,
             )
 

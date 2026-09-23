@@ -668,6 +668,12 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             chat_confirmed = True
                             break
 
+                        # If this question was already answered on a previous turn, wait for bot response
+                        if latest_q in questions_answered:
+                            logger.info(f"Question '{latest_q}' was already answered. Waiting for bot reply...")
+                            time.sleep(3)
+                            continue
+
                         # Check if recruiter specifically asks for resume / CV / document upload
                         if any(w in latest_q.lower() for w in ["resume", "cv", "upload", "attach"]):
                             drawer_file_input = drawer.locator("input[type='file']")
@@ -680,13 +686,15 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
 
                                     # Confirm file upload by clicking Save / Send / Submit / Continue
                                     for btn_sel in [
-                                        "button:has-text('Save')", ".save-btn",
+                                        "button:has-text('Save')", ".save-btn", "button[class*='save']",
                                         "button:has-text('Submit')",
                                         "button:has-text('Continue')",
                                         "button:has-text('Send')",
                                         ".sendMsg", "div[id*='sendMsg']"
                                     ]:
                                         btn = drawer.locator(btn_sel).first
+                                        if not btn.is_visible():
+                                            btn = page.locator(btn_sel).first
                                         if btn.is_visible():
                                             try:
                                                 btn.click(force=True, timeout=5000)
@@ -789,10 +797,16 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                     page.evaluate("(el) => el.click()", matching_chip.element_handle())
                                 except Exception:
                                     pass
+                            try:
+                                radio_inp = matching_chip.locator("input[type='radio'], input[type='checkbox']").first
+                                if radio_inp.count() > 0:
+                                    radio_inp.check(force=True, timeout=2000)
+                            except Exception:
+                                pass
                             time.sleep(1)
                             # Confirm or submit choice if a button is presented
                             for btn_sel in [
-                                "button:has-text('Save')", ".save-btn",
+                                "button:has-text('Save')", ".save-btn", "button[class*='save']",
                                 "button:has-text('Submit')",
                                 "button:has-text('Continue')",
                                 "button:has-text('Next')",
@@ -800,6 +814,8 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                 ".sendMsg", "div[id*='sendMsg']"
                             ]:
                                 cb = drawer.locator(btn_sel).first
+                                if not cb.is_visible():
+                                    cb = page.locator(btn_sel).first
                                 if cb.is_visible():
                                     try:
                                         cb.click(force=True, timeout=5000)
@@ -818,8 +834,10 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             "input[placeholder*='Type message'], "
                             "input[placeholder*='message'], "
                             "input[type='text'], "
+                            "input[type='number'], "
                             "textarea, "
-                            ".textArea[contenteditable='true']"
+                            ".textArea[contenteditable='true'], "
+                            "input:not([type='file']):not([type='radio']):not([type='checkbox'])"
                         ).first
 
                         if not chat_input.is_visible():
@@ -839,9 +857,11 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         questions_answered[latest_q] = ans_val_str
 
                         save_or_send = drawer.locator(
-                            "button:has-text('Save'), .save-btn, "
-                            ".sendMsg, div[id*='sendMsg'], button:has-text('Send')"
+                            "button:has-text('Save'), .save-btn, button[class*='save'], "
+                            ".sendMsg, div[id*='sendMsg'], button:has-text('Send'), button:has-text('Submit'), button:has-text('Continue')"
                         ).first
+                        if not save_or_send.is_visible():
+                            save_or_send = page.locator("button:has-text('Save'), .save-btn, button[class*='save'], .sendMsg, button:has-text('Send')").first
                         if save_or_send.is_visible():
                             try:
                                 save_or_send.click(force=True, timeout=5000)

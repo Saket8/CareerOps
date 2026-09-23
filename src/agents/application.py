@@ -137,7 +137,8 @@ class ApplicationAgent:
 
         # 4. Pre-Flight Atomic Lease Persistence (Durability Invariant)
         self.job_repo.update_status(job_id, JobStatus.APPLICATION_READY)
-        app_id = f"app_{job_id}_{int(datetime.now(timezone.utc).timestamp())}"
+        existing_app = self.app_repo.get_by_job_id(job_id)
+        app_id = existing_app.application_id if existing_app else f"app_{job_id}_{int(datetime.now(timezone.utc).timestamp())}"
         resume_version = self.resume_repo.get_by_job_id(job_id)
         version_id = resume_version.version_id if resume_version else None
 

@@ -57,7 +57,7 @@ class ApplicationRepository:
         record.status = JobStatus.APPLICATION_STARTED
         db_app = self.record_application(record, commit=True)
         self.log_event(
-            record.application_id,
+            db_app.application_id,
             "APPLICATION_READY",
             JobStatus.APPLICATION_STARTED.value,
             "Committed pre-flight application lease before browser submission",
@@ -89,6 +89,7 @@ class ApplicationRepository:
         method_val = record.application_method.value if hasattr(record.application_method, "value") else str(record.application_method)
 
         if existing:
+            record.application_id = existing.application_id
             existing.status = status_val
             existing.application_method = method_val
             existing.source_job_url = record.source_job_url

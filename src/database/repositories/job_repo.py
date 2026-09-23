@@ -187,6 +187,14 @@ class JobRepository:
         self.session.flush()
         return db_evidence
 
+    def get_score(self, job_id: str) -> Optional[JobScoreModel]:
+        """Fetch score by job ID."""
+        return self.session.query(JobScoreModel).filter(JobScoreModel.job_id == job_id).first()
+
+    def get_evidence(self, job_id: str) -> Optional[JobEvidenceModel]:
+        """Fetch evidence by job ID."""
+        return self.session.query(JobEvidenceModel).filter(JobEvidenceModel.job_id == job_id).first()
+
     def get_jobs_by_status(self, status: JobStatus) -> List[JobModel]:
         """Fetch all jobs matching a specific status."""
         return self.session.query(JobModel).filter(JobModel.status == status.value).all()

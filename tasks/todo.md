@@ -260,4 +260,27 @@
   - [x] Update `tasks/lessons.md` with operational rule for range ceiling acceptance
   - [x] Update `walkthrough.md`
 
+### Phase 24: Comprehensive Architecture Specification Synchronization
+- [x] **Phase 24.1: Synchronize System Invariants, Guardrails & Core Flow**
+  - [x] Update Invariant 4 with Salary Range Ceiling Rule (max ceiling >= floor eligible)
+  - [x] Update test suite and database metrics across document headers and summaries
+  - [x] Update Mermaid architecture flow with pre-flight atomic lease & full-JD confidence gating
+- [x] **Phase 24.2: Update Directory Tree & Component Deep-Dives**
+  - [x] Document new test modules (`test_playwright_selector_contracts.py`, `test_mock_browser_flow.py`)
+  - [x] Update `ApplicationVerifier` Level-3 badge requirement & demotion of text heuristics
+  - [x] Update `ApplicationAgent` pre-flight lease (`APPLICATION_STARTED`) & physical `UNIQUE(job_id)`
+  - [x] Document fail-closed authentication and explicit barrier handling (MFA/OTP/payment)
+  - [x] Document full-JD confidence gating (score capping at 74% if JD < 50 chars)
+  - [x] Document truth-driven form answer resolution (zero hardcoded fallbacks) and verified PDF upload
+  - [x] Document HTML string escaping in reports & external opportunities quota exemption
+  - [x] Document proof-based phase gate validation with physical visual evidence check
+- [x] **Phase 24.3: Synchronize Database Schema, CI/CD Specification & Resume Fast-Path**
+  - [x] Update ER diagram and schema with `uq_applications_job_id`, WAL mode, foreign keys, and zero-seed policy
+  - [x] Update GitHub Actions workflow specification (runner-scoped caching, `gh run download` fallback, 90-day artifact upload, `--dry-run` dispatch parameter)
+  - [x] Update Section 7 fast-path metrics (77 unit tests, 79 total, 15 confirmed live applications, 5 external opportunities)
+- [x] **Phase 24.4: Validation & Verification**
+  - [x] Run test suite (`pytest`) and phase validator (`main.py --validate-phase`)
+  - [x] Verify markdown links and document rendering
+
+
 

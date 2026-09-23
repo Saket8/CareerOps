@@ -209,3 +209,158 @@ def test_discovery_skips_already_applied_jobs(test_db_session):
     assert res.duplicates_skipped == 2
     assert len(res.eligible_jobs) == 1
     assert res.eligible_jobs[0].job_id == "new_opportunity_1"
+
+
+def test_discovery_retries_failed_and_unapplied_jobs(test_db_session):
+    from unittest.mock import MagicMock
+    from src.naukri.interface import BaseNaukriClient
+    from src.utils.salary_parser import parse_salary
+
+    job_repo = JobRepository(test_db_session)
+
+    # 1. Pre-seed DB with jobs in various states
+    # Nagarro: APPLICATION_FAILED
+    nagarro_job = JobListing(
+        job_id="nagarro_fail_001",
+        title="Architect- Generative AI",
+        company="Nagarro",
+        location="Bengaluru",
+        url="https://www.naukri.com/job-listings-nagarro-fail-001",
+        salary=parse_salary("40-60 Lacs PA", 30.0),
+        status=JobStatus.APPLICATION_FAILED,
+        has_full_jd=True,
+        jd_text="Enterprise Generative AI architect with LLMs, RAG, and cloud architecture.",
+    )
+    job_repo.save_job(nagarro_job)
+
+    # Quest Global: NEEDS_MANUAL_INTERVENTION
+    quest_job = JobListing(
+        job_id="quest_manual_002",
+        title="AI Architect",
+        company="Quest Global",
+        location="Bengaluru",
+        url="https://www.naukri.com/job-listings-quest-manual-002",
+        salary=parse_salary("35-50 Lacs PA", 30.0),
+        status=JobStatus.NEEDS_MANUAL_INTERVENTION,
+        has_full_jd=True,
+        jd_text="Enterprise AI solution architect with multi-cloud and system design.",
+    )
+    job_repo.save_job(quest_job)
+
+    # InApp: Falsely marked EXTERNAL_APPLICATION_REQUIRED with internal Naukri URL
+    inapp_job = JobListing(
+        job_id="inapp_internal_003",
+        title="Architect Identity Governance",
+        company="InApp",
+        location="Kochi",
+        url="https://www.naukri.com/job-listings-inapp-internal-003",
+        salary=parse_salary("30-45 Lacs PA", 30.0),
+        status=JobStatus.EXTERNAL_APPLICATION_REQUIRED,
+        has_full_jd=True,
+        jd_text="Identity governance and administration architecture on Oracle Cloud.",
+    )
+    job_repo.save_job(inapp_job)
+
+    # Technogen: Genuine EXTERNAL_APPLICATION_REQUIRED with external domain
+    technogen_job = JobListing(
+        job_id="technogen_ext_004",
+        title="AI Architect",
+        company="Technogen India",
+        location="Bengaluru",
+        url="https://www.technogenindia.com/careers/?job_id=123",
+        canonical_url="https://www.technogenindia.com/careers/?job_id=123",
+        salary=parse_salary("35-50 Lacs PA", 30.0),
+        status=JobStatus.EXTERNAL_APPLICATION_REQUIRED,
+        has_full_jd=True,
+        jd_text="AI architect for enterprise solutions.",
+    )
+    job_repo.save_job(technogen_job)
+
+    # Already Confirmed: APPLIED_CONFIRMED
+    confirmed_job = JobListing(
+        job_id="maveric_applied_005",
+        title="OCI Architect",
+        company="Maveric",
+        location="Chennai",
+        url="https://www.naukri.com/job-listings-maveric-applied-005",
+        salary=parse_salary("35-45 Lacs PA", 30.0),
+        status=JobStatus.APPLIED_CONFIRMED,
+        has_full_jd=True,
+        jd_text="Oracle Cloud Infrastructure architecture.",
+    )
+    job_repo.save_job(confirmed_job)
+
+    # 2. Search returns all 5 jobs in new discovery run
+    client = MagicMock(spec=BaseNaukriClient)
+    client.search_jobs.return_value = [
+        JobListing(
+            job_id="nagarro_fail_001",
+            title="Architect- Generative AI",
+            company="Nagarro",
+            location="Bengaluru",
+            url="https://www.naukri.com/job-listings-nagarro-fail-001",
+            salary=parse_salary("40-60 Lacs PA", 30.0),
+        ),
+        JobListing(
+            job_id="quest_manual_002",
+            title="AI Architect",
+            company="Quest Global",
+            location="Bengaluru",
+            url="https://www.naukri.com/job-listings-quest-manual-002",
+            salary=parse_salary("35-50 Lacs PA", 30.0),
+        ),
+        JobListing(
+            job_id="inapp_internal_003",
+            title="Architect Identity Governance",
+            company="InApp",
+            location="Kochi",
+            url="https://www.naukri.com/job-listings-inapp-internal-003",
+            salary=parse_salary("30-45 Lacs PA", 30.0),
+        ),
+        JobListing(
+            job_id="technogen_ext_004",
+            title="AI Architect",
+            company="Technogen India",
+            location="Bengaluru",
+            url="https://www.technogenindia.com/careers/?job_id=123",
+            canonical_url="https://www.technogenindia.com/careers/?job_id=123",
+            salary=parse_salary("35-50 Lacs PA", 30.0),
+        ),
+        JobListing(
+            job_id="maveric_applied_005",
+            title="OCI Architect",
+            company="Maveric",
+            location="Chennai",
+            url="https://www.naukri.com/job-listings-maveric-applied-005",
+            salary=parse_salary("35-45 Lacs PA", 30.0),
+        ),
+    ]
+    # Verify that client.fetch_job_details is NOT called because cached JD text is reused!
+    client.fetch_job_details.side_effect = lambda j: j
+
+    config = {
+        "application": {"min_salary_lpa": 30.0},
+        "search": {
+            "queries": {"primary": ["AI Architect"]},
+            "locations": ["India"],
+        },
+    }
+
+    agent = DiscoveryAgent(client, job_repo, config)
+    res = agent.run_discovery(query_limit=10)
+
+    # 3. Assertions:
+    # Confirmed applied (Maveric) and genuine external (Technogen) are skipped
+    assert res.duplicates_skipped == 2
+    # Nagarro (failed), Quest (manual review), and InApp (internal) are eligible for retry!
+    assert len(res.eligible_jobs) == 3
+    eligible_ids = [j.job_id for j in res.eligible_jobs]
+    assert "nagarro_fail_001" in eligible_ids
+    assert "quest_manual_002" in eligible_ids
+    assert "inapp_internal_003" in eligible_ids
+
+    # Cached JD text was reused and preserved
+    nagarro_eligible = next(j for j in res.eligible_jobs if j.job_id == "nagarro_fail_001")
+    assert nagarro_eligible.has_full_jd is True
+    assert "LLMs, RAG" in nagarro_eligible.jd_text
+

@@ -21,13 +21,19 @@ class ApplicationRepository:
         app = self.get_by_job_id(job_id)
         if not app:
             return False
-        return app.status in (
-            JobStatus.APPLIED.value,
-            JobStatus.APPLIED_CONFIRMED.value,
-            JobStatus.APPLICATION_READY.value,
-            JobStatus.APPLICATION_STARTED.value,
-            JobStatus.SUBMISSION_ATTEMPTED.value,
-        )
+        if app.status in (JobStatus.APPLIED.value, JobStatus.APPLIED_CONFIRMED.value, JobStatus.APPLICATION_READY.value):
+            return True
+        # Check active unexpired lease (started within last 15 minutes)
+        if app.status in (JobStatus.APPLICATION_STARTED.value, JobStatus.SUBMISSION_ATTEMPTED.value):
+            if app.started_at:
+                now = datetime.now(timezone.utc)
+                started = app.started_at
+                if started.tzinfo is None:
+                    started = started.replace(tzinfo=timezone.utc)
+                age_minutes = (now - started).total_seconds() / 60.0
+                if age_minutes < 15:
+                    return True
+        return False
 
     def has_applied_to_company_and_title(self, company: str, title: str) -> bool:
         """Check if an application was submitted for the same company and title."""
@@ -40,8 +46,6 @@ class ApplicationRepository:
                 ApplicationModel.status.in_([
                     JobStatus.APPLIED.value,
                     JobStatus.APPLIED_CONFIRMED.value,
-                    JobStatus.APPLICATION_READY.value,
-                    JobStatus.APPLICATION_STARTED.value,
                 ]),
             )
             .first()

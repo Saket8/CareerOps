@@ -315,3 +315,19 @@
   - [x] Update `tasks/lessons.md` with lessons learned
   - [x] Commit, push to `origin/main`, trigger GitHub Actions CI, and monitor execution (Run 35848497124 passed)
 
+### Phase 27: Re-Discovery & Application Retry for Unapplied Jobs (TASK-003)
+- [x] **Phase 27.1: Discovery Deduplication Refinement & JD Cache Reuse**
+  - [x] Replace blanket `job_repo.exists` in `src/agents/discovery.py` with granular status-aware check
+  - [x] Allow re-evaluating jobs with `APPLICATION_FAILED`, `NEEDS_MANUAL_INTERVENTION`, `SUBMISSION_UNVERIFIED`, and internal jobs falsely marked `EXTERNAL_APPLICATION_REQUIRED`
+  - [x] Reuse cached `jd_text` from DB for re-evaluated jobs ($\ge 50$ chars)
+- [x] **Phase 27.2: Application Idempotency Lease Expiration**
+  - [x] Update `has_applied_to_job` in `src/database/repositories/application_repo.py` with 15-minute lease expiration for `APPLICATION_STARTED` / `SUBMISSION_ATTEMPTED`
+  - [x] Restrict `has_applied_to_company_and_title` strictly to `APPLIED` and `APPLIED_CONFIRMED`
+- [x] **Phase 27.3: Unit Test Suite & Validation**
+  - [x] Add unit test verifying unapplied / failed jobs in DB are re-discovered and passed to qualification
+  - [x] Run full pytest suite across unit and integration suites (88/88 tests passing)
+- [/] **Phase 27.4: Live Verification via GitHub Actions CI**
+  - [ ] Commit, push to `origin/main`, trigger GitHub Actions workflow run, and monitor live execution
+
+
+

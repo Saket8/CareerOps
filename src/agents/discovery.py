@@ -113,11 +113,59 @@ class DiscoveryAgent:
                     result.duplicates_skipped += 1
                     continue
 
-                # 2. Deduplicate against database
-                if self.job_repo.exists(listing.job_id):
-                    logger.info(f"Job {listing.job_id} already exists in DB, skipping duplicate discovery")
-                    result.duplicates_skipped += 1
-                    continue
+                # 2. Check existing database record
+                existing_job = self.job_repo.get(listing.job_id)
+                if existing_job:
+                    # 2a. Skip if already successfully applied
+                    if existing_job.status in (JobStatus.APPLIED.value, JobStatus.APPLIED_CONFIRMED.value):
+                        logger.info(f"Job {listing.job_id} already applied in DB. Skipping.")
+                        result.duplicates_skipped += 1
+                        continue
+
+                    # 2b. Skip if previously rejected by salary (immutable criteria)
+                    if existing_job.status == JobStatus.SALARY_REJECTED.value:
+                        logger.info(f"Job {listing.job_id} previously rejected by salary in DB. Skipping.")
+                        result.duplicates_skipped += 1
+                        continue
+
+                    # 2c. Skip if blocked employer
+                    if self.is_blocked_company(existing_job.company):
+                        logger.info(f"Job {listing.job_id} from blocked employer '{existing_job.company}'. Skipping.")
+                        result.duplicates_skipped += 1
+                        continue
+
+                    # 2d. Skip if genuine external portal opportunity already recorded
+                    if existing_job.status == JobStatus.EXTERNAL_APPLICATION_REQUIRED.value:
+                        existing_url = (existing_job.canonical_url or existing_job.url or "").lower()
+                        # If the stored URL is truly external (non-Naukri domain), skip duplicate discovery
+                        if existing_url and not any(d in existing_url for d in ("naukri.com", "naukri.org")):
+                            logger.info(f"Job {listing.job_id} is an existing genuine external portal ({existing_job.company}). Skipping.")
+                            result.duplicates_skipped += 1
+                            continue
+                        else:
+                            # Stored as external with internal Naukri URL -> prior false classification! Re-evaluate!
+                            logger.info(
+                                f"Job {listing.job_id} was previously recorded as external with internal Naukri URL. "
+                                f"Re-evaluating for direct application."
+                            )
+
+                    # 2e. Skip if previously evaluated and rejected by qualification score with full JD
+                    if existing_job.status == JobStatus.REJECTED.value:
+                        if existing_job.jd_text and len(existing_job.jd_text.strip()) >= 50:
+                            logger.info(f"Job {listing.job_id} previously evaluated and rejected by score with full JD. Skipping.")
+                            result.duplicates_skipped += 1
+                            continue
+
+                    # 2f. Skip if already discovered in this state and neither failed nor unverified
+                    if existing_job.status in (JobStatus.SALARY_ELIGIBLE.value, JobStatus.DISCOVERED.value):
+                        logger.info(f"Job {listing.job_id} already discovered in DB ({existing_job.status}). Skipping duplicate.")
+                        result.duplicates_skipped += 1
+                        continue
+
+                    logger.info(
+                        f"Re-evaluating unapplied job {listing.job_id} ('{listing.title}' @ {listing.company}) "
+                        f"with prior status '{existing_job.status}' for application attempt."
+                    )
 
                 # 3. Early Salary Filter
                 if listing.salary.eligibility == SalaryEligibility.REJECTED:
@@ -127,12 +175,18 @@ class DiscoveryAgent:
                     logger.info(f"Rejected by salary: '{listing.title}' at {listing.company} ({listing.salary.raw_text})")
                     continue
 
-                # Salary is eligible (Disclosed >= 20 LPA OR Undisclosed)
+                # Salary is eligible (Disclosed >= 30 LPA OR Undisclosed)
                 listing.status = JobStatus.SALARY_ELIGIBLE
                 result.salary_eligible += 1
 
-                # 4. Fetch full JD
-                detailed_listing = self.client.fetch_job_details(listing)
+                # 4. Fetch full JD (reuse existing full JD from database if already present)
+                if existing_job and existing_job.jd_text and len(existing_job.jd_text.strip()) >= 50:
+                    listing.jd_text = existing_job.jd_text
+                    listing.has_full_jd = True
+                    detailed_listing = listing
+                else:
+                    detailed_listing = self.client.fetch_job_details(listing)
+
                 self.job_repo.save_job(detailed_listing)
                 result.eligible_jobs.append(detailed_listing)
                 logger.info(f"Accepted for qualification: '{detailed_listing.title}' at {detailed_listing.company} ({detailed_listing.salary.raw_text})")

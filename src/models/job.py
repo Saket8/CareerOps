@@ -83,6 +83,7 @@ class JobListing(BaseModel):
     source_platform: str = "naukri"
     application_method: str = "NAUKRI_DIRECT"
     status: JobStatus = JobStatus.DISCOVERED
+    is_already_applied: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

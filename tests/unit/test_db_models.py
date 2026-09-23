@@ -139,3 +139,38 @@ def test_run_repo(db_session):
     finished = run_repo.finish_run("run_101", status="SUCCESS", jobs_scanned=50, qualified_jobs=10)
     assert finished.status == "SUCCESS"
     assert finished.jobs_scanned == 50
+
+
+def test_job_and_app_repo_already_applied_checks(db_session):
+    job_repo = JobRepository(db_session)
+    app_repo = ApplicationRepository(db_session)
+
+    job = JobListing(
+        job_id="job_oci_applied_1",
+        title="OCI Solutions Architect",
+        company="Oracle Consulting",
+        location="Hyderabad",
+        url="https://naukri.com/job/oci1",
+        status=JobStatus.APPLIED_CONFIRMED,
+    )
+    job_repo.save_job(job)
+
+    # Verify JobRepository checks
+    assert job_repo.is_already_applied("job_oci_applied_1") is True
+    assert job_repo.has_applied_to_company_and_title("Oracle Consulting", "OCI Solutions Architect") is True
+    assert job_repo.has_applied_to_company_and_title("oracle consulting", "oci solutions architect") is True
+    assert job_repo.has_applied_to_company_and_title("Other Corp", "OCI Solutions Architect") is False
+
+    # Record Application
+    record = ApplicationRecord(
+        application_id="app_oci_1",
+        job_id="job_oci_applied_1",
+        status=JobStatus.APPLIED_CONFIRMED,
+        dry_run=False,
+    )
+    app_repo.record_application(record, commit=True)
+
+    # Verify ApplicationRepository checks
+    assert app_repo.has_applied_to_job("job_oci_applied_1") is True
+    assert app_repo.has_applied_to_company_and_title("Oracle Consulting", "OCI Solutions Architect") is True
+    assert app_repo.has_applied_to_company_and_title("Different Inc", "OCI Solutions Architect") is False

@@ -135,3 +135,77 @@ def test_discovery_agent_run(test_db_session, test_mock_client):
     second_run = agent.run_discovery(query_limit=10)
     assert second_run.duplicates_skipped > 0
     assert len(second_run.eligible_jobs) == 0  # No new jobs added
+
+
+def test_discovery_skips_already_applied_jobs(test_db_session):
+    from unittest.mock import MagicMock
+    from src.naukri.interface import BaseNaukriClient
+    from src.utils.salary_parser import parse_salary
+
+    job_repo = JobRepository(test_db_session)
+
+    # 1. Pre-seed DB with an applied job
+    pre_applied_job = JobListing(
+        job_id="job_pre_applied_999",
+        title="Senior Cloud Architect",
+        company="PreAppliedCorp",
+        location="Bengaluru",
+        url="https://naukri.com/job/999",
+        salary=parse_salary("35-45 LPA", 30.0),
+        status=JobStatus.APPLIED_CONFIRMED,
+    )
+    job_repo.save_job(pre_applied_job)
+
+    # 2. Mock client returning:
+    #    - job_1: has is_already_applied=True from search card
+    #    - job_2: matches pre_applied_job by company and title under different ID
+    #    - job_3: completely new job
+    client = MagicMock(spec=BaseNaukriClient)
+    client.search_jobs.return_value = [
+        JobListing(
+            job_id="card_applied_1",
+            title="AI Architect",
+            company="SomeCorp",
+            location="Remote",
+            url="https://naukri.com/job/card1",
+            salary=parse_salary("40-50 LPA", 30.0),
+            is_already_applied=True,
+        ),
+        JobListing(
+            job_id="reposted_999_different_id",
+            title="Senior Cloud Architect",
+            company="PreAppliedCorp",
+            location="Bengaluru",
+            url="https://naukri.com/job/999_new",
+            salary=parse_salary("35-45 LPA", 30.0),
+            is_already_applied=False,
+        ),
+        JobListing(
+            job_id="new_opportunity_1",
+            title="Lead OCI Architect",
+            company="BrandNewCorp",
+            location="Hyderabad",
+            url="https://naukri.com/job/new1",
+            salary=parse_salary("40-50 LPA", 30.0),
+            is_already_applied=False,
+            has_full_jd=True,
+            jd_text="Enterprise OCI cloud infrastructure architecture and migration.",
+        ),
+    ]
+    client.fetch_job_details.side_effect = lambda j: j
+
+    config = {
+        "application": {"min_salary_lpa": 30.0},
+        "search": {
+            "queries": {"primary": ["Cloud Architect"]},
+            "locations": ["India"],
+        },
+    }
+
+    agent = DiscoveryAgent(client, job_repo, config)
+    res = agent.run_discovery(query_limit=10)
+
+    # Assert that card-level applied and company-title applied were both skipped!
+    assert res.duplicates_skipped == 2
+    assert len(res.eligible_jobs) == 1
+    assert res.eligible_jobs[0].job_id == "new_opportunity_1"

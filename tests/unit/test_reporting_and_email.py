@@ -104,3 +104,31 @@ def test_smtp_mailer_mock_send(mock_smtp_class, monkeypatch):
     assert success is True
     assert mock_server.login.called
     assert mock_server.send_message.called
+
+
+def test_daily_report_generation_with_zero_applications(tmp_path):
+    agent = ReportingAgent(daily_dir=tmp_path / "daily", weekly_dir=tmp_path / "weekly")
+    now = datetime.now(timezone.utc)
+    data = DailyReportData(
+        run_id="run_zero_1",
+        date="2026-09-23",
+        start_time=now,
+        end_time=now,
+        dry_run=False,
+        jobs_scanned=200,
+        salary_rejected=30,
+        qualified_jobs=10,
+        strong_matches=5,
+        resumes_generated=0,
+        applications_submitted=0,
+        blocked_applications=0,
+        interview_packs_generated=0,
+        top_applications=[],
+    )
+    md_path, html_path, html_content = agent.generate_daily_report(data)
+
+    assert md_path.exists()
+    assert html_path.exists()
+    assert "No direct applications submitted in this run." in html_content
+    assert "Confirmed Applications (0)" in html_content
+    assert "None" not in html_content  # Verifies clean message instead of bare 'None'

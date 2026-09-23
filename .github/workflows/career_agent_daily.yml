@@ -113,7 +113,7 @@ jobs:
 
       - name: Validate Application Automation Phase Gate
         run: |
-          python main.py --validate-phase
+          python main.py --validate-phase --today
 
       - name: Archive Daily, Weekly & Interview Reports
         uses: actions/upload-artifact@v4

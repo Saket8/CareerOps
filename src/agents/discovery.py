@@ -96,6 +96,23 @@ class DiscoveryAgent:
                 seen_job_keys.add(listing.job_id)
                 seen_job_keys.add(dedup_key)
 
+                # 1b. Check if already applied directly on Naukri Search Card
+                if getattr(listing, "is_already_applied", False):
+                    logger.info(f"Job {listing.job_id} ('{listing.title}' @ {listing.company}) already marked as applied on Naukri card. Skipping.")
+                    result.duplicates_skipped += 1
+                    continue
+
+                # 1c. Check if candidate already applied in database (by job_id or company + role)
+                if self.job_repo.is_already_applied(listing.job_id):
+                    logger.info(f"Job {listing.job_id} already applied in DB. Skipping.")
+                    result.duplicates_skipped += 1
+                    continue
+
+                if self.job_repo.has_applied_to_company_and_title(listing.company, listing.title):
+                    logger.info(f"Candidate already applied to '{listing.title}' @ '{listing.company}'. Strictly skipping re-application.")
+                    result.duplicates_skipped += 1
+                    continue
+
                 # 2. Deduplicate against database
                 if self.job_repo.exists(listing.job_id):
                     logger.info(f"Job {listing.job_id} already exists in DB, skipping duplicate discovery")

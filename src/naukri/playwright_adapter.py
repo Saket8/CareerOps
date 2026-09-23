@@ -167,6 +167,15 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                     card_jd = f"{desc_snippet}\n{full_card_text}".strip() if (desc_snippet or full_card_text) else ""
                     has_full_jd = bool(len(card_jd) >= 50)
 
+                    # Check if already applied directly on the search card tuple
+                    is_card_applied = False
+                    applied_badges = t.locator(".already-applied, .applied, span[class*='already-applied'], span[class*='applied'], span:has-text('Applied')").all()
+                    for b in applied_badges:
+                        b_txt = b.text_content().strip().lower()
+                        if b_txt in ("applied", "already applied") or re.match(r"^applied\s+(\d+\s+days?\s+ago|today|yesterday|\d+\s+weeks?\s+ago)$", b_txt):
+                            is_card_applied = True
+                            break
+
                     listing = JobListing(
                         job_id=job_id,
                         title=title,
@@ -181,6 +190,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         posted_date="Recent",
                         discovered_via_query=query,
                         source_query=query,
+                        is_already_applied=is_card_applied,
                     )
                     listings.append(listing)
 
@@ -354,8 +364,16 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         time.sleep(2)
 
                 # Step 2: Check for Anti-Automation Challenges & Safety Barriers (Fail-Closed)
-                page_text = page.content().lower()
-                if any(x in page_text for x in ["recaptcha", "cf-turnstile", "verify you are human", "hcaptcha", "g-recaptcha"]):
+                body_visible_text = page.locator("body").inner_text().lower() if page.locator("body").count() > 0 else ""
+
+                # 2a. CAPTCHA / Bot Detection
+                has_captcha = False
+                if any(x in body_visible_text for x in ["verify you are human", "complete the security check to continue"]):
+                    has_captcha = True
+                elif page.locator("iframe[src*='recaptcha'], iframe[src*='hcaptcha'], iframe[src*='turnstile'], .cf-turnstile").count() > 0:
+                    has_captcha = True
+
+                if has_captcha:
                     page.screenshot(path=evidence_path)
                     browser.close()
                     logger.warning(f"CAPTCHA / Bot detection challenged on {canonical_url}")
@@ -373,7 +391,16 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         dry_run=False,
                     )
 
-                if any(x in page_text for x in ["otp verification", "enter otp", "enter the otp", "two-factor authentication", "mfa"]):
+                # 2b. Visible OTP / MFA Challenge (Targeted phrases & inputs only; zero false-positive on scripts)
+                otp_input = page.locator("input[name*='otp'], input[id*='otp'], input[placeholder*='otp'], .otp-container, .mfa-modal")
+                mfa_phrases = ["enter otp", "enter the otp", "two-factor authentication", "2-factor authentication", "otp verification", "verify with otp"]
+                has_mfa = False
+                if otp_input.count() > 0 and otp_input.first.is_visible():
+                    has_mfa = True
+                elif any(phrase in body_visible_text for phrase in mfa_phrases) and "otp" in body_visible_text:
+                    has_mfa = True
+
+                if has_mfa:
                     page.screenshot(path=evidence_path)
                     browser.close()
                     logger.warning(f"MFA/OTP barrier detected on {canonical_url}")
@@ -391,7 +418,8 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         dry_run=False,
                     )
 
-                if any(x in page_text for x in ["payment required", "application fee", "membership required", "upgrade to apply"]):
+                # 2c. Payment Walls
+                if any(x in body_visible_text for x in ["payment required", "application fee", "membership required", "upgrade to apply"]):
                     page.screenshot(path=evidence_path)
                     browser.close()
                     logger.warning(f"Payment barrier detected on {canonical_url}")
@@ -420,7 +448,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                 if is_already_applied:
                     page.screenshot(path=evidence_path)
                     browser.close()
-                    logger.info(f"Job already applied previously: {job.title} @ {job.company}")
+                    logger.info(f"Job already applied previously: {job.title} @ {job.company}. Skipping re-apply.")
                     return ApplicationRecord(
                         application_id=app_id,
                         job_id=job.job_id,
@@ -428,14 +456,15 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         source_job_url=job.url,
                         canonical_job_url=canonical_url,
                         started_at=started_at,
-                        submitted_at=datetime.now(timezone.utc),
-                        status=JobStatus.APPLIED_CONFIRMED,
-                        confirmation_detected=True,
-                        confirmation_text="Applied state confirmed on listing with badge",
+                        submitted_at=started_at,
+                        status=JobStatus.APPLIED,
+                        confirmation_detected=False,
+                        confirmation_text="Already applied in previous session",
                         confirmation_reference="ALREADY_APPLIED",
                         final_url=page.url,
-                        verification_method="LEVEL_3_BUTTON_ALREADY_APPLIED",
+                        verification_method="ALREADY_APPLIED_PREVIOUSLY",
                         evidence_path=evidence_path,
+                        failure_reason="Already applied in previous session; skipped re-apply",
                         dry_run=False,
                     )
 

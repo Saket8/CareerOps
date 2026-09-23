@@ -112,6 +112,10 @@ class ApplicationAgent:
             logger.info(f"Idempotency Guard: Application already exists for job {job_id}. Skipping.")
             return ApplicationOutcome(job_id, False, JobStatus.APPLIED, "Duplicate application skipped")
 
+        if self.app_repo.has_applied_to_company_and_title(job.company, job.title):
+            logger.info(f"Idempotency Guard: Already applied to '{job.title}' @ '{job.company}'. Skipping duplicate application.")
+            return ApplicationOutcome(job_id, False, JobStatus.APPLIED, "Duplicate application skipped (already applied)")
+
         # 2. Daily Application Limit Check
         applied_today = self.app_repo.count_applications_today()
         if applied_today >= self.max_applications_per_day:

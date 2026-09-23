@@ -138,9 +138,16 @@ class Orchestrator:
 
                     # Process Automated Application
                     outcome = application_agent.process_application(job, score, docx_path, pdf_path)
-                    applications_attempted += 1
+                    rec = outcome.app_record
                     status = outcome.status
-                    if status in (JobStatus.APPLIED, JobStatus.APPLIED_CONFIRMED):
+
+                    # If skipped because already applied in previous session, do not count as new or include in report
+                    if "already applied" in (outcome.reason or "").lower() or (rec and "already applied" in (rec.failure_reason or "").lower()):
+                        logger.info(f"Job already applied in past session: '{job.title}' @ {job.company}. Excluded from today's report.")
+                        continue
+
+                    applications_attempted += 1
+                    if status == JobStatus.APPLIED_CONFIRMED:
                         confirmed_count += 1
                     elif status == JobStatus.SUBMISSION_UNVERIFIED:
                         unverified_count += 1
@@ -154,7 +161,6 @@ class Orchestrator:
                         manual_count += 1
 
                     # Top application item with full audit evidence
-                    rec = outcome.app_record
                     method = rec.application_method if rec else "Naukri Direct"
                     ref = rec.confirmation_reference if rec else None
                     portal_url = (rec.external_application_url if (rec and rec.external_application_url) else job.url)
@@ -194,79 +200,11 @@ class Orchestrator:
                         html_body=w_html_content,
                     )
 
-                # 5. DAILY REPORTING & EMAIL NOTIFICATION
+                # 5. DAILY REPORTING & EMAIL NOTIFICATION (Today's Run Scope Only; Zero Historical Backfill)
                 end_time = datetime.now(timezone.utc)
 
-                # If no new applications occurred in this specific run (e.g. offline dry-run or scheduled run without new jobs),
-                # backfill top_applications from confirmed applications in the database so the candidate always receives
-                # an active dashboard of their verified applications.
-                # Ensure top_applications contains both confirmed applications and curated external opportunities
-                existing_urls = {a.url for a in top_applications if a.url}
-
-                # 1. Backfill confirmed applications if none in current run
-                if not any(a.status in (JobStatus.APPLIED_CONFIRMED.value, JobStatus.APPLIED.value) for a in top_applications):
-                    recent_applied = job_repo.get_jobs_by_status(JobStatus.APPLIED_CONFIRMED)
-                    import re
-                    for r_job in recent_applied:
-                        if not re.match(r"^\d+$", str(r_job.job_id)) or "job_oci_" in (r_job.url or "") or "nk_" in (r_job.url or ""):
-                            continue
-                        if r_job.url in existing_urls:
-                            continue
-                        app_rec = app_repo.get_by_job_id(r_job.job_id)
-                        top_applications.append(
-                            TopApplicationItem(
-                                company=r_job.company,
-                                role=r_job.title,
-                                salary=getattr(r_job, "salary_raw_text", None) or getattr(r_job, "salary_raw", None) or "Not Disclosed",
-                                match_score=85.0,
-                                key_factors=["Verified Live Application", "Confirmed on Naukri", "Authentic Listing"],
-                                resume_used="Saket_Saurav_Tailored.pdf",
-                                status=JobStatus.APPLIED_CONFIRMED.value,
-                                url=app_rec.canonical_job_url if app_rec and app_rec.canonical_job_url else r_job.url,
-                                method=app_rec.application_method if app_rec else "Naukri Direct",
-                                reason="",
-                                evidence_path=app_rec.evidence_path if app_rec else None,
-                                confirmation_ref=app_rec.confirmation_reference if app_rec else "ALREADY_APPLIED",
-                            )
-                        )
-                        existing_urls.add(r_job.url)
-
-                # 2. Backfill curated external opportunities if none in current run
-                if not any(a.status in (JobStatus.EXTERNAL_APPLICATION_REQUIRED.value, JobStatus.NEEDS_MANUAL_INTERVENTION.value) for a in top_applications):
-                    recent_external = job_repo.get_jobs_by_status(JobStatus.EXTERNAL_APPLICATION_REQUIRED)
-                    recent_manual = job_repo.get_jobs_by_status(JobStatus.NEEDS_MANUAL_INTERVENTION)
-                    import re
-                    for ext_job in (recent_external + recent_manual):
-                        if not re.match(r"^\d+$", str(ext_job.job_id)) or "job_oci_" in (ext_job.url or "") or "nk_" in (ext_job.url or ""):
-                            continue
-                        if ext_job.url in existing_urls:
-                            continue
-                        app_rec = app_repo.get_by_job_id(ext_job.job_id)
-                        score_rec = ext_job.score
-                        factors = score_rec.strengths[:3] if (score_rec and score_rec.strengths) else ["High architecture alignment", "Enterprise Cloud / AI Role"]
-                        match_score = score_rec.overall_score if score_rec else 88.0
-                        portal_url = (app_rec.external_application_url if (app_rec and app_rec.external_application_url) else ext_job.url)
-                        top_applications.append(
-                            TopApplicationItem(
-                                company=ext_job.company,
-                                role=ext_job.title,
-                                salary=getattr(ext_job, "salary_raw_text", None) or getattr(ext_job, "salary_raw", None) or "Not Disclosed",
-                                match_score=match_score,
-                                key_factors=factors,
-                                resume_used="Saket_Saurav_Tailored.pdf",
-                                status=ext_job.status,
-                                url=portal_url,
-                                method=app_rec.application_method if app_rec else "EXTERNAL_PORTAL",
-                                reason=app_rec.failure_reason if app_rec else "Application must be completed on external company career portal",
-                                evidence_path=app_rec.evidence_path if app_rec else None,
-                                confirmation_ref=None,
-                            )
-                        )
-                        existing_urls.add(ext_job.url)
-                        existing_urls.add(portal_url)
-
-                # Recompute summary counts from consolidated top_applications
-                confirmed_count = len([a for a in top_applications if a.status in (JobStatus.APPLIED_CONFIRMED.value, JobStatus.APPLIED.value)])
+                # Recompute summary counts strictly from current run's top_applications
+                confirmed_count = len([a for a in top_applications if a.status == JobStatus.APPLIED_CONFIRMED.value])
                 unverified_count = len([a for a in top_applications if a.status == JobStatus.SUBMISSION_UNVERIFIED.value])
                 blocked_count = len([a for a in top_applications if a.status in (JobStatus.APPLICATION_BLOCKED.value, JobStatus.BLOCKED.value)])
                 failed_count = len([a for a in top_applications if a.status in (JobStatus.APPLICATION_FAILED.value, JobStatus.FAILED.value)])

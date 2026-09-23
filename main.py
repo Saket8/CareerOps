@@ -24,6 +24,7 @@ def main():
     parser.add_argument("--offline", action="store_true", help="Run with offline verified test dataset")
     parser.add_argument("--query-limit", type=int, default=15, help="Max jobs to evaluate per search query")
     parser.add_argument("--validate-phase", action="store_true", help="Run Section 24 Phase Gate Audit on application records")
+    parser.add_argument("--today", action="store_true", help="Scope phase validation strictly to today's applications")
     parser.add_argument("--cleanup", "--apply-retention", dest="cleanup", action="store_true", help="Execute retention policy to purge stale data and reclaim storage")
     parser.add_argument("--interview-briefing", "--force-interview", dest="force_interview", action="store_true", help="Force generation and email dispatch of consolidated daily interview briefing")
 
@@ -31,7 +32,8 @@ def main():
 
     if args.validate_phase:
         from src.cli.phase_validator import validate_application_phase
-        success = validate_application_phase()
+        date_scope = "today" if args.today else None
+        success = validate_application_phase(date_scope=date_scope)
         sys.exit(0 if success else 1)
 
     config = load_config()

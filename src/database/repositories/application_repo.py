@@ -5,7 +5,7 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from src.database.models import ApplicationModel, ApplicationEventModel
+from src.database.models import ApplicationModel, ApplicationEventModel, JobModel
 from src.models.job import ApplicationRecord, JobStatus
 
 
@@ -27,6 +27,25 @@ class ApplicationRepository:
             JobStatus.APPLICATION_READY.value,
             JobStatus.APPLICATION_STARTED.value,
             JobStatus.SUBMISSION_ATTEMPTED.value,
+        )
+
+    def has_applied_to_company_and_title(self, company: str, title: str) -> bool:
+        """Check if an application was submitted for the same company and title."""
+        return (
+            self.session.query(ApplicationModel)
+            .join(JobModel, ApplicationModel.job_id == JobModel.job_id)
+            .filter(
+                func.lower(JobModel.company) == company.lower().strip(),
+                func.lower(JobModel.title) == title.lower().strip(),
+                ApplicationModel.status.in_([
+                    JobStatus.APPLIED.value,
+                    JobStatus.APPLIED_CONFIRMED.value,
+                    JobStatus.APPLICATION_READY.value,
+                    JobStatus.APPLICATION_STARTED.value,
+                ]),
+            )
+            .first()
+            is not None
         )
 
     def commit_preflight_lease(self, record: ApplicationRecord) -> ApplicationModel:

@@ -32,6 +32,26 @@ class JobRepository:
             is not None
         )
 
+    def is_already_applied(self, job_id: str) -> bool:
+        """Check if job has already been applied to (APPLIED or APPLIED_CONFIRMED)."""
+        job = self.get(job_id)
+        if not job:
+            return False
+        return job.status in (JobStatus.APPLIED.value, JobStatus.APPLIED_CONFIRMED.value)
+
+    def has_applied_to_company_and_title(self, company: str, title: str) -> bool:
+        """Check if candidate already applied to this specific role and company."""
+        return (
+            self.session.query(JobModel)
+            .filter(
+                func.lower(JobModel.company) == company.lower().strip(),
+                func.lower(JobModel.title) == title.lower().strip(),
+                JobModel.status.in_([JobStatus.APPLIED.value, JobStatus.APPLIED_CONFIRMED.value]),
+            )
+            .first()
+            is not None
+        )
+
     def get(self, job_id: str) -> Optional[JobModel]:
         """Fetch job by ID."""
         return self.session.query(JobModel).filter(JobModel.job_id == job_id).first()

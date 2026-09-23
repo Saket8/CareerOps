@@ -137,7 +137,7 @@ Date: {data.date}
         # Clean, modern Responsive HTML format
         def build_table_rows(apps_list):
             if not apps_list:
-                return '<tr><td colspan="4" style="padding: 16px; text-align: center; color: #64748b;">None</td></tr>'
+                return '<tr><td colspan="4" style="padding: 16px; text-align: center; color: #64748b; font-style: italic;">No direct applications submitted in this run.</td></tr>'
             rows = []
             for app in apps_list:
                 is_confirmed = app.status in ("APPLIED_CONFIRMED", "APPLIED")

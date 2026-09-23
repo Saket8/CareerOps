@@ -282,5 +282,22 @@
   - [x] Run test suite (`pytest`) and phase validator (`main.py --validate-phase`)
   - [x] Verify markdown links and document rendering
 
+### Phase 25: Strict Already-Applied Rejection & False-Positive MFA Elimination
+- [x] **Phase 25.1: Multi-Layer Already-Applied Deduplication**
+  - [x] Add `has_applied_to_company_and_title` and `is_already_applied` to `job_repo.py` and `application_repo.py`
+  - [x] Implement SRP card `.already-applied` detection in `playwright_adapter.py`
+  - [x] Enforce strict skipping of previously applied jobs in `discovery.py`
+  - [x] Enforce strict pre-flight skipping of previously applied jobs in `application.py`
+- [x] **Phase 25.2: Eliminate False-Positive MFA/OTP Detection**
+  - [x] Replace broad substring `"mfa"` check on raw `page.content()` with visible text & input selectors in `playwright_adapter.py`
+  - [x] Distinguish `ALREADY_APPLIED` from new live application submission
+- [x] **Phase 25.3: Email Report Scoping (Today Only)**
+  - [x] Remove historical backfill of confirmed applications from `orchestrator.py`
+  - [x] Ensure 0-application runs report `Confirmed Applications (0)` honestly
+- [/] **Phase 25.4: CI Phase Gate Alignment & End-to-End Verification**
+  - [x] Update `career_agent_daily.yml` to pass `--today` to `--validate-phase`
+  - [x] Run test suite (`pytest`) and verify all tests pass (80/80 passed)
+  - [ ] Deploy to `main`, run GitHub Actions pipeline, and verify email dispatch
+
 
 

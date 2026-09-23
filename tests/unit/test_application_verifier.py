@@ -168,3 +168,33 @@ def test_verifier_loose_text_without_badge_or_ref_demoted_to_unverified():
     assert evidence.confirmed is False
     assert evidence.status == JobStatus.SUBMISSION_UNVERIFIED
     assert evidence.verification_level == "HEURISTIC_TEXT_UNVERIFIED"
+
+
+def test_verifier_no_false_login_barrier_on_authenticated_page():
+    verifier = ApplicationVerifier()
+    # Real authenticated listing page with footer links like "Candidate Login" and hidden login layer
+    html = """
+    <html>
+        <head><title>Architect - Generative AI - Nagarro - Bengaluru</title></head>
+        <body>
+            <div class="job-header">
+                <h1>Architect- Generative AI</h1>
+                <div class="company-name">Nagarro</div>
+                <button class="applied-btn already-applied"><span class="already-applied">Already Applied</span></button>
+            </div>
+            <div class="login-layer" style="display:none"></div>
+            <footer>
+                <a href="/nlogin/login">Candidate Login</a>
+                <a href="/employer/login">Employer Login</a>
+            </footer>
+        </body>
+    </html>
+    """
+    evidence = verifier.verify_submission(
+        page_content=html,
+        final_url="https://www.naukri.com/job-listings-architect-generative-ai-nagarro-bengaluru-020926022745",
+        page_title="Architect - Generative AI - Nagarro - Bengaluru",
+    )
+    assert evidence.confirmed is True
+    assert evidence.status == JobStatus.APPLIED_CONFIRMED
+    assert evidence.verification_level == "LEVEL_3_BUTTON_ALREADY_APPLIED"

@@ -78,7 +78,13 @@ class ApplicationVerifier:
                 evidence_summary="Anti-automation CAPTCHA / Bot detection challenge encountered.",
             )
 
-        if any(term in content_lower or term in title_lower for term in ["login to apply", "sign in to apply", "login-layer", "candidate login"]):
+        is_login_page = (
+            "/login" in url_lower
+            or "/nlogin" in url_lower
+            or any(t in title_lower for t in ["candidate login", "sign in", "login to apply"])
+            or bool(re.search(r'<(?:h1|h2|h3)[^>]*>\s*(?:login\s+to\s+apply|sign\s+in\s+to\s+apply)\s*<', page_content, re.IGNORECASE))
+        )
+        if is_login_page:
             logger.warning("Login barrier detected during verification")
             return VerificationEvidence(
                 confirmed=False,

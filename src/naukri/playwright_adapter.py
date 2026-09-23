@@ -524,19 +524,27 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
 
                 # Step 5: Click Apply Button on Naukri and monitor navigation
                 new_page = None
+
+                def _handle_popup(p):
+                    nonlocal new_page
+                    new_page = p
+
+                page.on("popup", _handle_popup)
+
                 try:
-                    with page.expect_popup(timeout=3000) as popup_info:
-                        primary_apply.click(force=True, timeout=5000)
-                    new_page = popup_info.value
+                    primary_apply.click(force=True, timeout=5000)
                 except Exception:
                     try:
-                        primary_apply.click(force=True, timeout=5000)
+                        page.evaluate("(el) => el.click()", primary_apply.element_handle())
                     except Exception:
-                        try:
-                            page.evaluate("(el) => el.click()", primary_apply.element_handle())
-                        except Exception:
-                            pass
-                time.sleep(3)
+                        pass
+
+                time.sleep(2)
+
+                try:
+                    page.remove_listener("popup", _handle_popup)
+                except Exception:
+                    pass
 
                 # Check if navigation or popup led to an external ATS domain
                 active_page = page
@@ -569,7 +577,18 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                     )
 
                 # Step 6: Handle Chatbot Recruiter Drawer if present
-                drawer = page.locator(".chatbot_Drawer")
+                drawer_selector = (
+                    ".chatbot_Drawer, .chatbot_wrapper, [class*='chatbot_Drawer'], "
+                    "[class*='chatbotWrapper'], .chat-drawer, div[class*='chatbot'], "
+                    "[class*='chatbot-container'], .chat-container"
+                )
+                try:
+                    page.wait_for_selector(drawer_selector, state="visible", timeout=3000)
+                except Exception:
+                    pass
+
+                drawer = page.locator(drawer_selector).first
+                chat_confirmed = False
                 if drawer.is_visible():
                     logger.info("Chatbot recruiter drawer detected. Answering screening questions...")
                     chat_turns = 0
@@ -588,11 +607,18 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                 pass
 
                         drawer_text = drawer.inner_text().lower()
-                        if any(c in drawer_text for c in ["applied to", "successfully applied", "application sent"]):
+                        if any(c in drawer_text for c in ["applied to", "successfully applied", "application sent", "thank you"]):
                             logger.info("Confirmation text observed in chatbot drawer.")
+                            chat_confirmed = True
                             break
 
-                        bot_msgs = page.locator(".botItem .botMsg span, .botMsg span").all()
+                        bot_msgs = drawer.locator(
+                            ".botItem .botMsg span, .botMsg span, .bot-msg-item .question-header, "
+                            "[class*='botMsg'] span, [class*='question'], .botItem span"
+                        ).all()
+                        if not bot_msgs:
+                            bot_msgs = page.locator(".botItem .botMsg span, .botMsg span").all()
+
                         if not bot_msgs:
                             time.sleep(2)
                             continue
@@ -601,6 +627,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         questions_detected.append({"turn": chat_turns, "question": latest_q})
 
                         if any(c in latest_q.lower() for c in ["successfully applied", "application sent", "applied to"]):
+                            chat_confirmed = True
                             break
 
                         # Resolve question strictly against candidate truth layer (Finding 4)
@@ -801,12 +828,19 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                 page.goto(canonical_url, timeout=35000, wait_until="networkidle")
                 time.sleep(2)
 
-                applied_badge = page.locator(".already-applied, span.already-applied, span[class*='already-applied']")
+                applied_badge = page.locator(
+                    ".already-applied, span.already-applied, span[class*='already-applied'], "
+                    "button.applied-btn, button[class*='already-applied'], "
+                    "button:has-text('Already Applied'), button:has-text('Applied')"
+                )
                 badge_confirmed = False
                 if applied_badge.count() > 0:
-                    badge_text = applied_badge.first.inner_text().strip().lower()
-                    if badge_text in ["applied", "already applied"]:
-                        badge_confirmed = True
+                    for ab in applied_badge.all():
+                        if ab.is_visible():
+                            badge_text = ab.inner_text().strip().lower()
+                            if badge_text in ["applied", "already applied"] or "applied" in badge_text:
+                                badge_confirmed = True
+                                break
 
                 if badge_confirmed:
                     evidence = VerificationEvidence(
@@ -818,7 +852,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         final_url=page.url,
                         evidence_summary="Mandatory reload confirms official green '.already-applied' badge.",
                     )
-                elif intermediate_evidence.confirmed or "saveapply" in initial_url.lower() or "applied to" in initial_page_content.lower():
+                elif chat_confirmed or intermediate_evidence.confirmed or "saveapply" in initial_url.lower() or any(c in initial_page_content.lower() for c in ["applied to", "application sent", "successfully applied"]):
                     # Weaker transient signal without reloaded badge -> SUBMISSION_UNVERIFIED
                     logger.warning(f"Submission had transient confirmation cues but green badge was not asserted on reload for {job.job_id}")
                     evidence = VerificationEvidence(

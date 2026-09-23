@@ -326,8 +326,21 @@
 - [x] **Phase 27.3: Unit Test Suite & Validation**
   - [x] Add unit test verifying unapplied / failed jobs in DB are re-discovered and passed to qualification
   - [x] Run full pytest suite across unit and integration suites (88/88 tests passing)
-- [/] **Phase 27.4: Live Verification via GitHub Actions CI**
-  - [ ] Commit, push to `origin/main`, trigger GitHub Actions workflow run, and monitor live execution
+- [x] **Phase 27.4: Live Verification via GitHub Actions CI**
+  - [x] Commit, push to `origin/main`, trigger GitHub Actions workflow run, and monitor live execution (Run 35852054146 passed)
 
-
-
+### Phase 28: Elimination of Double-Click Bug & False Login Barrier (TASK-004)
+- [/] **Phase 28.1: Playwright Adapter Single-Click & Non-Blocking Popup Capture**
+  - [ ] Replace blocking `with page.expect_popup(...)` with event-driven `page.on("popup", ...)` to eliminate TimeoutError and accidental double-clicks on Apply button
+  - [ ] Expand chatbot drawer selectors (`.chatbot_Drawer`, `.chatbot_wrapper`, `[class*='chatbot']`, `.chat-drawer`) with explicit 4000ms wait state
+  - [ ] Support message question selectors (`.botItem .botMsg span`, `.botMsg span`, `.bot-msg-item .question-header`, `div[class*='botMsg']`)
+- [/] **Phase 28.2: ApplicationVerifier False Login Barrier Elimination**
+  - [ ] Remove broad string matches (`"candidate login"`, `"login-layer"`) that trigger on legitimate authenticated Naukri pages
+  - [ ] Restrict login barrier detection strictly to `/login` URLs, explicit login page titles, or visible login form headings
+- [/] **Phase 28.3: Unit Test Suite Verification**
+  - [ ] Update and run pytest suite across unit and integration tests
+- [/] **Phase 28.4: Autonomous CI Execution & Email Delivery Audit Loop (/goal)**
+  - [ ] Commit, push to `origin/main`, trigger GitHub Actions CI
+  - [ ] Download and read the actual daily report and CI logs of what was delivered in the email
+  - [ ] Verify confirmed applications and unverified applications align with expectations
+  - [ ] Loop and refine if any issue remains until goal is fully completed

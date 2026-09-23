@@ -164,19 +164,23 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                     desc_snippet = desc_el.text_content().strip() if desc_el.count() > 0 else ""
                     full_card_text = t.text_content().strip()
 
+                    card_jd = f"{desc_snippet}\n{full_card_text}".strip() if (desc_snippet or full_card_text) else ""
+                    has_full_jd = bool(len(card_jd) >= 50)
+
                     listing = JobListing(
                         job_id=job_id,
                         title=title,
                         company=company,
                         location=location,
                         salary=parsed_salary,
-                        experience_required=raw_exp,
+                        experience_raw=raw_exp,
                         skills_found=skills_found,
-                        description_raw=full_card_text,
-                        description_cleaned=desc_snippet or full_card_text,
+                        jd_text=card_jd,
+                        has_full_jd=has_full_jd,
                         url=url,
                         posted_date="Recent",
                         discovered_via_query=query,
+                        source_query=query,
                     )
                     listings.append(listing)
 

@@ -30,6 +30,7 @@ htmlcov/
 
 # Local databases & state
 *.sqlite
+!naukri_career_agent.sqlite
 *.sqlite-wal
 *.sqlite-shm
 *.db

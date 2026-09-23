@@ -5,6 +5,7 @@ import os
 import uuid
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
+from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 

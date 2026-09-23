@@ -159,5 +159,5 @@ def test_end_to_end_dry_run_pipeline(tmp_path):
         assert len(packs) >= 1
 
     # 3. Verify reports generated
-    daily_reports = list(Path("reports/daily").glob(f"{daily_report.date}.*"))
+    daily_reports = list(Path(reports_daily_dir).glob(f"{daily_report.date}*"))
     assert len(daily_reports) >= 2  # .md and .html

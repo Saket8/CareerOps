@@ -420,3 +420,28 @@
   - [x] Avaali Solutions AI Tech Lead / LLM Architect scored 91.5% (`APPLIED_CONFIRMED`)
   - [x] 157 qualified roles identified, 35 live applications confirmed, hit daily quota cleanly
   - [x] Daily report and email successfully delivered to candidate inbox
+
+### Phase 32: Low-Resource OCI Linux VPS Migration & Crontab Automation (TASK-006)
+- [x] **Phase 32.1: Server Resource Audit & Low-Memory Architecture**
+  - [x] Audit VPS resources (AMD EPYC 2 vCPU, 945 MB RAM, 4 GB Swap, 19 GB disk, Oracle Linux 9)
+  - [x] Auto-detect headless mode on Linux VPS without DISPLAY to prevent X11 crashes
+  - [x] Configure low-memory Playwright flags (`--disable-dev-shm-usage`, `--no-sandbox`, `--disable-gpu`, `--disable-software-rasterizer`, `--disable-extensions`)
+- [x] **Phase 32.2: Python & Chromium System Dependencies**
+  - [x] Set up isolated Python 3.11 virtual environment in `/home/opc/CareerOps/venv`
+  - [x] Install all dependencies via `pip install --no-cache-dir -r requirements.txt`
+  - [x] Verify Playwright Chromium binary in `/home/opc/.cache/ms-playwright/chromium-1243`
+- [x] **Phase 32.3: Repository Sync & Database Migration**
+  - [x] Package and migrate full project, candidate truth, master resume, and SQLite database (`naukri_career_agent.sqlite`)
+  - [x] Sync 50+ historical proof evidence screenshots to `/home/opc/CareerOps/artifacts/evidence/`
+  - [x] Configure authenticated session (`artifacts/naukri_auth.json`) and secure `.env` credentials
+- [x] **Phase 32.4: Crontab Scheduling & OOM-Safe Wrapper**
+  - [x] Deploy `/home/opc/CareerOps/run_daily.sh` with `flock -n /tmp/careerops.lock` concurrency prevention
+  - [x] Implement 10 MB log size rotation/truncation guard protecting the 19 GB root partition
+  - [x] Configure crontab for user `opc` at 08:53 IST (`23 3 * * *` UTC) and 13:53 IST (`23 8 * * *` UTC)
+- [x] **Phase 32.5: Server Execution Verification**
+  - [x] Execute full pytest unit test suite (88/88 passed in 17.37s)
+  - [x] Execute integration test suite (2/2 passed in 19.41s)
+  - [x] Execute selector contract tests (4/4 passed in 0.29s)
+  - [x] Execute `run_daily.sh --validate-phase` verifying all 57 confirmed applications with 0 errors
+  - [x] Profile memory before and after execution (used: 465 MiB, available: 480 MiB, swap: 3.7 GiB free)
+

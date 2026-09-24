@@ -29,9 +29,15 @@ AUTH_STATE_FILE = Path("artifacts/naukri_auth.json")
 class PlaywrightBrowserAdapter(BaseNaukriClient):
     """Production Playwright adapter executing verified end-to-end applications."""
 
-    def __init__(self, offline_mode: bool = False, headless: bool = False, min_salary_lpa: float = 30.0):
+    def __init__(self, offline_mode: bool = False, headless: Optional[bool] = None, min_salary_lpa: float = 30.0):
+        import sys
         self.offline_mode = offline_mode or os.environ.get("NAUKRI_MOCK", "0") == "1"
-        self.headless = headless
+        if headless is not None:
+            self.headless = headless
+        else:
+            is_linux_headless = (sys.platform != "win32") and ("DISPLAY" not in os.environ)
+            env_headless = os.environ.get("HEADLESS", "").lower() in ("true", "1", "yes")
+            self.headless = is_linux_headless or env_headless
         self.min_salary_lpa = min_salary_lpa
         self.url_validator = UrlValidator()
         self.verifier = ApplicationVerifier()
@@ -49,6 +55,8 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                 "--no-sandbox",
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
+                "--disable-software-rasterizer",
+                "--disable-extensions",
             ],
         }
         if channel:

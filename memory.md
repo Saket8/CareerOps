@@ -60,6 +60,9 @@ PATH=/usr/local/bin:/usr/bin:/bin
 23 8 * * * /home/opc/CareerOps/run_daily.sh
 ```
 
+> [!NOTE]
+> **GitHub Actions Status:** Paused (`gh workflow disable career_agent_daily.yml` and `schedule:` triggers commented out). The OCI Linux Server crontab is now the primary and sole scheduled execution engine, eliminating queue delays and preventing duplicate submissions. Manual runs remain available via GitHub Actions `workflow_dispatch` if ever needed as a backup.
+
 ### Wrapper Script: `/home/opc/CareerOps/run_daily.sh`
 * **Concurrency Guard (`flock`):** Acquires non-blocking lock on `/tmp/careerops.lock`. If another run is in progress, exits immediately to prevent cumulative memory spikes and Linux OOM killing.
 * **CPU Niceness:** Executes with `nice -n 10` so the agent runs smoothly without starving SSH, networking, or kernel processes.

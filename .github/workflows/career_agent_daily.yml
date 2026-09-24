@@ -1,13 +1,12 @@
 name: CareerOps Autonomous Daily Automation
 
 on:
-  schedule:
-    # Daily 2x (Monday through Sunday):
-    # Scheduled at odd minutes (:23) to bypass GitHub Actions top-of-hour & half-hour queue congestion:
-    # 1. 08:53 IST (03:23 UTC) - Morning recruiter screening window (new application submissions)
-    - cron: '23 3 * * *'
-    # 2. 13:53 IST (08:23 UTC) - Post-lunch recruiter review window (new application submissions)
-    - cron: '23 8 * * *'
+  # NOTE: Scheduled cron paused in favor of primary OCI Linux Server crontab (opc@129.158.196.248)
+  # schedule:
+  #   # 1. 08:53 IST (03:23 UTC) - Morning recruiter screening window
+  #   - cron: '23 3 * * *'
+  #   # 2. 13:53 IST (08:23 UTC) - Post-lunch recruiter review window
+  #   - cron: '23 8 * * *'
   workflow_dispatch:
     inputs:
       dry_run:

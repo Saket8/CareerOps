@@ -22,7 +22,7 @@ schedule:
     - "sunday"
 
 application:
-  match_threshold: 75.0
+  match_threshold: 70.0
   high_match_threshold: 85.0
   min_salary_lpa: null  # Raised floor to ₹30 LPA (user's current CTC); no ceiling
   undisclosed_salary_allowed: true

@@ -6,7 +6,7 @@ from src.utils.config_loader import load_config
 
 def test_load_default_config():
     config = load_config()
-    assert config["application"]["match_threshold"] == 75.0
+    assert config["application"]["match_threshold"] == 70.0
     assert config["application"]["min_salary_lpa"] == 30.0
     assert isinstance(config["application"]["dry_run"], bool)
     assert "queries" in config["search"]

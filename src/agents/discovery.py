@@ -164,10 +164,12 @@ class DiscoveryAgent:
                                 f"Re-evaluating for direct application."
                             )
 
-                    # 2e. Skip if previously evaluated and rejected by qualification score with full JD
+                    # 2e. If previously rejected, only skip if overall_score was low (< 60.0%)
+                    # Near-threshold jobs (>= 60%) are re-evaluated under updated skill-first qualification
                     if existing_job.status == JobStatus.REJECTED.value:
-                        if existing_job.jd_text and len(existing_job.jd_text.strip()) >= 50:
-                            logger.info(f"Job {listing.job_id} previously evaluated and rejected by score with full JD. Skipping.")
+                        prior_score = self.job_repo.get_score(listing.job_id)
+                        if prior_score and prior_score.overall_score < 60.0:
+                            logger.info(f"Job {listing.job_id} previously evaluated with low score ({prior_score.overall_score}%). Skipping.")
                             result.duplicates_skipped += 1
                             continue
 

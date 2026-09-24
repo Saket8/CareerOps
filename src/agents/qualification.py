@@ -126,37 +126,59 @@ class QualificationAgent:
         # Skill alignment across full candidate competencies
         skill_score = (cloud_score + k8s_score + sec_score + ai_score) / 4.0
 
-        # Dual-Track Multi-Pillar Matching:
-        # Candidate has 2 core target tracks:
+        # Skill-First Multi-Pillar Matching:
+        # Candidate has 2 core target tracks with zero cross-domain penalties:
         # Track 1: Oracle Cloud Infrastructure (OCI) / Enterprise Cloud Architect
+        # Driven by OCI/Cloud + Architecture + Experience; not penalized for missing GenAI
+        primary_cloud = max(oci_score, cloud_score)
         track_cloud_score = (
-            (arch_score * 0.30)
-            + (((cloud_score * 0.5) + (oci_score * 0.5)) * 0.40)
-            + (k8s_score * 0.10)
-            + (sec_score * 0.10)
+            (primary_cloud * 0.50)
+            + (arch_score * 0.30)
+            + (((k8s_score + sec_score) / 2.0) * 0.10)
             + (exp_score * 0.10)
         )
 
         # Track 2: AI / GenAI / LLMOps / Agentic AI Architect
+        # Driven by AI/GenAI + Architecture + Experience; not penalized for missing K8s or Exadata
+        primary_ai = max(ai_score, agentic_score)
         track_ai_score = (
-            (arch_score * 0.25)
-            + (((ai_score * 0.7) + (agentic_score * 0.3)) * 0.45)
-            + (cloud_score * 0.15)
-            + (((k8s_score + sec_score) / 2.0) * 0.10)
-            + (exp_score * 0.05)
+            (primary_ai * 0.55)
+            + (arch_score * 0.30)
+            + (exp_score * 0.15)
         )
 
         # Track 3: Hybrid Enterprise Cloud + AI Architect
         track_hybrid_score = (
             (arch_score * 0.25)
-            + (((cloud_score * 0.6) + (oci_score * 0.4)) * 0.25)
-            + (((ai_score * 0.7) + (agentic_score * 0.3)) * 0.25)
-            + (((k8s_score + sec_score) / 2.0) * 0.15)
+            + (primary_cloud * 0.35)
+            + (primary_ai * 0.30)
             + (exp_score * 0.10)
         )
 
         # Candidate overall score is evaluated against their best-aligned track
         overall_score = max(track_cloud_score, track_ai_score, track_hybrid_score)
+
+        # Target Role & Core Skill Guarantee:
+        # If the job title matches candidate's target architecture roles and the primary skill match is solid (>= 70%),
+        # ensure the candidate's core profile is recognized without arbitrary peripheral penalties.
+        title_lower = (job.title or "").lower()
+        is_target_ai_role = any(kw in title_lower for kw in [
+            "genai", "generative ai", "ai architect", "llm architect", "agentic",
+            "ai platform", "ai lead", "llm lead", "ai solution architect"
+        ])
+        is_target_cloud_role = any(kw in title_lower for kw in [
+            "oci architect", "oracle cloud", "cloud architect", "infrastructure architect",
+            "enterprise architect", "platform architect", "cloud solutions architect"
+        ])
+
+        if is_target_ai_role and primary_ai >= 70.0:
+            target_boosted = (primary_ai * 0.65) + (arch_score * 0.25) + (exp_score * 0.10)
+            overall_score = max(overall_score, target_boosted)
+
+        if is_target_cloud_role and primary_cloud >= 70.0:
+            target_boosted = (primary_cloud * 0.65) + (arch_score * 0.25) + (exp_score * 0.10)
+            overall_score = max(overall_score, target_boosted)
+
         overall_score = round(min(100.0, max(0.0, overall_score)), 1)
 
         # Full-JD Scoring Calibration & Confidence Gating:

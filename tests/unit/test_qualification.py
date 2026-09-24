@@ -170,3 +170,37 @@ def test_junior_intern_job_experience_gate(db_session):
     assert any("junior/entry-level experience" in g for g in score.gaps)
 
 
+def test_genai_architect_skill_first_qualification(db_session):
+    """Test that a pure GenAI Architect role qualifies on AI/Architecture without being penalized for lacking K8s/Exadata."""
+    job_repo = JobRepository(db_session)
+    candidate_truth = get_candidate_truth(refresh=True)
+    config = {"application": {"match_threshold": 70.0, "high_match_threshold": 85.0}}
+    agent = QualificationAgent(job_repo, candidate_truth, config)
+
+    genai_job = JobListing(
+        job_id="job_genai_arch_1",
+        title="GenAI Architect",
+        company="Tech Mahindra",
+        location="Bengaluru",
+        url="https://naukri.com/job/genai1",
+        experience_min=8.0,
+        experience_max=15.0,
+        experience_raw="8-15 Yrs",
+        jd_text="""
+        Looking for a GenAI Architect with deep expertise in Large Language Models (LLMs), RAG systems,
+        LangChain, Prompt Engineering, agentic workflows, fine-tuning, and enterprise architecture design.
+        Candidate will design generative AI solutions, integrate local and cloud models, and lead architecture teams.
+        """,
+        has_full_jd=True,
+    )
+    job_repo.save_job(genai_job)
+
+    score, evidence = agent.evaluate_job(genai_job)
+
+    # Core AI skill is high (>=80%) and title matches target role -> must qualify with high score
+    assert score.passed_threshold is True
+    assert score.overall_score >= 80.0
+    assert genai_job.status in (JobStatus.QUALIFIED, JobStatus.HIGH_MATCH)
+    assert "GENAI_ARCHITECTURE" in score.categories
+
+

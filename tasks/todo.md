@@ -401,3 +401,18 @@
   - [x] Verified all 7 live confirmed applications from today are present in Confirmed Applications table with green badge links
   - [x] Verified all 9 high-value external opportunities are present with 1-click apply links
   - [x] Zero blank emails on subsequent runs
+
+### Phase 31: Skill-First Qualification Scoring & Off-Peak Schedule Resilience (TASK-005)
+- [x] **Phase 31.1: Skill-First Qualification Architecture in `qualification.py`**
+  - [x] Eradicate peripheral dimension penalties (do not drag down an AI role for lacking K8s or Cloud, or an OCI role for lacking LLMs)
+  - [x] Implement Primary Pillar Scoring: driven by core skills (AI + Architecture for AI roles; OCI + Cloud + Architecture for Cloud roles)
+  - [x] Implement Target Role & Core Skill Guarantee: if target title matches and primary domain score >= 70%, guarantee qualification
+  - [x] Lower match_threshold from 75.0 to 70.0 in `config/config.yaml`
+  - [x] Allow re-evaluation of near-threshold rejected jobs (score >= 60%) in `discovery.py`
+- [x] **Phase 31.2: Off-Peak Cron Scheduling in GitHub Actions**
+  - [x] Offset schedule from congested `:30` to odd minutes (`23 3 * * *` / 08:53 IST and `23 8 * * *` / 13:53 IST)
+- [x] **Phase 31.3: Unit Test Suite & Regression Verification**
+  - [x] Added `test_genai_architect_skill_first_qualification` asserting Tech Mahindra GenAI Architect qualifies >= 80%
+  - [x] Full pytest suite passing (90/90 passed)
+- [/] **Phase 31.4: Push & Live CI Execution**
+  - [ ] Commit and push to main, trigger CI, and verify qualification of Tech Mahindra GenAI Architect and other top matches

@@ -57,6 +57,11 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                 "--disable-gpu",
                 "--disable-software-rasterizer",
                 "--disable-extensions",
+                "--disable-background-networking",
+                "--disable-background-timer-throttling",
+                "--disable-backgrounding-occluded-windows",
+                "--disable-renderer-backgrounding",
+                "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider",
             ],
         }
         if channel:

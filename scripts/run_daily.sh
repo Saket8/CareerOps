@@ -44,7 +44,7 @@ export HEADLESS=true
 # Run Autonomous Career Agent Pipeline
 START_TIME=$(date +%s)
 set +e
-"$PROJECT_DIR/venv/bin/python" "$PROJECT_DIR/main.py" "$@" >> "$LOG_FILE" 2>&1
+nice -n 10 "$PROJECT_DIR/venv/bin/python" "$PROJECT_DIR/main.py" "$@" >> "$LOG_FILE" 2>&1
 EXIT_CODE=$?
 set -e
 END_TIME=$(date +%s)

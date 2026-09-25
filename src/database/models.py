@@ -99,6 +99,7 @@ class JobModel(Base):
             url=self.url,
             canonical_url=self.canonical_url,
             jd_text=self.jd_text or "",
+            has_full_jd=bool(self.jd_text and len(self.jd_text.strip()) >= 50),
             source_query=self.source_query or "",
             source_platform=self.source_platform or "naukri",
             application_method=self.application_method or "standard",

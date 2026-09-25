@@ -35,16 +35,46 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
         if headless is not None:
             self.headless = headless
         else:
-            is_linux_headless = (sys.platform != "win32") and ("DISPLAY" not in os.environ)
+            # If a display server is present (e.g. DISPLAY=:99 via Xvfb or local GUI), run headed (headless=False)
+            # because Akamai Bot Manager blocks headless Chromium with 403 Access Denied.
+            has_display = "DISPLAY" in os.environ and bool(os.environ["DISPLAY"].strip())
             env_headless = os.environ.get("HEADLESS", "").lower() in ("true", "1", "yes")
-            self.headless = is_linux_headless or env_headless
+            if has_display and not env_headless:
+                self.headless = False
+            else:
+                is_linux_headless = (sys.platform != "win32") and not has_display
+                self.headless = is_linux_headless or env_headless
         self.min_salary_lpa = min_salary_lpa
         self.url_validator = UrlValidator()
         self.verifier = ApplicationVerifier()
 
+    def _prune_stale_auth_cookies(self):
+        """Removes expired or IP-bound Akamai cookies from storage state to avoid 403 blocks."""
+        if not AUTH_STATE_FILE.exists():
+            return
+        try:
+            import json
+            with open(AUTH_STATE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            cookies = data.get("cookies", [])
+            # Strip Akamai bot cookies that bind to specific IPs/sessions and cause 403 on new networks
+            pruned = [
+                c for c in cookies
+                if c.get("name") not in ("ak_bmsc", "bm_sv", "bm_sz", "_abck")
+            ]
+            if len(pruned) != len(cookies):
+                data["cookies"] = pruned
+                with open(AUTH_STATE_FILE, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                logger.info(f"Pruned {len(cookies) - len(pruned)} stale Akamai cookies from auth state.")
+        except Exception as exc:
+            logger.warning(f"Failed to prune auth state cookies: {exc}")
+
     def _launch_browser(self, p):
         """Launches Chromium or native Chrome with persistent state."""
         import sys
+
+        self._prune_stale_auth_cookies()
 
         channel = "chrome" if (sys.platform == "win32" and not self.offline_mode) else None
 
@@ -69,23 +99,88 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
 
         browser = p.chromium.launch(**launch_kwargs)
 
+        user_agent = (
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+            if sys.platform != "win32"
+            else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+        )
+
         context_kwargs = {
-            "user_agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-            ),
-            "viewport": {"width": 1280, "height": 800},
+            "user_agent": user_agent,
+            "viewport": {"width": 1920, "height": 1080},
         }
         if AUTH_STATE_FILE.exists():
             context_kwargs["storage_state"] = str(AUTH_STATE_FILE)
 
         context = browser.new_context(**context_kwargs)
+
+        # Inject anti-detection stealth script to mask webdriver
+        stealth_script = """
+        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+        window.chrome = { runtime: {}, loadTimes: function() {}, csi: function() {}, app: {} };
+        """
+        context.add_init_script(stealth_script)
+
         return browser, context
 
+    def _fetch_naukri_otp(self, start_time: float, timeout_sec: int = 60) -> Optional[str]:
+        """Autonomously fetches 6-digit Naukri OTP from Gmail via IMAP if credentials are available."""
+        import email
+        import imaplib
+        import re
+
+        smtp_user = os.environ.get("SMTP_USERNAME")
+        smtp_pass = os.environ.get("SMTP_PASSWORD")
+        if not smtp_user or not smtp_pass:
+            return None
+
+        end_time = time.time() + timeout_sec
+        while time.time() < end_time:
+            try:
+                mail = imaplib.IMAP4_SSL("imap.gmail.com")
+                mail.login(smtp_user, smtp_pass)
+                mail.select("inbox")
+                status, messages = mail.search(None, '(FROM "naukri" SUBJECT "OTP")')
+                msg_ids = messages[0].split()
+                if msg_ids:
+                    for mid in reversed(msg_ids[-5:]):
+                        res, data = mail.fetch(mid, "(RFC822)")
+                        for part in data:
+                            if isinstance(part, tuple):
+                                msg = email.message_from_bytes(part[1])
+                                body = ""
+                                for p in msg.walk():
+                                    pl = p.get_payload(decode=True)
+                                    if pl:
+                                        body += " " + pl.decode(errors="ignore")
+                                clean = " ".join(re.sub(r"<[^>]+>", " ", body).split())
+                                m = re.search(r"enter below OTP.*?(\d{6})", clean, re.I)
+                                if not m:
+                                    m = re.search(r"valid for the next.*?(\d{6})", clean, re.I)
+                                if not m:
+                                    m = re.search(r"\b(\d{6})\b", clean)
+                                if m:
+                                    otp = m.group(1)
+                                    mail.close()
+                                    mail.logout()
+                                    return otp
+                mail.close()
+                mail.logout()
+            except Exception as e:
+                logger.debug(f"IMAP poll error: {e}")
+            time.sleep(3)
+        return None
+
     def _ensure_authenticated(self, page, context) -> bool:
-        """Ensures the browser session is authenticated on Naukri using user credentials."""
+        """Ensures the browser session is authenticated on Naukri using user credentials or storage state."""
         try:
-            if page.locator(".nI-gNb-drawer, .view-profile-wrapper").count() > 0:
+            # 1. Quick check: Already authenticated in current page DOM
+            if page.locator(".nI-gNb-drawer, .view-profile-wrapper, .nI-gNb-header__wrapper").count() > 0:
+                return True
+
+            # 2. Check context cookies: if valid session token exists
+            cookies = {c["name"]: c["value"] for c in context.cookies()}
+            if "nauk_at" in cookies or (cookies.get("is_login") == "1" and "nauk_rt" in cookies):
                 return True
 
             username = os.environ.get("NAUKRI_USERNAME", "sauravskt8@gmail.com")
@@ -95,7 +190,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
             page.goto("https://www.naukri.com/nlogin/login", timeout=35000, wait_until="domcontentloaded")
             time.sleep(2)
 
-            if "mnjuser" in page.url or page.locator(".nI-gNb-drawer, .view-profile-wrapper").count() > 0:
+            if "mnjuser" in page.url or page.locator(".nI-gNb-drawer, .view-profile-wrapper, .nI-gNb-header__wrapper").count() > 0:
                 context.storage_state(path=str(AUTH_STATE_FILE))
                 return True
 
@@ -104,11 +199,30 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
             if user_field.count() > 0 and pass_field.count() > 0:
                 user_field.fill(username)
                 pass_field.fill(password)
+                time_before_click = time.time()
                 login_btn = page.locator("button:has-text('Login'), button.blue-btn").first
                 login_btn.click()
-                time.sleep(5)
+                time.sleep(4)
 
-                if "mnjuser" in page.url or page.locator(".nI-gNb-drawer, .view-profile-wrapper").count() > 0:
+                # Check if OTP challenge is presented
+                if page.locator("#Input_1").count() > 0 or page.locator("button.verify-button").count() > 0:
+                    logger.info("Naukri OTP challenge detected. Retrieving verification code via IMAP...")
+                    otp_code = self._fetch_naukri_otp(time_before_click, timeout_sec=60)
+                    if otp_code:
+                        logger.info("Retrieved OTP. Entering code into verification challenge...")
+                        for i in range(1, 7):
+                            digit = otp_code[i - 1]
+                            inp = page.locator(f"#Input_{i}")
+                            inp.click()
+                            inp.fill(digit)
+                            time.sleep(0.15)
+                        time.sleep(1)
+                        verify_btn = page.locator("button.verify-button, button:has-text('Verify')").first
+                        if verify_btn.count() > 0:
+                            verify_btn.click()
+                            time.sleep(5)
+
+                if "mnjuser" in page.url or page.locator(".nI-gNb-drawer, .view-profile-wrapper, .nI-gNb-header__wrapper").count() > 0:
                     context.storage_state(path=str(AUTH_STATE_FILE))
                     logger.info("Authentication successful; session saved to storage.")
                     return True
@@ -142,7 +256,22 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                 browser, context = self._launch_browser(p)
                 page = context.new_page()
                 page.goto(search_url, timeout=35000, wait_until="domcontentloaded")
-                time.sleep(3)
+
+                # Dismiss cookie consent banner if present
+                try:
+                    cookie_btn = page.locator("button:has-text('Got it')").first
+                    if cookie_btn.is_visible(timeout=2000):
+                        cookie_btn.click()
+                except Exception:
+                    pass
+
+                # Wait for job tuples to attach to DOM
+                try:
+                    page.wait_for_selector("div.cust-job-tuple, div.srp-jobtuple, article", state="attached", timeout=12000)
+                except Exception:
+                    pass
+
+                time.sleep(2)
 
                 tuples = page.locator("div.cust-job-tuple, div.srp-jobtuple").all()
                 listings = []

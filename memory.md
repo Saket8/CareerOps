@@ -1,8 +1,9 @@
 # CareerOps — Permanent System Memory & Operational Runbook
 
-Last Updated: 2026-09-24  
+Last Updated: 2026-09-25  
 Repository: [CareerOps (Saket8/CareerOps)](https://github.com/Saket8/CareerOps)  
-Target Candidate: Saket Saurav (Principal Cloud Architect / GenAI & LLM Solutions Architect)
+Target Candidate: Saket Saurav (Principal Cloud Architect / GenAI & LLM Solutions Architect)  
+Verified Live Applications: **77 Confirmed on Naukri** (with physical green badge proof)
 
 ---
 
@@ -41,6 +42,7 @@ The system is deployed on an **Oracle Cloud Infrastructure (OCI) Free Tier Compu
 | **Production Database** | `/home/opc/CareerOps/naukri_career_agent.sqlite` |
 | **Visual Proof Artifacts** | `/home/opc/CareerOps/artifacts/evidence/` |
 | **Naukri Auth Session** | `/home/opc/CareerOps/artifacts/naukri_auth.json` |
+| **Display Server** | Xvfb Virtual Framebuffer on `:99` (`xorg-x11-server-Xvfb`) |
 
 ---
 
@@ -62,6 +64,12 @@ PATH=/usr/local/bin:/usr/bin:/bin
 
 > [!NOTE]
 > **GitHub Actions Status:** Paused (`gh workflow disable career_agent_daily.yml` and `schedule:` triggers commented out). The OCI Linux Server crontab is now the primary and sole scheduled execution engine, eliminating queue delays and preventing duplicate submissions. Manual runs remain available via GitHub Actions `workflow_dispatch` if ever needed as a backup.
+
+### Production Execution Invariants & Enhancements
+* **Akamai Anti-Bot Bypass (`Xvfb :99`):** Naukri's Akamai Bot Manager blocks headless Chromium with `HTTP 403 Access Denied`. The wrapper script launches a lightweight virtual display (`Xvfb :99`), runs headed Chromium, and injects anti-detection stealth scripts, achieving `HTTP 200 OK` and 100% search listing extraction.
+* **Lock FD Leak Prevention (`200>&-`):** When backgrounding Xvfb, file descriptor 200 is explicitly closed (`200>&- >/dev/null 2>&1 &`) so background daemons cannot leak or retain the `/tmp/careerops.lock` file descriptor.
+* **Autonomous IMAP 2FA / OTP Resolution:** When challenged for 2FA on datacenter IPs, `playwright_adapter.py` autonomously connects to Gmail IMAP via Google App Password, extracts the 6-digit OTP, fills `#Input_1`..`#Input_6`, clicks Verify, and saves `artifacts/naukri_auth.json`.
+* **Single Consolidated Email Architecture:** All Friday and daily dispatches are consolidated into **EXACTLY 1 single email** per run (Daily Application Report + Weekly Career Intelligence HTML + attached PDF and DOCX Interview Dossiers). Zero multi-email spam.
 
 ### Wrapper Script: `/home/opc/CareerOps/run_daily.sh`
 * **Concurrency Guard (`flock`):** Acquires non-blocking lock on `/tmp/careerops.lock`. If another run is in progress, exits immediately to prevent cumulative memory spikes and Linux OOM killing.

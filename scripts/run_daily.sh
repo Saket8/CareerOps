@@ -39,7 +39,15 @@ cd "$PROJECT_DIR"
 # Export Environment
 export PYTHONPATH="$PROJECT_DIR"
 export PATH="$PROJECT_DIR/venv/bin:$PATH"
-export HEADLESS=true
+
+# Manage lightweight Xvfb virtual framebuffer on :99 to bypass Akamai 403 Bot Detection
+if ! pgrep -x "Xvfb" > /dev/null 2>&1; then
+    echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] Starting Xvfb virtual display on :99..." >> "$LOG_FILE"
+    Xvfb :99 -screen 0 1920x1080x24 -ac 200>&- >/dev/null 2>&1 &
+    sleep 1
+fi
+export DISPLAY=:99
+export HEADLESS=false
 
 # Run Autonomous Career Agent Pipeline
 START_TIME=$(date +%s)

@@ -445,3 +445,33 @@
   - [x] Execute `run_daily.sh --validate-phase` verifying all 57 confirmed applications with 0 errors
   - [x] Profile memory before and after execution (used: 465 MiB, available: 480 MiB, swap: 3.7 GiB free)
 
+### Phase 33: Akamai Anti-Bot Bypassing (Xvfb Virtual Display) & Email Delivery Consolidation (TASK-007)
+- [x] **Phase 33.1: Linux VPS Headed Execution via Xvfb (`run_daily.sh` & `playwright_adapter.py`)**
+  - [x] Install `xorg-x11-server-Xvfb` on OCI Linux server
+  - [x] Prove Xvfb headless bypass live on VPS: verified 20 real job listings extracted with HTTP 200 (OCI Architect @ Maveric, Gateway Architect @ Algoleap, DataOps Architect @ Sigmoid)
+  - [x] Configure `run_daily.sh` to auto-manage Xvfb virtual framebuffer on `:99` with `200>&-` fd leak prevention
+  - [x] Update `playwright_adapter.py` to run headed when `$DISPLAY` is set and inject anti-detection script
+  - [x] Prune stale Akamai cookies (`ak_bmsc`, `bm_sv`) from `artifacts/naukri_auth.json` on session initialization
+- [x] **Phase 33.2: Autonomous IMAP 2FA / OTP Resolution (`playwright_adapter.py`)**
+  - [x] Identify Naukri 2FA challenge on new datacenter IP (`129.158.196.248`)
+  - [x] Implement `_fetch_naukri_otp` using Google App Password via Gmail IMAP (`imap.gmail.com`)
+  - [x] Automatically fill `#Input_1`..`#Input_6` and click Verify to persist authenticated session
+- [x] **Phase 33.3: Single Consolidated Email Architecture (`orchestrator.py`)**
+  - [x] Unify all Friday dispatches into EXACTLY 1 comprehensive email:
+    - Subject: `CareerOps — Daily Application & Weekly Intelligence Report — {date_str}` on Fridays, `CareerOps — Daily Application Report — {date_str}` on weekdays
+    - Body: Daily application report HTML with an integrated Weekly Career Intelligence section on Fridays
+    - Attachments: Attach the Weekly Interview Intelligence Dossier PDF and DOCX directly to this single daily email
+  - [x] Eliminate fragmented separate emails (removed separate send calls)
+- [x] **Phase 33.4: Model & Adapter Parity**
+  - [x] In `JobModel.to_listing()`, initialize `has_full_jd = bool(self.jd_text and len(self.jd_text.strip()) >= 50)`
+- [x] **Phase 33.5: Automated Test Suite & Local Verification**
+  - [x] Run pytest across unit tests (88/88 passed) and integration tests (2/2 passed)
+- [x] **Phase 33.6: VPS Deployment & End-to-End Live Validation**
+  - [x] Sync updated files to VPS (`129.158.196.248`)
+  - [x] Run `/home/opc/CareerOps/run_daily.sh` live on VPS
+  - [x] Verified live search discovers real jobs (75 scanned, 38 qualified, 20 confirmed, 4 external portal)
+  - [x] Verified exactly 1 email delivered with Weekly Intelligence & Interview Dossier attachments
+  - [x] Verified memory usage remains stable (354 MB used, 591 MB available, 3.7 GB swap free)
+  - [x] Verified phase gate persistent results: 77 confirmed applications in database (`APPLICATION AUTOMATION PHASE: PASSED`)
+
+

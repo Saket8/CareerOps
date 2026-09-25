@@ -192,14 +192,13 @@ class Orchestrator:
 
                 # Check if Friday (weekday 4 in python 0=Mon, 4=Fri) or forced weekly run
                 is_friday = start_time.weekday() == 4 or force_weekly
+                weekly_html_content = ""
+                weekly_week_number = ""
                 if is_friday:
                     logger.info("Friday detected: Executing Weekly Career Intelligence synthesis...")
                     weekly_data = market_agent.generate_weekly_intelligence()
-                    w_md, w_html, w_html_content = reporting_agent.generate_weekly_report(weekly_data)
-                    smtp_mailer.send_report(
-                        subject=f"Career Agent — Weekly Career Intelligence — {weekly_data.week_number}",
-                        html_body=w_html_content,
-                    )
+                    w_md, w_html, weekly_html_content = reporting_agent.generate_weekly_report(weekly_data)
+                    weekly_week_number = weekly_data.week_number
 
                 # 5. DAILY REPORTING & EMAIL NOTIFICATION (Today's Cumulative Scope; Zero Yesterday/Historical Backfill)
                 end_time = datetime.now(timezone.utc)
@@ -286,19 +285,7 @@ class Orchestrator:
 
                 d_md, d_html, d_html_content = reporting_agent.generate_daily_report(daily_data)
 
-                # Send Email 1: Daily Application Audit Report (skipped in offline test mode)
-                if not self.offline_mode:
-                    report_subject = f"CareerOps — Daily Application Report — {date_str}"
-                    if self.dry_run:
-                        report_subject = f"[DRY RUN] {report_subject}"
-                    smtp_mailer.send_report(
-                        subject=report_subject,
-                        html_body=d_html_content,
-                    )
-                else:
-                    logger.info("Offline mode: Skipping email delivery.")
-
-                # Send Email 2: Consolidated Interview Intelligence Dossier (WEEKLY cycle on Friday or when forced)
+                # Prepare Consolidated Interview Intelligence Dossier (WEEKLY cycle on Friday or when forced)
                 should_send_interview = force_interview or is_friday
 
                 # Strict zero-dummy filter on matched items
@@ -320,22 +307,61 @@ class Orchestrator:
                         r_score, r_evidence = qualification_agent.evaluate_job(listing)
                         matched_items_for_briefing.append((listing, r_score, r_evidence))
 
+                interview_attachments = []
+                interview_html_snippet = ""
                 if should_send_interview and matched_items_for_briefing:
                     logger.info("Generating Weekly Consolidated Interview Intelligence Dossier...")
                     i_docx, i_pdf, i_html_content = interview_agent.generate_consolidated_daily_briefing(
                         matched_items_for_briefing, date_str
                     )
-                    attachments = []
                     if i_pdf.exists():
-                        attachments.append(i_pdf)
+                        interview_attachments.append(i_pdf)
                     if i_docx.exists():
-                        attachments.append(i_docx)
+                        interview_attachments.append(i_docx)
+                    interview_html_snippet = f"""
+                    <div style="background:#f0fdf4;padding:20px;border-radius:8px;border:1px solid #bbf7d0;margin-top:24px;">
+                        <h3 style="color:#166534;margin-top:0;">🎯 Weekly Interview Intelligence Dossier Attached</h3>
+                        <p style="color:#15803d;margin-bottom:8px;">
+                            Attached to this email are the consolidated candidate interview briefing packages in PDF and DOCX format:
+                        </p>
+                        <ul style="color:#166534;margin-bottom:0;">
+                            <li><strong>{i_pdf.name}</strong> — Print-ready executive dossier</li>
+                            <li><strong>{i_docx.name}</strong> — Editable reference documentation</li>
+                        </ul>
+                    </div>
+                    """
+
+                # Single Consolidated Email Delivery (Exactly ONE email per run)
+                if not self.offline_mode:
+                    if is_friday:
+                        report_subject = f"CareerOps — Daily Application & Weekly Intelligence Report — {date_str}"
+                    else:
+                        report_subject = f"CareerOps — Daily Application Report — {date_str}"
+
+                    if self.dry_run:
+                        report_subject = f"[DRY RUN] {report_subject}"
+
+                    # Compose unified single HTML body
+                    combined_html_parts = [d_html_content]
+                    if interview_html_snippet:
+                        combined_html_parts.append(interview_html_snippet)
+                    if is_friday and weekly_html_content:
+                        combined_html_parts.append(f"""
+                        <hr style="border:0;border-top:2px solid #e2e8f0;margin:40px 0 20px 0;" />
+                        <div style="background:#f8fafc;padding:24px;border-radius:12px;border:1px solid #cbd5e1;margin-top:24px;">
+                            <h2 style="color:#0f172a;margin-top:0;font-size:20px;">📊 Career Agent — Weekly Career Intelligence ({weekly_week_number})</h2>
+                            {weekly_html_content}
+                        </div>
+                        """)
+                    final_html_body = "\n".join(combined_html_parts)
 
                     smtp_mailer.send_report(
-                        subject=f"CareerOps — Weekly Consolidated Interview Intelligence Dossier — {date_str}",
-                        html_body=i_html_content,
-                        attachments=attachments,
+                        subject=report_subject,
+                        html_body=final_html_body,
+                        attachments=interview_attachments,
                     )
+                else:
+                    logger.info("Offline mode: Skipping email delivery.")
 
                 # Record run finish in DB
                 run_repo.finish_run(

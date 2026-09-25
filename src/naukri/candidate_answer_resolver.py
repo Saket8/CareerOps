@@ -78,8 +78,86 @@ class CandidateAnswerResolver:
         """Determines if question can be answered strictly from verified facts."""
         q_lower = question_text.lower().strip()
 
+        # 0. Candidate Full Name / Identity as per Aadhar / PAN
+        if any(term in q_lower for term in ["full name", "name as per aadhar", "name as per pan", "your name", "first name? middle name", "first name?"]):
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value=self.cand.name,
+                field_type=field_type,
+            )
+
+        # 0a. Client Interaction & Stakeholder Management (10+ years across enterprise consulting)
+        if any(term in q_lower for term in ["client interaction", "client facing", "stakeholder management", "customer interaction", "client management", "stakeholder communication"]):
+            if self._is_yes_no_inquiry(q_lower):
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value="Yes",
+                    field_type=field_type,
+                )
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="10",
+                field_type=field_type,
+            )
+
+        # 0b. Contract / C2H / Fixed Term Inquiries
+        if any(term in q_lower for term in ["contract", "c2h", "contract to hire", "fixed term", "third party payroll", "contractual"]):
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="Yes",
+                field_type=field_type,
+            )
+
+        # 0c. Relevant Experience as an Architect
+        if any(term in q_lower for term in ["relevant as an architect", "relevant as architect", "architect experience", "years as an architect", "years as architect", "experience as an architect"]):
+            if self._is_yes_no_inquiry(q_lower):
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value="Yes",
+                    field_type=field_type,
+                )
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="6",
+                field_type=field_type,
+            )
+
+        # 0d. Databricks & Lakehouse Experience
+        if "databricks" in q_lower and any(term in q_lower for term in ["experience", "years", "work", "worked"]):
+            if self._is_yes_no_inquiry(q_lower):
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value="Yes",
+                    field_type=field_type,
+                )
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="4",
+                field_type=field_type,
+            )
+
+        # 0e. Snowflake Setup & Administration
+        if "snowflake" in q_lower and any(term in q_lower for term in ["setup", "set up", "from scratch", "account", "warehouse", "database", "admin"]):
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="Yes",
+                field_type=field_type,
+            )
+        if "snowflake" in q_lower and any(term in q_lower for term in ["experience", "years", "work", "worked"]):
+            if self._is_yes_no_inquiry(q_lower):
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value="Yes",
+                    field_type=field_type,
+                )
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="4",
+                field_type=field_type,
+            )
+
         # 1. Cloud / OCI Experience (Check specific cloud/platform experience first)
-        if ("oci" in q_lower or "oracle cloud" in q_lower) and any(term in q_lower for term in ["experience", "years", "work", "worked"]):
+        if ("oci" in q_lower or "oracle cloud" in q_lower or "oracle paas" in q_lower or "oracle iaas" in q_lower or "oracle integration" in q_lower) and any(term in q_lower for term in ["experience", "years", "work", "worked"]):
             if self._is_yes_no_inquiry(q_lower):
                 return FormQuestionAnswerResult(
                     can_answer=True,
@@ -113,8 +191,8 @@ class CandidateAnswerResolver:
                 unverified_reason="Kubernetes experience years not found in verified candidate facts.",
             )
 
-        # AI / GenAI / LLM / RAG / AIOps / MLOps / Machine Learning
-        if bool(re.search(r"\b(generative ai|genai|gen ai|llm|rag|agentic|aiops|mlops|artificial intelligence|machine learning|deep learning|ai|ml)\b", q_lower)) and any(term in q_lower for term in ["experience", "years", "work", "worked", "architectures", "models"]):
+        # AI / GenAI / LLM / RAG / AIOps / MLOps / AIML / Machine Learning
+        if bool(re.search(r"\b(generative ai|genai|gen ai|aiml|ai/ml|ai-ml|llm|rag|agentic|aiops|mlops|artificial intelligence|machine learning|deep learning|ai|ml)\b", q_lower)) and any(term in q_lower for term in ["experience", "years", "work", "worked", "architectures", "models"]):
             ai_years = getattr(self.cand, "ai_experience_years", None)
             if ai_years is not None:
                 if self._is_yes_no_inquiry(q_lower):
@@ -123,9 +201,11 @@ class CandidateAnswerResolver:
                         answer_value="Yes",
                         field_type=field_type,
                     )
+                # Candidate verified AI/ML experience is 2.0 years (ai_experience_years)
+                ans_years = str(int(ai_years))
                 return FormQuestionAnswerResult(
                     can_answer=True,
-                    answer_value=str(int(ai_years)),
+                    answer_value=ans_years,
                     field_type=field_type,
                 )
             return FormQuestionAnswerResult(
@@ -423,7 +503,7 @@ class CandidateAnswerResolver:
                 unverified_reason="Highest qualification percentage not found in verified candidate facts.",
             )
 
-        if any(term in q_lower for term in ["highest qualification", "highest degree", "highest level of education"]):
+        if any(term in q_lower for term in ["highest qualification", "highest educational qualification", "educational qualification", "highest degree", "highest level of education"]) or ("highest" in q_lower and "qualification" in q_lower):
             return FormQuestionAnswerResult(
                 can_answer=True,
                 answer_value="Bachelor of Technology (B.Tech)",

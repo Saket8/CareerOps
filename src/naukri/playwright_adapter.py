@@ -1155,27 +1155,48 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                     logger.info(f"Uploaded tailored resume ({Path(upload_file).suffix.upper()}) to application form: {upload_file}")
                     time.sleep(2)
 
-                submit_btn = drawer.locator(
-                    "button:has-text('Submit Application'), button:has-text('Apply Now'), "
-                    "button:has-text('Send Application'), button:has-text('Save & Apply'), "
-                    "button:has-text('Submit'), button:has-text('Confirm'), button:has-text('Continue'), "
-                    "button:has-text('Done'), button:has-text('Finish'), .save-btn, .submit-btn"
-                ).first
-                if not submit_btn.is_visible():
-                    submit_btn = page.locator(
-                        ".modal button:has-text('Submit'), [class*='modal'] button:has-text('Apply'), "
-                        "button:has-text('Submit Application'), button:has-text('Send Application'), "
-                        "button:has-text('Save & Apply'), button:has-text('Confirm')"
-                    ).first
-                if submit_btn.is_visible():
+                submit_selectors = [
+                    "button:has-text('Submit Application')", "button:has-text('Apply Now')",
+                    "button:has-text('Send Application')", "button:has-text('Save & Apply')",
+                    "button:has-text('Apply with Naukri profile')", "button:has-text('Apply')",
+                    "button:has-text('Submit')", "button:has-text('Confirm')", "button:has-text('Continue')",
+                    "button:has-text('Done')", "button:has-text('Finish')", "button:has-text('Proceed')",
+                    ".save-btn", ".submit-btn", ".apply-btn", "button.blue-btn", "button[type='submit']"
+                ]
+                submit_btn = None
+                if drawer.is_visible():
+                    for sel in submit_selectors:
+                        btn = drawer.locator(sel).first
+                        if btn.is_visible():
+                            submit_btn = btn
+                            break
+
+                if not submit_btn:
+                    for sel in [
+                        ".modal button:has-text('Submit')", "[class*='modal'] button:has-text('Apply')",
+                        "button:has-text('Submit Application')", "button:has-text('Send Application')",
+                        "button:has-text('Save & Apply')", "button:has-text('Apply with Naukri profile')",
+                        "button:has-text('Apply')", "button:has-text('Confirm')",
+                        "[class*='applyModal'] button", "[class*='apply-modal'] button",
+                        "[class*='applyDrawer'] button", ".apply-message-container button",
+                        "button.apply-button", "button.blue-btn", "button[type='submit']"
+                    ]:
+                        btn = page.locator(sel).first
+                        if btn.is_visible():
+                            submit_btn = btn
+                            break
+
+                if submit_btn and submit_btn.is_visible():
                     try:
+                        btn_txt = (submit_btn.text_content() or "").strip()
+                        logger.info(f"Clicking application submit button: '{btn_txt}'")
                         submit_btn.click(force=True, timeout=5000)
                     except Exception:
                         try:
                             page.evaluate("(el) => el.click()", submit_btn.element_handle())
                         except Exception:
                             pass
-                    time.sleep(4)
+                    time.sleep(5)
 
                 # Step 8: Verify Confirmation Evidence via Mandatory Canonical Reload (Finding 1)
                 time.sleep(2)

@@ -23,11 +23,13 @@ def parse_experience(raw_exp: Optional[str]) -> Tuple[Optional[float], Optional[
         except ValueError:
             pass
 
-    # Match single numbers like "10+ Yrs", "12 years", "8 Yrs"
+    # Match single numbers like "10+ Yrs", "12 years", "8 Yrs", "0 Yrs"
     single_match = re.search(r"(\d+(?:\.\d+)?)\s*\+?\s*(?:yrs|years|yr)", raw_exp, re.IGNORECASE)
     if single_match:
         try:
             val = float(single_match.group(1))
+            if val == 0.0:
+                return 0.0, 0.0
             return val, val + 5.0
         except ValueError:
             pass

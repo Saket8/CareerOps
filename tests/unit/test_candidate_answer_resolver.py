@@ -252,6 +252,58 @@ def test_resolver_expanded_screening_questions():
     assert res_sap.answer_value == "0"
 
 
+def test_resolver_new_chatbot_screening_questions():
+    """Validates the 9 newly mapped candidate screening questions from live recruiter chatbots."""
+    candidate_truth = get_candidate_truth(refresh=True)
+    resolver = CandidateAnswerResolver(candidate_truth)
+
+    # 1. Relevant as an Architect
+    res = resolver.resolve_question("Relevant as an Architect")
+    assert res.can_answer is True
+    assert res.answer_value == "6"
+
+    # 2. Client Interaction
+    res = resolver.resolve_question("How many years of experience do you have in Client Interaction?")
+    assert res.can_answer is True
+    assert res.answer_value == "10"
+
+    # 3. AIML normalization
+    res = resolver.resolve_question("How many years of experience do you have in Aiml?")
+    assert res.can_answer is True
+    assert res.answer_value == "2"
+
+    # 4. Contract / 12 Months Contract
+    res = resolver.resolve_question("Are you open for 12 Months Contract?")
+    assert res.can_answer is True
+    assert res.answer_value == "Yes"
+
+    # 5. Oracle PaaS
+    res = resolver.resolve_question("How many years of experience do you have in Oracle Paas?")
+    assert res.can_answer is True
+    assert res.answer_value == "6"
+
+    # 6. Full Name as per Aadhar
+    res = resolver.resolve_question("Full Name as per Aadhar? First Name?  Middle Name ? Last Name?")
+    assert res.can_answer is True
+    assert res.answer_value == "Saket Saurav"
+
+    # 7. Snowflake from scratch
+    res = resolver.resolve_question("Have you worked on setting up Snowflake accounts, warehouses, and databases from scratch?")
+    assert res.can_answer is True
+    assert res.answer_value == "Yes"
+
+    # 8. Highest Educational Qualification
+    res = resolver.resolve_question("Highest Educational Qualification")
+    assert res.can_answer is True
+    assert "Bachelor of Technology" in res.answer_value or "B.Tech" in res.answer_value
+
+    # 9. Databricks
+    res = resolver.resolve_question("What is your years of experience in Databricks")
+    assert res.can_answer is True
+    assert res.answer_value == "4"
+
+
+
 
 
 

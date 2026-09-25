@@ -490,3 +490,15 @@
   - [x] Sync updated modules and test suites to OCI Linux VPS
   - [x] Execute 'pytest' on VPS verifying all tests pass (90/90 passed)
   - [x] Update 'tasks/lessons.md' with the domain boundary lesson
+### Phase 35: Weekend Exclusion from Automated Applications & Email Alerts
+- [x] **Phase 35.1: Configuration Update**
+  - [x] Update `schedule.days` in `config/config.yaml` to Monday-Friday only (removed `saturday` and `sunday`)
+  - [x] Update `schedule.cron_expression` to `30 3,8 * * 1-5`
+- [x] **Phase 35.2: Code & Execution Wrapper Guards**
+  - [x] Implement schedule gate in `main.py` verifying current weekday against `schedule.days` (with `--force-run` bypass)
+  - [x] Implement weekend exclusion check in `run_daily.sh` (`DOW=$(TZ="Asia/Kolkata" date +%u)` exiting on `DOW > 5`)
+- [x] **Phase 35.3: Production VPS Crontab Update**
+  - [x] Update crontab on OCI Linux VPS (`opc@129.158.196.248`) to `23 3,8 * * 1-5` (Mon-Fri only)
+- [x] **Phase 35.4: Test Suite & Regression Verification**
+  - [x] Verify local pytest unit test suite (90/90 passed)
+  - [x] Deploy and sync `run_daily.sh`, `main.py`, and `config/config.yaml` to VPS

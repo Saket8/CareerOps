@@ -27,6 +27,7 @@ def main():
     parser.add_argument("--today", action="store_true", help="Scope phase validation strictly to today's applications")
     parser.add_argument("--cleanup", "--apply-retention", dest="cleanup", action="store_true", help="Execute retention policy to purge stale data and reclaim storage")
     parser.add_argument("--interview-briefing", "--force-interview", dest="force_interview", action="store_true", help="Force generation and email dispatch of consolidated daily interview briefing")
+    parser.add_argument("--force-run", action="store_true", help="Bypass day-of-week schedule check")
 
     args = parser.parse_args()
 
@@ -37,6 +38,25 @@ def main():
         sys.exit(0 if success else 1)
 
     config = load_config()
+
+    # Schedule Gate: Check if today is an active operations day per schedule configuration
+    if not args.force_run and not args.validate_phase and not args.cleanup:
+        import datetime
+        try:
+            import zoneinfo
+            tz_name = config.get("schedule", {}).get("timezone", "Asia/Kolkata")
+            tz = zoneinfo.ZoneInfo(tz_name)
+        except Exception:
+            tz = datetime.timezone.utc
+        current_day_name = datetime.datetime.now(tz).strftime("%A").lower()
+        allowed_days = [d.lower().strip() for d in config.get("schedule", {}).get("days", ["monday", "tuesday", "wednesday", "thursday", "friday"])]
+        if current_day_name not in allowed_days:
+            logger.info(
+                f"SCHEDULE GATE: Today is {current_day_name.capitalize()}, which is excluded from operations "
+                f"per schedule policy ({allowed_days}). Halting execution (no job discovery, applications, or alerts)."
+            )
+            print(f"\n[INFO] Today is {current_day_name.capitalize()} (Weekend/Excluded Day). No operations scheduled per config.yaml. Exiting cleanly.\n")
+            sys.exit(0)
 
     if args.cleanup:
         from src.maintenance.retention_manager import RetentionManager

@@ -204,3 +204,51 @@ def test_genai_architect_skill_first_qualification(db_session):
     assert "GENAI_ARCHITECTURE" in score.categories
 
 
+def test_snowflake_databricks_domain_gate_rejection(db_session):
+    """Test that Snowflake and Databricks architect roles are rejected by Domain Gate."""
+    job_repo = JobRepository(db_session)
+    candidate_truth = get_candidate_truth(refresh=True)
+    config = {"application": {"match_threshold": 70.0, "high_match_threshold": 85.0}}
+    agent = QualificationAgent(job_repo, candidate_truth, config)
+
+    snowflake_job = JobListing(
+        job_id="job_snowflake_1",
+        title="Snowflake Architect with Cortex AI",
+        company="Genpact",
+        location="Noida",
+        url="https://naukri.com/job/snow1",
+        experience_min=10.0,
+        experience_max=16.0,
+        experience_raw="10-16 Yrs",
+        jd_text="Looking for Snowflake Architect with deep experience in Snowflake data warehouse, Cortex AI, Snowpark, and SQL.",
+        has_full_jd=True,
+    )
+    job_repo.save_job(snowflake_job)
+
+    databricks_job = JobListing(
+        job_id="job_databricks_1",
+        title="RSA Databricks Architect",
+        company="Celebal Technologies",
+        location="Jaipur",
+        url="https://naukri.com/job/data1",
+        experience_min=10.0,
+        experience_max=15.0,
+        experience_raw="10-15 Yrs",
+        jd_text="Looking for Databricks Architect with PySpark, Delta Lake, Lakehouse architecture, and Unity Catalog.",
+        has_full_jd=True,
+    )
+    job_repo.save_job(databricks_job)
+
+    score_s, _ = agent.evaluate_job(snowflake_job)
+    score_d, _ = agent.evaluate_job(databricks_job)
+
+    assert score_s.passed_threshold is False
+    assert snowflake_job.status == JobStatus.REJECTED
+    assert any("Snowflake/Databricks specialization" in g for g in score_s.gaps)
+
+    assert score_d.passed_threshold is False
+    assert databricks_job.status == JobStatus.REJECTED
+    assert any("Snowflake/Databricks specialization" in g for g in score_d.gaps)
+
+
+

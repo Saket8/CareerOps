@@ -96,6 +96,16 @@ class DiscoveryAgent:
                     result.duplicates_skipped += 1
                     continue
 
+                # 0c. Domain Gate: Skip roles whose title targets excluded technologies (Snowflake, Databricks)
+                title_lower = (listing.title or "").lower()
+                if any(tech in title_lower for tech in ["snowflake", "databricks"]):
+                    logger.info(
+                        f"DOMAIN GATE: Skipping job {listing.job_id} ('{listing.title}' @ {listing.company}) "
+                        f"centered on excluded technology (Snowflake/Databricks)."
+                    )
+                    result.duplicates_skipped += 1
+                    continue
+
                 dedup_key = f"{listing.company.lower().strip()}::{listing.title.lower().strip()}"
 
                 # 1. Deduplicate within current run

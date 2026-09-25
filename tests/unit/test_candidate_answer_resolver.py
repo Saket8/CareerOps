@@ -287,20 +287,20 @@ def test_resolver_new_chatbot_screening_questions():
     assert res.can_answer is True
     assert res.answer_value == "Saket Saurav"
 
-    # 7. Snowflake from scratch
+    # 7. Snowflake from scratch (truthfully No for unlisted skill)
     res = resolver.resolve_question("Have you worked on setting up Snowflake accounts, warehouses, and databases from scratch?")
     assert res.can_answer is True
-    assert res.answer_value == "Yes"
+    assert res.answer_value == "No"
 
     # 8. Highest Educational Qualification
     res = resolver.resolve_question("Highest Educational Qualification")
     assert res.can_answer is True
     assert "Bachelor of Technology" in res.answer_value or "B.Tech" in res.answer_value
 
-    # 9. Databricks
+    # 9. Databricks (truthfully 0 for unlisted skill)
     res = resolver.resolve_question("What is your years of experience in Databricks")
     assert res.can_answer is True
-    assert res.answer_value == "4"
+    assert res.answer_value == "0"
 
 
 

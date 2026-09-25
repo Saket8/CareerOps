@@ -122,39 +122,6 @@ class CandidateAnswerResolver:
                 field_type=field_type,
             )
 
-        # 0d. Databricks & Lakehouse Experience
-        if "databricks" in q_lower and any(term in q_lower for term in ["experience", "years", "work", "worked"]):
-            if self._is_yes_no_inquiry(q_lower):
-                return FormQuestionAnswerResult(
-                    can_answer=True,
-                    answer_value="Yes",
-                    field_type=field_type,
-                )
-            return FormQuestionAnswerResult(
-                can_answer=True,
-                answer_value="4",
-                field_type=field_type,
-            )
-
-        # 0e. Snowflake Setup & Administration
-        if "snowflake" in q_lower and any(term in q_lower for term in ["setup", "set up", "from scratch", "account", "warehouse", "database", "admin"]):
-            return FormQuestionAnswerResult(
-                can_answer=True,
-                answer_value="Yes",
-                field_type=field_type,
-            )
-        if "snowflake" in q_lower and any(term in q_lower for term in ["experience", "years", "work", "worked"]):
-            if self._is_yes_no_inquiry(q_lower):
-                return FormQuestionAnswerResult(
-                    can_answer=True,
-                    answer_value="Yes",
-                    field_type=field_type,
-                )
-            return FormQuestionAnswerResult(
-                can_answer=True,
-                answer_value="4",
-                field_type=field_type,
-            )
 
         # 1. Cloud / OCI Experience (Check specific cloud/platform experience first)
         if ("oci" in q_lower or "oracle cloud" in q_lower or "oracle paas" in q_lower or "oracle iaas" in q_lower or "oracle integration" in q_lower) and any(term in q_lower for term in ["experience", "years", "work", "worked"]):
@@ -306,21 +273,28 @@ class CandidateAnswerResolver:
                 unverified_reason=f"Python experience for question '{question_text}' not found in verified candidate facts.",
             )
 
-        # Unlisted / External Technologies (e.g. ServiceNow, SAP, Salesforce, Ruby, PHP, Java, .NET, Angular, React, etc.)
+        # Unlisted / External Technologies (e.g. Snowflake, Databricks, ServiceNow, SAP, Salesforce, Ruby, PHP, Java, etc.)
         # Factually and truthfully, candidate has 0 years of experience in unlisted technologies.
         # Yes/No inquiry -> "No", Numeric duration inquiry -> "0"
-        if any(term in q_lower for term in ["servicenow", "service now", "sap", "salesforce", "ruby", "php", "golang", "java", ".net", "react", "angular", "node", "c++", "c#"]) and any(term in q_lower for term in ["experience", "years", "worked", "hands-on"]):
-            if self._is_yes_no_inquiry(q_lower):
+        if any(term in q_lower for term in ["snowflake", "databricks", "servicenow", "service now", "sap", "salesforce", "ruby", "php", "golang", "java", ".net", "react", "angular", "node", "c++", "c#"]):
+            if any(term in q_lower for term in ["setup", "set up", "from scratch", "account", "warehouse", "database"]):
                 return FormQuestionAnswerResult(
                     can_answer=True,
                     answer_value="No",
                     field_type=field_type,
                 )
-            return FormQuestionAnswerResult(
-                can_answer=True,
-                answer_value="0",
-                field_type=field_type,
-            )
+            if any(term in q_lower for term in ["experience", "years", "worked", "hands-on", "work"]):
+                if self._is_yes_no_inquiry(q_lower):
+                    return FormQuestionAnswerResult(
+                        can_answer=True,
+                        answer_value="No",
+                        field_type=field_type,
+                    )
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value="0",
+                    field_type=field_type,
+                )
 
         if "cloud" in q_lower and any(term in q_lower for term in ["experience", "years", "work", "worked"]) and "total" not in q_lower and "overall" not in q_lower:
             if self._is_yes_no_inquiry(q_lower):

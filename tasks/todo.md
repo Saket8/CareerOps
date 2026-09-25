@@ -474,4 +474,19 @@
   - [x] Verified memory usage remains stable (354 MB used, 591 MB available, 3.7 GB swap free)
   - [x] Verified phase gate persistent results: 77 confirmed applications in database (`APPLICATION AUTOMATION PHASE: PASSED`)
 
-
+### Phase 34: Strict Domain Invariant & Removal of Snowflake / Databricks
+- [x] **Phase 34.1: Candidate Answer Resolver Clean-up**
+  - [x] Remove hardcoded/extrapolated Snowflake and Databricks responses ('4', 'Yes') from 'src/naukri/candidate_answer_resolver.py'
+  - [x] Map Snowflake and Databricks to unlisted/external technologies returning truthful '0' (for duration) and 'No' (for setup/experience)
+- [x] **Phase 34.2: Domain Exclusion Gate in Qualification Agent**
+  - [x] Add Domain Gate in 'src/agents/qualification.py' rejecting Snowflake and Databricks roles from qualifying
+- [x] **Phase 34.3: Database State Cleanup**
+  - [x] Update status of existing Snowflake/Databricks listings in local & VPS SQLite databases to 'REJECTED'
+- [x] **Phase 34.4: Unit Tests & Regression Verification**
+  - [x] Update 'tests/unit/test_candidate_answer_resolver.py' to test truthful 0/No responses for Snowflake/Databricks
+  - [x] Add test in 'tests/unit/test_qualification.py' validating automatic rejection of Snowflake/Databricks roles
+  - [x] Run full test suite locally (90/90 tests passing)
+- [x] **Phase 34.5: VPS Deployment & Verification**
+  - [x] Sync updated modules and test suites to OCI Linux VPS
+  - [x] Execute 'pytest' on VPS verifying all tests pass (90/90 passed)
+  - [x] Update 'tasks/lessons.md' with the domain boundary lesson

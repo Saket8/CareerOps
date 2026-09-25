@@ -193,6 +193,12 @@ class QualificationAgent:
             logger.info(f"Experience Gate: Rejecting job '{job.title}' ({job.experience_raw}) as junior/intern role.")
             overall_score = min(overall_score, self.match_threshold - 10.0)
 
+        # Domain Exclusion Gate: Reject roles whose primary specialization is outside candidate's core stack (Snowflake, Databricks)
+        is_excluded_domain = any(tech in title_lower for tech in ["snowflake", "databricks"])
+        if is_excluded_domain:
+            logger.info(f"Domain Gate: Rejecting job '{job.title}' centered on excluded technologies (Snowflake/Databricks).")
+            overall_score = min(overall_score, self.match_threshold - 15.0)
+
         # Determine Role Categories
         categories = self._determine_categories(text)
 
@@ -204,6 +210,9 @@ class QualificationAgent:
         if job.experience_max is not None and job.experience_max < 5.0:
             gaps.append(f"Role requires junior/entry-level experience ({job.experience_raw}); candidate has 12 years Principal Architect tenure.")
             match_reasons.append("Rejected by Experience Gate: junior/intern role incompatible with 12-year Principal Architect profile.")
+        if is_excluded_domain:
+            gaps.append("Role requires Snowflake/Databricks specialization, which is outside candidate's verified OCI/Cloud/AI core competencies.")
+            match_reasons.append("Rejected by Domain Gate: Snowflake/Databricks specialization is outside candidate's target OCI & AI Architect tracks.")
 
         passed = overall_score >= self.match_threshold
 

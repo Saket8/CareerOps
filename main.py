@@ -27,17 +27,27 @@ def main():
     parser.add_argument("--today", action="store_true", help="Scope phase validation strictly to today's applications")
     parser.add_argument("--cleanup", "--apply-retention", dest="cleanup", action="store_true", help="Execute retention policy to purge stale data and reclaim storage")
     parser.add_argument("--interview-briefing", "--force-interview", dest="force_interview", action="store_true", help="Force generation and email dispatch of consolidated daily interview briefing")
+    parser.add_argument("--refresh-profile", "--upload-cv", dest="refresh_profile", action="store_true", help="Re-upload master CV to Naukri profile to refresh Resdex rank")
     parser.add_argument("--force-run", action="store_true", help="Bypass day-of-week schedule check")
 
     args = parser.parse_args()
+
+    config = load_config()
+
+    if args.refresh_profile:
+        from src.naukri.playwright_adapter import PlaywrightBrowserAdapter
+        cv_path = config.get("resume", {}).get("source_path", "resumes/master/Saket_Saurav_OCI.docx")
+        print(f"\n[INFO] Re-uploading master CV to Naukri profile: {cv_path}")
+        client = PlaywrightBrowserAdapter(offline_mode=args.offline)
+        res = client.refresh_profile_resume(cv_path)
+        print(f"[RESULT] {res}\n")
+        sys.exit(0 if res.get("success") else 1)
 
     if args.validate_phase:
         from src.cli.phase_validator import validate_application_phase
         date_scope = "today" if args.today else None
         success = validate_application_phase(date_scope=date_scope)
         sys.exit(0 if success else 1)
-
-    config = load_config()
 
     # Schedule Gate: Check if today is an active operations day per schedule configuration
     if not args.force_run and not args.validate_phase and not args.cleanup:

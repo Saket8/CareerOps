@@ -45,3 +45,7 @@ class BaseNaukriClient(ABC):
     ) -> ApplicationRecord:
         """Submit application to a qualifying job."""
         pass
+
+    def refresh_profile_resume(self, resume_path: Optional[str] = None) -> Dict[str, Any]:
+        """Re-upload master CV to candidate's Naukri profile to refresh profile freshness timestamp."""
+        return {"success": True, "message": "Default base client refresh noop"}

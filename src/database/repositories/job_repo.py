@@ -4,7 +4,7 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from src.database.models import JobModel, JobScoreModel, JobEvidenceModel
+from src.database.models import JobModel, JobScoreModel, JobEvidenceModel, ApplicationModel
 from src.models.job import JobListing, JobStatus, SalaryEligibility
 from src.models.score import JobScore, JobEvidence
 from src.utils.logger import get_logger
@@ -33,24 +33,45 @@ class JobRepository:
         )
 
     def is_already_applied(self, job_id: str) -> bool:
-        """Check if job has already been applied to (APPLIED or APPLIED_CONFIRMED)."""
+        """Check if job has already been applied to (APPLIED or APPLIED_CONFIRMED) in jobs or applications."""
         job = self.get(job_id)
-        if not job:
-            return False
-        return job.status in (JobStatus.APPLIED.value, JobStatus.APPLIED_CONFIRMED.value)
+        if job and job.status in (JobStatus.APPLIED.value, JobStatus.APPLIED_CONFIRMED.value):
+            return True
+        app = self.session.query(ApplicationModel).filter(ApplicationModel.job_id == job_id).first()
+        if app and (
+            app.status in (JobStatus.APPLIED.value, JobStatus.APPLIED_CONFIRMED.value)
+            or app.confirmation_reference == "ALREADY_APPLIED"
+        ):
+            return True
+        return False
 
     def has_applied_to_company_and_title(self, company: str, title: str) -> bool:
         """Check if candidate already applied to this specific role and company."""
-        return (
+        comp_norm = company.lower().strip()
+        title_norm = title.lower().strip()
+        job_match = (
             self.session.query(JobModel)
             .filter(
-                func.lower(JobModel.company) == company.lower().strip(),
-                func.lower(JobModel.title) == title.lower().strip(),
+                func.lower(JobModel.company) == comp_norm,
+                func.lower(JobModel.title) == title_norm,
                 JobModel.status.in_([JobStatus.APPLIED.value, JobStatus.APPLIED_CONFIRMED.value]),
             )
             .first()
-            is not None
         )
+        if job_match:
+            return True
+
+        app_match = (
+            self.session.query(ApplicationModel)
+            .join(JobModel, ApplicationModel.job_id == JobModel.job_id)
+            .filter(
+                func.lower(JobModel.company) == comp_norm,
+                func.lower(JobModel.title) == title_norm,
+                ApplicationModel.status.in_([JobStatus.APPLIED.value, JobStatus.APPLIED_CONFIRMED.value]),
+            )
+            .first()
+        )
+        return app_match is not None
 
     def get(self, job_id: str) -> Optional[JobModel]:
         """Fetch job by ID."""

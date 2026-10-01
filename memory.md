@@ -1,9 +1,9 @@
 # CareerOps — Permanent System Memory & Operational Runbook
 
-Last Updated: 2026-09-25  
+Last Updated: 2026-09-29  
 Repository: [CareerOps (Saket8/CareerOps)](https://github.com/Saket8/CareerOps)  
 Target Candidate: Saket Saurav (Principal Cloud Architect / GenAI & LLM Solutions Architect)  
-Verified Live Applications: **77 Confirmed on Naukri** (with physical green badge proof)
+Verified Live Applications: **147 Confirmed on Naukri** (with physical green badge proof)
 
 ---
 
@@ -51,15 +51,13 @@ The system is deployed on an **Oracle Cloud Infrastructure (OCI) Free Tier Compu
 The autonomous pipeline is scheduled for the user `opc` on the VPS to align with peak recruiter screening windows in India Standard Time (IST = UTC+5:30):
 
 ```cron
-# CareerOps - Autonomous Naukri Career Intelligence Agent
-# Execution Windows:
-#   1. 08:53 IST (03:23 UTC) - Morning recruiter screening window
-#   2. 13:53 IST (08:23 UTC) - Post-lunch recruiter review window
+# CareerOps - Autonomous Naukri Career Intelligence Agent (Mon-Fri Morning Only)
+# Execution Window:
+#   08:53 IST (03:23 UTC) - Morning recruiter screening window (single daily run)
 SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
 
-23 3 * * * /home/opc/CareerOps/run_daily.sh
-23 8 * * * /home/opc/CareerOps/run_daily.sh
+23 3 * * 1-5 /u01/CareerOps/run_daily.sh
 ```
 
 > [!NOTE]
@@ -134,8 +132,9 @@ In `src/naukri/playwright_adapter.py`, Chromium launches with aggressive resourc
    - Green `.already-applied` badge on listing page, or
    - Level 1 direct modal confirmation reference ID (`CHATBOT_CONFIRMED`), accompanied by
    - Visual screenshot saved on disk in `artifacts/evidence/<job_id>_already_applied.png`.
-5. **Daily Cumulative Email Reporting:** Daily emails query all applications recorded today (`submitted_at >= today_start` or `started_at >= today_start`), guaranteeing zero blank emails on subsequent runs and zero historical leaks from previous days.
+5. **Email Uniqueness & Deduplication Guarantee:** Every email delivered contains strictly unique, newly processed applications from that execution run. Duplicate runs with zero new applications or identical job signatures are suppressed to guarantee zero repeat emails.
 6. **Application Quota:** Enforces hard daily cap of 35 automated applications to protect candidate account standing.
+7. **Zero Re-Apply & Strict Already-Applied Pre-Check:** The agent never attempts to apply to a job that has already been applied. Multi-layered pre-checks enforce this at the search card level (authenticated SRP cards), database query level (cross-table verification in jobs and applications), pre-flight tailoring gate, and immediate page-load inspection (before clicking any apply button).
 
 ---
 

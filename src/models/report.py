@@ -39,6 +39,7 @@ class DailyReportData(BaseModel):
     blocked_applications: int = 0  # Blocked by safety/auth/captcha
     failed_applications: int = 0  # Technical failures
     interview_packs_generated: int = 0
+    profile_refresh_status: Optional[str] = None
     top_applications: List[TopApplicationItem] = Field(default_factory=list)
     errors: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)

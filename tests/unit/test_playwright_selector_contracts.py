@@ -149,3 +149,56 @@ def test_success_confirmation_ref_selector_contract():
     ref_match = re.search(r"CONF_\d+", FIXTURE_SUCCESS_TOAST_CONFIRMATION)
     assert ref_match is not None
     assert ref_match.group(0) == "CONF_991823"
+
+
+FIXTURE_PROFILE_RESUME_SECTION = """
+<!DOCTYPE html>
+<html>
+<body>
+    <div class="resume-upload-wrapper">
+        <div class="title">Resume</div>
+        <div class="sub-title">Resume is the most important document recruiters look for</div>
+        <div class="attach-wrapper">
+            <input type="file" id="attachCV" class="file-input" accept=".doc,.docx,.rtf,.pdf" />
+            <a href="javascript:;" class="update-resume">Update resume</a>
+        </div>
+        <div class="msg-box success">
+            <span>Resume has been successfully uploaded.</span>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+
+def test_profile_resume_upload_selector_contract():
+    soup = BeautifulSoup(FIXTURE_PROFILE_RESUME_SECTION, "html.parser")
+
+    # 1. Standard attachCV file input
+    file_input = soup.select("input#attachCV, input[type='file'][id*='attachCV'], input[type='file']")
+    assert len(file_input) == 1
+    assert file_input[0].get("id") == "attachCV"
+
+    # 2. Update resume fallback anchor/button
+    update_link = soup.select("a.update-resume, .update-resume")
+    assert len(update_link) == 1
+    assert "Update resume" in update_link[0].get_text()
+
+    # 3. Confirmation toast
+    toast = soup.select(".msg-box, .toast-message, [class*='toast'], [class*='success']")
+    assert len(toast) >= 1
+    assert "successfully uploaded" in toast[0].get_text()
+
+
+def test_refresh_profile_resume_offline_contract(tmp_path):
+    from src.naukri.playwright_adapter import PlaywrightBrowserAdapter
+
+    adapter = PlaywrightBrowserAdapter(offline_mode=True)
+    dummy_cv = tmp_path / "Saket_Saurav_OCI.docx"
+    dummy_cv.write_text("dummy cv")
+
+    result = adapter.refresh_profile_resume(str(dummy_cv))
+    assert result["success"] is True
+    assert result["offline"] is True
+    assert "Offline mode" in result["message"]
+

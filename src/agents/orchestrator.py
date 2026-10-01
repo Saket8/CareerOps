@@ -109,6 +109,23 @@ class Orchestrator:
                 interview_packs_generated = 0
                 strong_matches = 0
 
+                # 0. PROFILE RESUME REFRESH (Re-upload master CV on weekday morning run to maintain Resdex rank)
+                profile_refresh_status = None
+                if not self.dry_run and not self.offline_mode and self.config.get("resume", {}).get("reupload_daily", True):
+                    try:
+                        master_cv_path = self.config.get("resume", {}).get("source_path", "resumes/master/Saket_Saurav_OCI.docx")
+                        logger.info(f"Executing daily profile CV re-upload to refresh Naukri Resdex freshness: {master_cv_path}")
+                        refresh_res = naukri_client.refresh_profile_resume(master_cv_path)
+                        if refresh_res.get("success"):
+                            profile_refresh_status = f"SUCCESS ({refresh_res.get('file', 'CV Re-uploaded')})"
+                            logger.info(f"Naukri profile CV refresh successful: {profile_refresh_status}")
+                        else:
+                            profile_refresh_status = f"FAILED: {refresh_res.get('error', 'Unknown error')}"
+                            logger.warning(f"Naukri profile CV refresh warning: {profile_refresh_status}")
+                    except Exception as p_err:
+                        profile_refresh_status = f"ERROR: {p_err}"
+                        logger.warning(f"Non-fatal exception during profile CV refresh: {p_err}")
+
                 # 1. DISCOVERY & EARLY SALARY FILTERING
                 disc_result = discovery_agent.run_discovery(query_limit=query_limit)
                 jobs_scanned_count = disc_result.total_found
@@ -131,6 +148,11 @@ class Orchestrator:
                 qualified_jobs_count = len(qualifying_jobs)
 
                 for job, score, evidence in qualifying_jobs:
+                    # Pre-flight gate: strictly skip if already applied in DB
+                    if job_repo.is_already_applied(job.job_id) or job_repo.has_applied_to_company_and_title(job.company, job.title):
+                        logger.info(f"Pre-flight Gate: Candidate already applied to '{job.title}' @ {job.company}. Strictly skipping application attempt.")
+                        continue
+
                     # Tailor ATS Resume (DOCX & PDF)
                     docx_path, pdf_path, val_report = resume_agent.generate_tailored_resume(job, score)
                     resumes_generated += 1
@@ -200,59 +222,10 @@ class Orchestrator:
                     w_md, w_html, weekly_html_content = reporting_agent.generate_weekly_report(weekly_data)
                     weekly_week_number = weekly_data.week_number
 
-                # 5. DAILY REPORTING & EMAIL NOTIFICATION (Today's Cumulative Scope; Zero Yesterday/Historical Backfill)
+                # 5. DAILY REPORTING & EMAIL NOTIFICATION (Run-Scoped; Zero Duplicate Backfill)
                 end_time = datetime.now(timezone.utc)
 
-                # Aggregate all applications submitted or recorded TODAY (date == date_str) to provide a true Daily Report
-                today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-                seen_job_titles = {f"{a.company.lower()}::{a.role.lower()}" for a in top_applications}
-                seen_urls = {a.url for a in top_applications if a.url}
-
-                today_apps_query = (
-                    session.query(ApplicationModel, JobModel)
-                    .join(JobModel, ApplicationModel.job_id == JobModel.job_id)
-                    .filter(
-                        (ApplicationModel.submitted_at >= today_start) | (ApplicationModel.started_at >= today_start),
-                        ApplicationModel.status.in_([
-                            JobStatus.APPLIED_CONFIRMED.value,
-                            JobStatus.EXTERNAL_APPLICATION_REQUIRED.value,
-                        ]),
-                    )
-                    .order_by(ApplicationModel.submitted_at.desc())
-                    .all()
-                )
-
-                for app_m, job_m in today_apps_query:
-                    job_key = f"{job_m.company.lower()}::{job_m.title.lower()}"
-                    portal_url = app_m.external_application_url or job_m.canonical_url or job_m.url
-                    if job_key in seen_job_titles or (portal_url and portal_url in seen_urls):
-                        continue
-                    seen_job_titles.add(job_key)
-                    if portal_url:
-                        seen_urls.add(portal_url)
-
-                    score_m = job_repo.get_score(job_m.job_id)
-                    match_score = score_m.overall_score if score_m else 80.0
-                    key_factors = score_m.strengths[:3] if (score_m and score_m.strengths) else ["Direct match for candidate architecture profile"]
-
-                    top_applications.append(
-                        TopApplicationItem(
-                            company=job_m.company,
-                            role=job_m.title,
-                            salary=job_m.salary_raw_text or "Not Disclosed",
-                            match_score=match_score,
-                            key_factors=key_factors,
-                            resume_used=app_m.resume_version or "Tailored_Principal_Architect_Resume.pdf",
-                            status=app_m.status,
-                            url=portal_url or job_m.url,
-                            method=app_m.application_method or "NAUKRI_DIRECT",
-                            reason=app_m.failure_reason,
-                            evidence_path=app_m.evidence_path,
-                            confirmation_ref=app_m.confirmation_reference,
-                        )
-                    )
-
-                # Recompute summary counts strictly from current run's top_applications (including today's cumulative items)
+                # Summary counts strictly computed from current run's processed items
                 confirmed_count = len([a for a in top_applications if a.status == JobStatus.APPLIED_CONFIRMED.value])
                 unverified_count = len([a for a in top_applications if a.status == JobStatus.SUBMISSION_UNVERIFIED.value])
                 blocked_count = len([a for a in top_applications if a.status in (JobStatus.APPLICATION_BLOCKED.value, JobStatus.BLOCKED.value)])
@@ -280,6 +253,7 @@ class Orchestrator:
                     blocked_applications=blocked_count,
                     failed_applications=failed_count,
                     interview_packs_generated=interview_packs_generated,
+                    profile_refresh_status=profile_refresh_status,
                     top_applications=top_applications,
                 )
 
@@ -331,8 +305,55 @@ class Orchestrator:
                     </div>
                     """
 
-                # Single Consolidated Email Delivery (Exactly ONE email per run)
-                if not self.offline_mode:
+                # Email Deduplication & Uniqueness Guard
+                has_actionable_applications = any(
+                    a.status in (JobStatus.APPLIED_CONFIRMED.value, JobStatus.EXTERNAL_APPLICATION_REQUIRED.value)
+                    for a in top_applications
+                )
+
+                # Check email dispatch history checkpoint file to guarantee uniqueness
+                dispatch_history_path = Path("artifacts/dispatched_emails.json")
+                dispatched_records = []
+                if dispatch_history_path.exists():
+                    try:
+                        import json
+                        dispatched_records = json.loads(dispatch_history_path.read_text(encoding="utf-8"))
+                        if not isinstance(dispatched_records, list):
+                            dispatched_records = []
+                    except Exception as json_err:
+                        logger.warning(f"Could not load dispatched email history: {json_err}")
+                        dispatched_records = []
+
+                # Current run's application signatures
+                current_job_urls = sorted([a.url for a in top_applications if a.url])
+
+                # Check if an identical set of applications was already emailed today
+                is_duplicate_email = False
+                for rec in dispatched_records:
+                    if rec.get("date") == date_str:
+                        rec_urls = sorted(rec.get("job_urls", []))
+                        if rec_urls and rec_urls == current_job_urls:
+                            is_duplicate_email = True
+                            break
+
+                should_send_email = True
+                if self.offline_mode:
+                    should_send_email = False
+                    logger.info("Offline mode: Skipping email delivery.")
+                elif is_duplicate_email:
+                    should_send_email = False
+                    logger.warning(
+                        f"Email suppressed: An identical report for these {len(current_job_urls)} applications "
+                        f"was already delivered on {date_str}. Suppressing duplicate email."
+                    )
+                elif not has_actionable_applications and not (is_friday and weekly_html_content):
+                    should_send_email = False
+                    logger.info(
+                        "Email suppressed: Zero new confirmed or external applications in this run. "
+                        "Skipping email to ensure candidate inbox receives only unique application notifications."
+                    )
+
+                if should_send_email:
                     if is_friday:
                         report_subject = f"CareerOps — Daily Application & Weekly Intelligence Report — {date_str}"
                     else:
@@ -360,8 +381,25 @@ class Orchestrator:
                         html_body=final_html_body,
                         attachments=interview_attachments,
                     )
-                else:
-                    logger.info("Offline mode: Skipping email delivery.")
+
+                    # Record dispatch to guarantee deduplication
+                    try:
+                        import json
+                        dispatched_records.append({
+                            "run_id": run_id,
+                            "date": date_str,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "job_urls": current_job_urls,
+                            "applications_count": confirmed_count,
+                            "subject": report_subject,
+                        })
+                        dispatch_history_path.parent.mkdir(parents=True, exist_ok=True)
+                        dispatch_history_path.write_text(
+                            json.dumps(dispatched_records[-60:], indent=2), encoding="utf-8"
+                        )
+                        logger.info(f"Recorded email dispatch checkpoint for run {run_id} to {dispatch_history_path}.")
+                    except Exception as hist_err:
+                        logger.warning(f"Could not record email dispatch history: {hist_err}")
 
                 # Record run finish in DB
                 run_repo.finish_run(

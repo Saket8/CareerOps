@@ -1,67 +1,39 @@
-# Python
+# Environment and Credentials
+.env
+*.env
+*.pem
+*.key
+artifacts/naukri_auth.json
+
+# SQLite databases & runtime storage
+*.sqlite
+*.sqlite3
+*.db
+naukri_career_agent.sqlite
+
+# Python & Virtualenv
+venv/
+env/
+.venv/
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-env/
-venv/
-.venv/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Testing
+*.pytest_cache/
 .pytest_cache/
-.coverage
-htmlcov/
 
-# Local databases & state
-*.sqlite
-!naukri_career_agent.sqlite
-*.sqlite-wal
-*.sqlite-shm
-*.db
-*.db-journal
-evidence/
-
-# Logs
-*.log
+# Runtime Logs & Task outputs
 logs/
+tasks/
+scratch/
+*.log
 
-# Secrets & Environment variables
-.env
-.env.*
-secrets.yaml
-creds.txt
-*credential*
-*auth*.json
-artifacts/scratch/
+# Debug dumps and temporary screenshots
+*.png
+*.html
+*.dump
+!artifacts/evidence/profile_optimization_success.png
 
-# IDE / Editor
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS files
-Thumbs.db
-Desktop.ini
+# OS & Editor
 .DS_Store
-
-# Generated interview folders
-interviews/
-ci_run*/
-
+.idea/
+.vscode/

@@ -79,6 +79,7 @@ Date: {data.date}
 - **Failed:** {len(failed_apps)}
 - **ATS Resumes generated:** {data.resumes_generated}
 - **Interview packs built:** {data.interview_packs_generated}
+{f"- **Naukri Profile Freshness:** {data.profile_refresh_status}" if data.profile_refresh_status else ""}
 
 ---
 
@@ -233,6 +234,14 @@ Date: {data.date}
                 """)
             return "".join(rows)
 
+        profile_refresh_html = ""
+        if data.profile_refresh_status:
+            profile_refresh_html = f"""
+    <div style="background-color: #f0fdf4; border-bottom: 1px solid #bbf7d0; padding: 10px 24px; font-size: 12px; color: #166534;">
+      <strong>&#128260; Naukri Profile Freshness:</strong> {data.profile_refresh_status}
+    </div>
+    """
+
         html_content = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -281,6 +290,7 @@ Date: {data.date}
       <h1 style="margin: 6px 0 4px 0; font-size: 22px; font-weight: 700; line-height: 1.3;">CareerOps &bull; Application Report</h1>
       <div style="font-size: 13px; color: #94a3b8; margin-top: 4px;">{data.date} &bull; Mode: <strong style="color: {'#fbbf24' if data.dry_run else '#4ade80'};">{'DRY RUN' if data.dry_run else 'LIVE SUBMISSION'}</strong> &bull; Run: <code style="font-size: 11px; background: #334155; padding: 2px 6px; border-radius: 4px; color: #f8fafc;">{data.run_id}</code></div>
     </div>
+    {profile_refresh_html}
 
     <!-- Stat Cards Grid -->
     <div style="padding: 16px 20px; background-color: #f8fafc; display: flex; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid #e2e8f0;">

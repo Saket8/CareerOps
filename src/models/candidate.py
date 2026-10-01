@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field
 
 
 class CandidateProfile(BaseModel):
+    model_config = {"extra": "allow"}
+
     name: str
     title: str
     current_organization: str
@@ -19,9 +21,24 @@ class CandidateProfile(BaseModel):
     kubernetes_experience_years: Optional[float] = None
     ai_experience_years: Optional[float] = None
     python_experience_years: Optional[float] = None
-    notice_period_days: int = 30
+    database_experience_years: Optional[float] = 12.0
+    dba_experience_years: Optional[float] = 10.0
+    plsql_experience_years: Optional[float] = 10.0
+    sql_experience_years: Optional[float] = 10.0
+    microservices_experience_years: Optional[float] = 5.0
+    sdlc_experience_years: Optional[float] = 12.0
+    leadership_experience_years: Optional[float] = 5.0
+    notice_period_days: int = 90
     willing_to_relocate: bool = True
     work_authorization: str = "Indian Citizen"
+    gender: str = "Male"
+    salutation: str = "Mr."
+    country_code: str = "+91"
+    postal_code: str = "201301"
+    tenth_passout_year: str = "2008"
+    tenth_percentage: str = "82%"
+    twelfth_passout_year: str = "2010"
+    twelfth_percentage: str = "78%"
     current_salary_disclosed: bool = False
     current_salary_lpa: Optional[float] = None
     min_acceptable_salary_lpa: Optional[float] = None

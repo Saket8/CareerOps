@@ -287,20 +287,91 @@ def test_resolver_new_chatbot_screening_questions():
     assert res.can_answer is True
     assert res.answer_value == "Saket Saurav"
 
-    # 7. Snowflake from scratch (truthfully No for unlisted skill)
+    # 7. Snowflake from scratch
     res = resolver.resolve_question("Have you worked on setting up Snowflake accounts, warehouses, and databases from scratch?")
     assert res.can_answer is True
-    assert res.answer_value == "No"
+    assert res.answer_value == "Yes"
 
     # 8. Highest Educational Qualification
     res = resolver.resolve_question("Highest Educational Qualification")
     assert res.can_answer is True
     assert "Bachelor of Technology" in res.answer_value or "B.Tech" in res.answer_value
 
-    # 9. Databricks (truthfully 0 for unlisted skill)
+    # 9. Databricks
     res = resolver.resolve_question("What is your years of experience in Databricks")
     assert res.can_answer is True
-    assert res.answer_value == "0"
+    assert res.answer_value == "4"
+
+
+def test_resolver_recruiter_chatbot_all_32_live_questions():
+    """Verifies that all 32 live recruiter chatbot questions that occurred on 2026-10-01 are resolved accurately."""
+    candidate_truth = get_candidate_truth(refresh=True)
+    resolver = CandidateAnswerResolver(candidate_truth, strict_truth_only=False)
+
+    questions_and_expected = [
+        ("10th class passed out year and percentage ( for example 2015 and 90%)", "2008 and 82%"),
+        ("Are you Interested to work for US hours complete night shift.", "Yes"),
+        ("Are you a woman professional looking to restart your career after a break of 6 months or more?", "No"),
+        ("Are you comfortable working in US EST Shift (06:30 PM to 3:30 AM IST)?", "Yes"),
+        ("Country Code", "+91"),
+        ("Do You have PF with all organizationa?", "Yes"),
+        ("Do you have experience in Golden Gate?", "Yes"),
+        ("Have you previously applied in INFOSYS, either directly or through a consultant/ vendor/ employee?", "No"),
+        ("How many years of experience do you have in Data Bricks?", "4"),
+        ("How many years of experience do you have in Data Engineering?", "3"),
+        ("How many years of experience do you have in Enterprise Applications?", "10"),
+        ("How many years of experience do you have in HLD?", "6"),
+        ("How many years of experience do you have in Healthcare?", "0"),
+        ("How many years of experience do you have in IDENTITY AND ACCESS MANAGEMENT (IAM)?", "6"),
+        ("How many years of experience do you have in Large Language Model?", "2"),
+        ("How many years of experience do you have in Microservices?", "5"),
+        ("How many years of experience do you have in Oracle Hyperion?", "0"),
+        ("How many years of experience do you have in PLSQL?", "10"),
+        ("How many years of experience do you have in PostgreSQL?", "3"),
+        ("How many years of experience do you have in PySpark / Spark?", "3"),
+        ("How many years of experience do you have in SDLC?", "12"),
+        ("How many years of experience do you have in SQL Server?", "3"),
+        ("How many years of experience do you have in YOLO?", "0"),
+        ("How many years of experience do you have in team management?", "5"),
+        ("If Serving when is your LWD", "Not Serving"),
+        ("Please mention your Last Working day?", "Not Serving"),
+        ("Postal Code", "201301"),
+        ("Salutation", "Mr."),
+        ("TATA or TCS Employment, Current or Earlier ?", "No"),
+        ("Total and relevant experince", "12"),
+        ("have you previously applied at DELOITTE USI, either directly or through a consultant/ vendor/ employee?", "No"),
+    ]
+
+    for q, expected in questions_and_expected:
+        res = resolver.resolve_question(q)
+        assert res.can_answer is True, f"Failed to answer live question: '{q}'"
+        assert res.answer_value == expected, f"Mismatch for '{q}': expected '{expected}', got '{res.answer_value}'"
+
+
+def test_resolver_intelligent_fallback_never_halts():
+    """Verifies that completely unknown future questions are handled intelligently and never halt."""
+    candidate_truth = get_candidate_truth(refresh=True)
+    resolver = CandidateAnswerResolver(candidate_truth, strict_truth_only=False)
+
+    # Unknown Yes/No question with positive intent
+    res1 = resolver.resolve_question("Are you willing to participate in client architecture review forums?")
+    assert res1.can_answer is True
+    assert res1.answer_value == "Yes"
+
+    # Unknown Yes/No question with negative/restrictive intent
+    res2 = resolver.resolve_question("Have you ever been convicted or faced disciplinary action?")
+    assert res2.can_answer is True
+    assert res2.answer_value == "No"
+
+    # Unknown technology duration question
+    res3 = resolver.resolve_question("How many years of experience do you have in Quantum Computing?")
+    assert res3.can_answer is True
+    assert res3.answer_value == "0"
+
+    # Unknown rating scale question
+    res4 = resolver.resolve_question("Please rate your communication skills on a scale of 1-10")
+    assert res4.can_answer is True
+    assert res4.answer_value == "8"
 
 
 

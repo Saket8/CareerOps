@@ -25,9 +25,24 @@ candidate:
   kubernetes_experience_years: 5.0
   ai_experience_years: 2.0
   python_experience_years: 5.0
+  database_experience_years: 12.0
+  dba_experience_years: 10.0
+  plsql_experience_years: 10.0
+  sql_experience_years: 10.0
+  microservices_experience_years: 5.0
+  sdlc_experience_years: 12.0
+  leadership_experience_years: 5.0
   notice_period_days: 90
   willing_to_relocate: true
   work_authorization: "Indian Citizen"
+  gender: "Male"
+  salutation: "Mr."
+  country_code: "+91"
+  postal_code: "201301"
+  tenth_passout_year: "2008"
+  tenth_percentage: "82%"
+  twelfth_passout_year: "2010"
+  twelfth_percentage: "78%"
   current_salary_disclosed: false
   current_salary_lpa: null
   min_acceptable_salary_lpa: null

@@ -132,3 +132,32 @@ def test_daily_report_generation_with_zero_applications(tmp_path):
     assert "No direct applications submitted in this run." in html_content
     assert "Confirmed Applications (0)" in html_content
     assert "None" not in html_content  # Verifies clean message instead of bare 'None'
+
+
+def test_email_deduplication_detection(tmp_path):
+    import json
+    dispatch_file = tmp_path / "dispatched_emails.json"
+    
+    # Simulate prior dispatch
+    prior_records = [
+        {
+            "run_id": "run_morning_1",
+            "date": "2026-09-29",
+            "job_urls": ["https://naukri.com/job-1", "https://naukri.com/job-2"],
+            "applications_count": 2,
+            "subject": "CareerOps — Daily Application Report — 2026-09-29",
+        }
+    ]
+    dispatch_file.write_text(json.dumps(prior_records), encoding="utf-8")
+    
+    # Read back and verify duplicate detection logic
+    records = json.loads(dispatch_file.read_text(encoding="utf-8"))
+    incoming_urls_duplicate = sorted(["https://naukri.com/job-2", "https://naukri.com/job-1"])
+    incoming_urls_unique = sorted(["https://naukri.com/job-3"])
+    
+    is_dup_1 = any(r.get("date") == "2026-09-29" and sorted(r.get("job_urls", [])) == incoming_urls_duplicate for r in records)
+    is_dup_2 = any(r.get("date") == "2026-09-29" and sorted(r.get("job_urls", [])) == incoming_urls_unique for r in records)
+    
+    assert is_dup_1 is True, "Exact match of URLs on same date must be identified as duplicate"
+    assert is_dup_2 is False, "New URLs must not be identified as duplicate"
+

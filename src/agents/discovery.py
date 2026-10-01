@@ -117,7 +117,12 @@ class DiscoveryAgent:
 
                 # 1b. Check if already applied directly on Naukri Search Card
                 if getattr(listing, "is_already_applied", False):
-                    logger.info(f"Job {listing.job_id} ('{listing.title}' @ {listing.company}) already marked as applied on Naukri card. Skipping.")
+                    logger.info(
+                        f"SRP Detection: Job {listing.job_id} ('{listing.title}' @ {listing.company}) "
+                        f"already marked as applied on Naukri card. Marking as APPLIED in DB and skipping entirely."
+                    )
+                    listing.status = JobStatus.APPLIED
+                    self.job_repo.save_job(listing)
                     result.duplicates_skipped += 1
                     continue
 
@@ -136,7 +141,7 @@ class DiscoveryAgent:
                 existing_job = self.job_repo.get(listing.job_id)
                 if existing_job:
                     # 2a. Skip if already successfully applied
-                    if existing_job.status in (JobStatus.APPLIED.value, JobStatus.APPLIED_CONFIRMED.value):
+                    if existing_job.status in (JobStatus.APPLIED.value, JobStatus.APPLIED_CONFIRMED.value) or self.job_repo.is_already_applied(existing_job.job_id):
                         logger.info(f"Job {listing.job_id} already applied in DB. Skipping.")
                         result.duplicates_skipped += 1
                         continue
@@ -182,6 +187,15 @@ class DiscoveryAgent:
                             logger.info(f"Job {listing.job_id} previously evaluated with low score ({prior_score.overall_score}%). Skipping.")
                             result.duplicates_skipped += 1
                             continue
+
+                    # 2e2. Skip APPLICATION_READY jobs if already applied
+                    if existing_job.status == JobStatus.APPLICATION_READY.value and (
+                        self.job_repo.is_already_applied(existing_job.job_id)
+                        or self.job_repo.has_applied_to_company_and_title(existing_job.company, existing_job.title)
+                    ):
+                        logger.info(f"Queued job {existing_job.job_id} ('{existing_job.title}' @ {existing_job.company}) was already applied. Skipping.")
+                        result.duplicates_skipped += 1
+                        continue
 
                     # 2f. Skip if already discovered in this state and neither failed nor unverified
                     if existing_job.status in (JobStatus.SALARY_ELIGIBLE.value, JobStatus.DISCOVERED.value):

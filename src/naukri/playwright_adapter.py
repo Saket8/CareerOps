@@ -92,6 +92,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                 "--disable-backgrounding-occluded-windows",
                 "--disable-renderer-backgrounding",
                 "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider",
+                "--disable-http2",
             ],
         }
         if channel:
@@ -273,12 +274,21 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                     return {"success": False, "error": "Authentication failed"}
 
                 # Step 2: Open Candidate Profile
-                page.goto(profile_url, timeout=30000, wait_until="commit")
-                time.sleep(3)
+                page.goto(profile_url, timeout=40000, wait_until="domcontentloaded")
+                time.sleep(5)
 
-                # Step 3: Scroll & locate Resume Upload Input
+                # Close any accidental popups or photo modals if open
+                try:
+                    close_btn = page.locator(".crossLayer, button.close, [class*='cross'], [aria-label*='Close']").first
+                    if close_btn.is_visible(timeout=1500):
+                        close_btn.click()
+                        time.sleep(1)
+                except Exception:
+                    pass
+
+                # Step 3: Scroll gently to hydrate lazyAttachCV and locate input#attachCV
                 uploaded = False
-                for attempt in range(10):
+                for attempt in range(8):
                     if page.locator("input#attachCV").count() > 0:
                         try:
                             logger.info(f"Uploading CV ({target_file.name}) to Naukri profile via input#attachCV...")
@@ -287,36 +297,43 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             break
                         except Exception as up_err:
                             logger.warning(f"set_input_files on #attachCV failed: {up_err}")
-                    elif page.locator("input[type='file']").count() > 0:
-                        try:
-                            logger.info(f"Uploading CV ({target_file.name}) via fallback file input...")
-                            page.locator("input[type='file']").last.set_input_files(str(target_file.resolve()))
-                            uploaded = True
-                            break
-                        except Exception as up_err:
-                            logger.warning(f"Fallback set_input_files failed: {up_err}")
 
-                    page.evaluate("window.scrollBy(0, 300)")
-                    time.sleep(2)
+                    page.evaluate("window.scrollBy(0, 250)")
+                    time.sleep(1.5)
 
                 evidence_dir = Path("artifacts/evidence")
                 evidence_dir.mkdir(parents=True, exist_ok=True)
                 date_stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
                 if uploaded:
-                    time.sleep(8)  # Wait for AJAX upload request to complete
-
-                    # Step 4: Check for upload confirmation toast
-                    success_msg = ""
-                    toast = page.locator(".msg-box, .toast-message, [class*='toast'], [class*='success'], div:has-text('successfully uploaded'), div:has-text('uploaded successfully')").first
-                    if toast.is_visible():
+                    # Handle replacement confirmation dialog if prompted
+                    for _ in range(8):
+                        time.sleep(1)
                         try:
-                            success_msg = (toast.inner_text() or "").strip()
-                            logger.info(f"Naukri confirmation toast: {success_msg}")
+                            confirm_btn = page.locator("button:has-text('Yes'), button:has-text('Replace'), button:has-text('Save'), .btn-dark-ot").first
+                            if confirm_btn.is_visible(timeout=1000):
+                                logger.info(f"Clicking resume replacement confirmation button...")
+                                confirm_btn.click()
+                                break
                         except Exception:
                             pass
 
-                    # Step 5: Save evidence screenshot (timeout=5000 to prevent font loading hangs)
+                    time.sleep(6)  # Wait for AJAX upload processing
+
+                    # Step 4: Verify actual profile update timestamp in DOM
+                    updated_meta = page.evaluate("""() => {
+                        const cvEl = document.querySelector('#lazyAttachCV .updateOn');
+                        const headerMod = document.querySelector('.mod-date-val, .mod-date');
+                        return {
+                            cvDate: cvEl ? cvEl.innerText.trim() : '',
+                            headerDate: headerMod ? headerMod.innerText.trim() : ''
+                        };
+                    }""")
+                    cv_date_str = updated_meta.get("cvDate", "")
+                    header_date_str = updated_meta.get("headerDate", "")
+                    logger.info(f"Verified Naukri profile state: CV='{cv_date_str}', Header='{header_date_str}'")
+
+                    # Step 5: Save evidence screenshot
                     evidence_img = evidence_dir / f"profile_resume_refresh_{date_stamp}.png"
                     try:
                         page.screenshot(path=str(evidence_img), timeout=5000)
@@ -329,13 +346,14 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         pass
 
                     browser.close()
-                    logger.info(f"✅ Successfully re-uploaded master CV to Naukri profile: {target_file.name}")
+                    logger.info(f"✅ Successfully re-uploaded master CV to Naukri profile: {target_file.name} (CV: {cv_date_str}, Header: {header_date_str})")
                     return {
                         "success": True,
                         "file": target_file.name,
                         "file_path": str(target_file),
                         "evidence_path": str(evidence_img),
-                        "toast_message": success_msg,
+                        "cv_date": cv_date_str,
+                        "header_date": header_date_str,
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 else:
@@ -345,8 +363,8 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                     except Exception:
                         pass
                     browser.close()
-                    logger.warning(f"File upload input could not be located on Naukri profile page. Screenshot: {fail_img}")
-                    return {"success": False, "error": f"File upload input not found on profile. See {fail_img}"}
+                    logger.warning(f"File upload input (#attachCV) could not be located on Naukri profile page. Screenshot: {fail_img}")
+                    return {"success": False, "error": f"input#attachCV not found on profile. See {fail_img}"}
         except Exception as exc:
             logger.error(f"Error during Naukri profile resume re-upload: {exc}")
             return {"success": False, "error": str(exc)}

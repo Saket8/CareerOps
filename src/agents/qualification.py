@@ -20,16 +20,17 @@ DIMENSION_KEYWORDS = {
     "architecture": [
         "architect", "architecture", "solutions architect", "enterprise architect",
         "cloud administrator", "cloud admin", "oci administrator", "database administrator",
+        "cloud engineer", "infrastructure engineer", "systems engineer", "network engineer", "security engineer",
         "landing zone", "system design", "high availability", "disaster recovery",
         "topology", "scalability", "governance", "modernization"
     ],
     "cloud": [
         "cloud", "oci", "oracle cloud", "multi-cloud", "multicloud", "aws", "azure", "gcp",
-        "vcn", "drg", "fastconnect", "iaas", "paas"
+        "vcn", "drg", "fastconnect", "iaas", "paas", "compute", "networking"
     ],
     "oci_specific": [
         "oci", "oracle cloud infrastructure", "oke", "exadata", "exacs", "autonomous database",
-        "adw", "adb", "oci iam", "oci devops", "oci administrator"
+        "adw", "adb", "oci iam", "oci devops", "oci administrator", "oci compute", "oci network", "oci security"
     ],
     "ai_genai": [
         "genai", "generative ai", "ai", "artificial intelligence", "llm", "large language model",
@@ -168,7 +169,11 @@ class QualificationAgent:
         ])
         is_target_cloud_role = any(kw in title_lower for kw in [
             "oci architect", "oracle cloud", "cloud architect", "infrastructure architect",
-            "enterprise architect", "platform architect", "cloud solutions architect"
+            "enterprise architect", "platform architect", "cloud solutions architect",
+            "oci security", "oracle cloud security", "oci network", "oracle cloud network",
+            "oci compute", "oracle cloud compute", "oci iam", "oracle cloud iam",
+            "oci administrator", "oracle cloud administrator", "oci admin", "oracle cloud admin",
+            "oci engineer", "oracle cloud engineer", "oracle cloud microservices", "oci microservices"
         ])
 
         if is_target_ai_role and primary_ai >= 70.0:

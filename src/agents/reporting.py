@@ -93,6 +93,22 @@ class ReportingAgent:
                 if not _is_legitimate_filter_rejection(a):
                     manual_intervention_apps.append(a)
 
+        # Source Breakdown Table (Markdown)
+        source_table_md = ""
+        if data.source_breakdown:
+            source_table_md = "\n### Application Results by Source Platform\n"
+            source_table_md += "| Source Platform | Discovered | Qualified | Attempted | Confirmed | Skipped | Failed |\n"
+            source_table_md += "| :--- | :---: | :---: | :---: | :---: | :---: | :---: |\n"
+            tot_disc = sum(s.discovered for s in data.source_breakdown)
+            tot_qual = sum(s.qualified for s in data.source_breakdown)
+            tot_att = sum(s.attempted for s in data.source_breakdown)
+            tot_conf = sum(s.confirmed for s in data.source_breakdown)
+            tot_skip = sum(s.skipped for s in data.source_breakdown)
+            tot_fail = sum(s.failed for s in data.source_breakdown)
+            for s in data.source_breakdown:
+                source_table_md += f"| {s.source} | {s.discovered} | {s.qualified} | {s.attempted} | {s.confirmed} | {s.skipped} | {s.failed} |\n"
+            source_table_md += f"| **Total** | **{tot_disc}** | **{tot_qual}** | **{tot_att}** | **{tot_conf}** | **{tot_skip}** | **{tot_fail}** |\n\n"
+
         # Markdown format
         md_content = f"""# CAREER AGENT — APPLICATION REPORT
 Date: {data.date}
@@ -116,7 +132,7 @@ Date: {data.date}
 - **ATS Resumes generated:** {data.resumes_generated}
 - **Interview packs built:** {data.interview_packs_generated}
 {f"- **Naukri Profile Freshness:** {data.profile_refresh_status}" if data.profile_refresh_status else ""}
-
+{source_table_md}
 ---
 
 ### CONFIRMED APPLICATIONS
@@ -300,6 +316,63 @@ Date: {data.date}
     </div>
     """
 
+        source_table_html = ""
+        if data.source_breakdown:
+            tot_disc = sum(s.discovered for s in data.source_breakdown)
+            tot_qual = sum(s.qualified for s in data.source_breakdown)
+            tot_att = sum(s.attempted for s in data.source_breakdown)
+            tot_conf = sum(s.confirmed for s in data.source_breakdown)
+            tot_skip = sum(s.skipped for s in data.source_breakdown)
+            tot_fail = sum(s.failed for s in data.source_breakdown)
+            src_rows = []
+            for s in data.source_breakdown:
+                src_rows.append(f"""
+                <tr>
+                  <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 600; color: #0f172a;">{html.escape(s.source)}</td>
+                  <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: center;">{s.discovered}</td>
+                  <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #2563eb;">{s.qualified}</td>
+                  <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #64748b;">{s.attempted}</td>
+                  <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: center; font-weight: 700; color: #16a34a;">{s.confirmed}</td>
+                  <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #94a3b8;">{s.skipped}</td>
+                  <td style="padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: center; color: #dc2626;">{s.failed}</td>
+                </tr>
+                """)
+            source_table_html = f"""
+    <!-- Source Platform Results Breakdown -->
+    <div class="email-padding" style="padding: 16px 20px 8px 20px; background-color: #ffffff; border-bottom: 1px solid #e2e8f0;">
+      <h3 style="font-size: 13px; font-weight: 700; margin-top: 0; margin-bottom: 8px; color: #334155; text-transform: uppercase; letter-spacing: 0.5px;">
+        &#128202; Results by Platform
+      </h3>
+      <div class="table-wrapper" style="width: 100%; overflow-x: auto; border-radius: 8px; border: 1px solid #e2e8f0; background-color: #ffffff;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
+          <thead>
+            <tr style="background-color: #f8fafc; border-bottom: 2px solid #cbd5e1; font-size: 11px; text-transform: uppercase; color: #64748b;">
+              <th style="padding: 8px 12px;">Platform</th>
+              <th style="padding: 8px 10px; text-align: center;">Discovered</th>
+              <th style="padding: 8px 10px; text-align: center;">Qualified</th>
+              <th style="padding: 8px 10px; text-align: center;">Attempted</th>
+              <th style="padding: 8px 10px; text-align: center;">Confirmed</th>
+              <th style="padding: 8px 10px; text-align: center;">Skipped</th>
+              <th style="padding: 8px 10px; text-align: center;">Failed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {''.join(src_rows)}
+            <tr style="background-color: #f1f5f9; font-weight: 700;">
+              <td style="padding: 8px 12px;">Total</td>
+              <td style="padding: 8px 10px; text-align: center;">{tot_disc}</td>
+              <td style="padding: 8px 10px; text-align: center; color: #2563eb;">{tot_qual}</td>
+              <td style="padding: 8px 10px; text-align: center;">{tot_att}</td>
+              <td style="padding: 8px 10px; text-align: center; color: #16a34a;">{tot_conf}</td>
+              <td style="padding: 8px 10px; text-align: center;">{tot_skip}</td>
+              <td style="padding: 8px 10px; text-align: center; color: #dc2626;">{tot_fail}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    """
+
         html_content = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -377,6 +450,7 @@ Date: {data.date}
         <div style="font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 600; margin-top: 2px;">Blocked</div>
       </div>
     </div>
+    {source_table_html}
 
     <!-- Confirmed Applications Section -->
     <div class="email-padding" style="padding: 24px 24px 16px 24px;">

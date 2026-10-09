@@ -7,6 +7,7 @@ Delivers instant mobile push notifications for:
 """
 
 import json
+import html
 import urllib.request
 import urllib.parse
 from typing import Dict, Any, Optional
@@ -114,6 +115,7 @@ class TelegramNotifier:
         qualified_count: int,
         scanned_count: int,
         dry_run: bool = False,
+        source_summary: Optional[Dict[str, int]] = None,
     ) -> bool:
         """Sends the daily executive completion summary via Telegram."""
         mode_tag = " [DRY RUN]" if dry_run else " [LIVE]"
@@ -122,7 +124,78 @@ class TelegramNotifier:
             f"📅 <b>Date:</b> {date_str}\n\n"
             f"• <b>Jobs Scanned:</b> {scanned_count}\n"
             f"• <b>Qualified Roles:</b> {qualified_count}\n"
-            f"• <b>Applications Confirmed:</b> <b>{confirmed_count}</b>\n\n"
-            f"📬 <i>Full report and tailored dossiers delivered to your email.</i>"
+            f"• <b>Applications Confirmed:</b> <b>{confirmed_count}</b>\n"
         )
+        if source_summary:
+            msg += "\n📈 <b>Source Breakdown (Confirmed):</b>\n"
+            for src_name, c_cnt in source_summary.items():
+                msg += f"  - {src_name}: <b>{c_cnt}</b>\n"
+
+        msg += "\n📬 <i>Full report and tailored dossiers delivered to your email.</i>"
+        return self.send_message(msg)
+
+    def notify_recruiter_draft(
+        self,
+        company: str,
+        role: str,
+        contact_source: str,
+        job_url: str,
+        match_rationale: str,
+        pitch: str,
+        inmail_url: Optional[str] = None,
+    ) -> bool:
+        """Sends a recruiter outreach draft to Telegram for human review and 1-click dispatch.
+        NOTE: This is strictly for human review. CareerOps NEVER sends messages to recruiters automatically.
+        """
+        clean_company = html.escape(company)
+        clean_role = html.escape(role)
+        clean_contact = html.escape(contact_source)
+        clean_rationale = html.escape(match_rationale)
+        clean_pitch = html.escape(pitch)
+
+        msg = (
+            f"📨 <b>CareerOps — Recruiter Outreach Draft for Review</b>\n\n"
+            f"🏢 <b>Company:</b> {clean_company}\n"
+            f"🎯 <b>Role:</b> {clean_role}\n"
+            f"👤 <b>Contact / Target:</b> {clean_contact}\n"
+            f"📊 <b>Match Rationale:</b> {clean_rationale}\n"
+            f"🔗 <a href='{job_url}'>View Job Posting</a>\n\n"
+            f"📝 <b>Proposed 3-Bullet Pitch:</b>\n"
+            f"<blockquote>{clean_pitch[:600]}...</blockquote>\n\n"
+        )
+        if inmail_url:
+            msg += f"👉 <a href='{inmail_url}'>Review Profile & Send on LinkedIn ↗</a>\n\n"
+        msg += "⚠️ <i>Draft saved in database for review. Not sent to recruiter automatically.</i>"
+
+        return self.send_message(msg)
+
+    def notify_run_delay_or_failure(
+        self,
+        run_id: str,
+        status: str,
+        error_msg: Optional[str] = None,
+        elapsed_seconds: Optional[float] = None,
+        target_seconds: Optional[float] = None,
+    ) -> bool:
+        """Sends an instant push alert when a pipeline run misses its target window or encounters a failure."""
+        if status == "DELAYED":
+            mins = int(elapsed_seconds / 60) if elapsed_seconds else 0
+            target_mins = int(target_seconds / 60) if target_seconds else 15
+            msg = (
+                f"⚠️ <b>CareerOps — Run Execution Delayed</b>\n\n"
+                f"🆔 <b>Run ID:</b> <code>{run_id}</code>\n"
+                f"⏱️ <b>Elapsed Time:</b> {mins} min (Target: {target_mins} min)\n"
+                f"ℹ️ <i>The daily pipeline is running longer than historical baseline. Continuing execution...</i>\n"
+            )
+        else:
+            msg = (
+                f"🚨 <b>CareerOps — Pipeline Run Failure Alert</b>\n\n"
+                f"🆔 <b>Run ID:</b> <code>{run_id}</code>\n"
+                f"❌ <b>Status:</b> {status}\n"
+            )
+            if error_msg:
+                msg += f"⚠️ <b>Error Details:</b> <code>{html.escape(error_msg[:300])}</code>\n"
+            if elapsed_seconds:
+                msg += f"⏱️ <b>Duration before halt:</b> {int(elapsed_seconds)}s\n"
+
         return self.send_message(msg)

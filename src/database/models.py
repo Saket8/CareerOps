@@ -179,6 +179,7 @@ class ApplicationModel(Base):
     error_code = Column(String(64), nullable=True)
     error_message = Column(Text, nullable=True)
     evidence_path = Column(Text, nullable=True)
+    outreach_draft = Column(JSON, nullable=True)
     failure_reason = Column(Text, nullable=True)
     dry_run = Column(Boolean, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

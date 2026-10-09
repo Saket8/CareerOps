@@ -360,7 +360,41 @@ class LinkedInAdapter:
 
                     page.wait_for_timeout(1500)
 
-                    # B. Attach Resume / Cover Letter if file input present
+                    # B. Resume & Cover Letter selection
+                    # CRITICAL DIRECTIVE: Always use master CV that is already saved in LinkedIn profile for all applications
+                    # 1. Check for existing saved master resume option on LinkedIn profile
+                    try:
+                        saved_master_selected = page.evaluate('''() => {
+                            const d = document.querySelector('dialog') || document.querySelector('div[role="dialog"]');
+                            if (!d) return false;
+                            // Search for saved resume radio buttons or items
+                            const resumeRadios = Array.from(d.querySelectorAll('input[type="radio"]'));
+                            if (resumeRadios.length === 0) return false;
+
+                            // Look for radio matching Master CV / Saket Saurav / OCI
+                            let targetRadio = resumeRadios.find(r => {
+                                const parent = r.closest('div, li, label') || r;
+                                const text = (parent.innerText || '').toLowerCase();
+                                return text.includes('saket') || text.includes('saurav') || text.includes('oci') || text.includes('master');
+                            });
+
+                            // If not found by keyword, default to the first or already selected saved profile resume
+                            if (!targetRadio) {
+                                targetRadio = resumeRadios.find(r => r.checked) || resumeRadios[0];
+                            }
+
+                            if (targetRadio) {
+                                if (!targetRadio.checked) targetRadio.click();
+                                return true;
+                            }
+                            return false;
+                        }''')
+                        if saved_master_selected:
+                            logger.info("Selected master CV already saved on LinkedIn profile.")
+                    except Exception as resume_pick_err:
+                        logger.debug(f"Saved resume selection note: {resume_pick_err}")
+
+                    # 2. If file input upload is requested or required
                     file_inputs = page.locator("dialog input[type='file'], div[role='dialog'] input[type='file']").all()
                     for fi in file_inputs:
                         try:
@@ -377,10 +411,12 @@ class LinkedInAdapter:
                                     fi.set_input_files(str(cover_letter_path.resolve()))
                                     logger.info(f"Attached executive cover letter: {cover_letter_path.name}")
                             else:
-                                resume_to_upload = pdf_path if pdf_path.exists() else docx_path
+                                # When uploading a resume, strictly use the Master CV saved in profile/repo
+                                master_cv_path = Path("resumes/master/Saket_Saurav_OCI.docx")
+                                resume_to_upload = master_cv_path if master_cv_path.exists() else (pdf_path if pdf_path.exists() else docx_path)
                                 if resume_to_upload.exists():
                                     fi.set_input_files(str(resume_to_upload.resolve()))
-                                    logger.info(f"Attached tailored resume: {resume_to_upload.name}")
+                                    logger.info(f"Attached master CV from profile: {resume_to_upload.name}")
                             page.wait_for_timeout(1500)
                         except Exception as up_err:
                             logger.debug(f"File upload handling note: {up_err}")
@@ -442,8 +478,16 @@ class LinkedInAdapter:
                             const noRadio = fs.querySelector('input[value="No" i], input[value="no" i], input[value="false" i]');
 
                             if (legend.includes('sponsor')) {
-                                if (yesRadio && !yesRadio.checked) yesRadio.click();
-                            } else if (legend.includes('relocate') || legend.includes('authorized') || legend.includes('onsite') || legend.includes('hybrid')) {
+                                // "Will you require visa sponsorship?"
+                                // Outside India -> Yes (sponsorship required); Inside India -> No
+                                const targetRadio = isDom ? noRadio : yesRadio;
+                                if (targetRadio && !targetRadio.checked) targetRadio.click();
+                            } else if (legend.includes('authorized') || legend.includes('authorization') || legend.includes('legal right')) {
+                                // "Are you legally authorized to work in this country?"
+                                // Outside India -> No (lacks work auth); Inside India -> Yes (Indian citizen)
+                                const targetRadio = isDom ? yesRadio : noRadio;
+                                if (targetRadio && !targetRadio.checked) targetRadio.click();
+                            } else if (legend.includes('relocate') || legend.includes('onsite') || legend.includes('hybrid') || legend.includes('willing')) {
                                 if (yesRadio && !yesRadio.checked) yesRadio.click();
                             } else {
                                 if (yesRadio && !yesRadio.checked) yesRadio.click();

@@ -112,7 +112,12 @@ class CandidateAnswerResolver:
 
         return ncr_opts + pref_opts
 
-    def resolve_question(self, question_text: str, field_type: str = "text") -> FormQuestionAnswerResult:
+    def resolve_question(
+        self,
+        question_text: str,
+        field_type: str = "text",
+        job_location: Optional[str] = None,
+    ) -> FormQuestionAnswerResult:
         """Determines if question can be answered strictly from verified facts and intelligent heuristics."""
         q_lower = question_text.lower().strip()
 
@@ -439,8 +444,8 @@ class CandidateAnswerResolver:
                 return FormQuestionAnswerResult(can_answer=True, answer_value="No", field_type=field_type)
             return FormQuestionAnswerResult(can_answer=True, answer_value="0", field_type=field_type)
 
-        # Databases, Oracle DBA, PL/SQL, SQL, RAC, Exadata
-        if (any(term in q_lower for term in ["plsql", "pl/sql", "pl-sql", "oracle dba", "oracle database", "database administration", "database administrator", "oracle 19c", "oracle rac", "exadata", "rman", "data guard"]) or bool(re.search(r"\brac\b", q_lower))) and any(term in q_lower for term in ["experience", "years", "work", "worked", "hands-on"]):
+        # Databases, Oracle DBA, PL/SQL, SQL, RAC, Exadata, RMAN
+        if (any(term in q_lower for term in ["plsql", "pl/sql", "pl-sql", "oracle dba", "oracle database", "database administration", "database administrator", "oracle 19c", "oracle rac", "exadata", "data guard"]) or bool(re.search(r"\brac\b", q_lower)) or bool(re.search(r"\brman\b", q_lower))) and any(term in q_lower for term in ["experience", "years", "work", "worked", "hands-on"]):
             if self._is_yes_no_inquiry(q_lower):
                 return FormQuestionAnswerResult(can_answer=True, answer_value="Yes", field_type=field_type)
             return FormQuestionAnswerResult(can_answer=True, answer_value="10", field_type=field_type)
@@ -597,11 +602,70 @@ class CandidateAnswerResolver:
                 field_type=field_type,
             )
 
-        # 6. Work Authorization / Nationality
-        if "work authorization" in q_lower or "authorized to work" in q_lower or "visa" in q_lower or "citizen" in q_lower:
+        # 6. Visa Sponsorship vs. Work Authorization & Nationality
+        # A. Sponsorship requirement questions (e.g., "Will you require visa sponsorship?", "Do you need sponsorship?")
+        is_sponsorship_q = (
+            any(term in q_lower for term in [
+                "require sponsorship", "require visa sponsorship", "need sponsorship",
+                "sponsorship required", "require work visa", "future require sponsorship",
+                "require employer sponsorship", "need visa sponsorship", "sponsorship to work",
+                "require a visa", "require visa", "visa sponsored", "sponsorship will you require"
+            ])
+            or ("sponsor" in q_lower and any(term in q_lower for term in ["require", "need", "future", "now or", "will you"]))
+        )
+        if is_sponsorship_q:
+            # If asking specifically about India, candidate is an Indian citizen and does not require sponsorship
+            if "in india" in q_lower or "for india" in q_lower or (job_location and "india" in job_location.lower() and "outside india" not in q_lower):
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value="No",
+                    field_type=field_type,
+                )
+            # Default truth: candidate requires employer visa sponsorship for international positions / countries where they lack work authorization
             return FormQuestionAnswerResult(
                 can_answer=True,
                 answer_value="Yes",
+                field_type=field_type,
+            )
+
+        # B. Work Authorization questions (e.g. "Are you currently authorized to work here?", "Legally authorized to work")
+        is_work_auth_q = any(term in q_lower for term in [
+            "authorized to work", "work authorization", "legally authorized",
+            "legal right to work", "authorization to work", "permitted to work",
+            "eligible to work", "current work authorization", "authorized to work here"
+        ])
+        if is_work_auth_q:
+            # Candidate has work authorization in India (Indian Citizen)
+            if "in india" in q_lower or "for india" in q_lower or (job_location and "india" in job_location.lower() and "outside india" not in q_lower):
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value="Yes",
+                    field_type=field_type,
+                )
+            # Candidate lacks work authorization in countries outside India without employer sponsorship
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="No",
+                field_type=field_type,
+            )
+
+        # C. Citizenship / Nationality
+        if any(term in q_lower for term in ["indian citizen", "citizen of india", "indian nationality"]):
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="Yes",
+                field_type=field_type,
+            )
+        if any(term in q_lower for term in ["us citizen", "u.s. citizen", "eu citizen", "uk citizen", "australian citizen", "citizen of the united states"]):
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="No",
+                field_type=field_type,
+            )
+        if "nationality" in q_lower or "citizenship" in q_lower:
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="Indian",
                 field_type=field_type,
             )
 
@@ -752,7 +816,17 @@ class CandidateAnswerResolver:
         if not self.strict_truth_only:
             logger.info(f"Applying intelligent logical fallback for unique question: '{question_text}'")
             if self._is_yes_no_inquiry(q_lower):
-                if any(ind in q_lower for ind in ["sponsorship", "sponsor", "work authorization", "authorized to work", "relocation", "relocate"]):
+                if any(ind in q_lower for ind in ["sponsorship", "sponsor"]):
+                    if "in india" in q_lower or (job_location and "india" in job_location.lower()):
+                        return FormQuestionAnswerResult(can_answer=True, answer_value="No", field_type=field_type, confidence=0.85)
+                    return FormQuestionAnswerResult(can_answer=True, answer_value="Yes", field_type=field_type, confidence=0.85)
+
+                if any(ind in q_lower for ind in ["work authorization", "authorized to work", "legally authorized"]):
+                    if "in india" in q_lower or (job_location and "india" in job_location.lower()):
+                        return FormQuestionAnswerResult(can_answer=True, answer_value="Yes", field_type=field_type, confidence=0.85)
+                    return FormQuestionAnswerResult(can_answer=True, answer_value="No", field_type=field_type, confidence=0.85)
+
+                if any(ind in q_lower for ind in ["relocation", "relocate"]):
                     return FormQuestionAnswerResult(can_answer=True, answer_value="Yes", field_type=field_type, confidence=0.85)
 
                 negative_indicators = [

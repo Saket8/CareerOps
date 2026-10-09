@@ -57,3 +57,29 @@ class RunRepository:
 
     def get_latest_runs(self, limit: int = 10) -> List[AgentRunModel]:
         return self.session.query(AgentRunModel).order_by(AgentRunModel.start_time.desc()).limit(limit).all()
+
+    def get_average_duration_seconds(self) -> float:
+        """Calculate the average duration in seconds of past completed runs."""
+        completed_runs = (
+            self.session.query(AgentRunModel)
+            .filter(
+                AgentRunModel.status == "SUCCESS",
+                AgentRunModel.start_time.isnot(None),
+                AgentRunModel.end_time.isnot(None),
+            )
+            .order_by(AgentRunModel.start_time.desc())
+            .limit(10)
+            .all()
+        )
+        if not completed_runs:
+            return 900.0  # Sane default: 15 minutes
+
+        durations = []
+        for r in completed_runs:
+            st = r.start_time if r.start_time.tzinfo else r.start_time.replace(tzinfo=timezone.utc)
+            et = r.end_time if r.end_time.tzinfo else r.end_time.replace(tzinfo=timezone.utc)
+            dur = (et - st).total_seconds()
+            if dur > 10:  # Ignore instantaneous/mock runs
+                durations.append(dur)
+
+        return sum(durations) / len(durations) if durations else 900.0

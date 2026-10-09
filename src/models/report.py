@@ -24,6 +24,16 @@ class TopApplicationItem(BaseModel):
     outreach_search_url: Optional[str] = None
 
 
+class SourceBreakdownItem(BaseModel):
+    source: str
+    discovered: int = 0
+    qualified: int = 0
+    attempted: int = 0
+    confirmed: int = 0
+    skipped: int = 0
+    failed: int = 0
+
+
 class DailyReportData(BaseModel):
     run_id: str
     date: str
@@ -45,6 +55,7 @@ class DailyReportData(BaseModel):
     interview_packs_generated: int = 0
     profile_refresh_status: Optional[str] = None
     top_applications: List[TopApplicationItem] = Field(default_factory=list)
+    source_breakdown: List[SourceBreakdownItem] = Field(default_factory=list)
     errors: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
 

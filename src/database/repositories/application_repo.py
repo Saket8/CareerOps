@@ -1,7 +1,7 @@
 """Application repository for recording and tracking job application lifecycles."""
 
 from datetime import datetime, timezone
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -17,11 +17,16 @@ class ApplicationRepository:
         return self.session.query(ApplicationModel).filter(ApplicationModel.job_id == job_id).first()
 
     def has_applied_to_job(self, job_id: str) -> bool:
-        """Check if an application was already submitted or is actively leasing this job."""
+        """Check if an application was already submitted, confirmed, unverified, or is actively leasing this job."""
         app = self.get_by_job_id(job_id)
         if not app:
             return False
-        if app.status in (JobStatus.APPLIED.value, JobStatus.APPLIED_CONFIRMED.value, JobStatus.APPLICATION_READY.value):
+        if app.status in (
+            JobStatus.APPLIED.value,
+            JobStatus.APPLIED_CONFIRMED.value,
+            JobStatus.APPLICATION_READY.value,
+            JobStatus.SUBMISSION_UNVERIFIED.value,
+        ):
             return True
         # Check active unexpired lease (started within last 15 minutes)
         if app.status in (JobStatus.APPLICATION_STARTED.value, JobStatus.SUBMISSION_ATTEMPTED.value):
@@ -34,6 +39,47 @@ class ApplicationRepository:
                 if age_minutes < 15:
                     return True
         return False
+
+    def can_retry_application(
+        self,
+        job_id: str,
+        company: Optional[str] = None,
+        title: Optional[str] = None,
+    ) -> Tuple[bool, str]:
+        """Audits application history before retrying an ambiguous or failed submission to avoid duplicates.
+        Explicitly tracks:
+        - Prepared (APPLICATION_READY)
+        - In Progress (APPLICATION_STARTED)
+        - Confirmed (APPLIED_CONFIRMED)
+        - Failed (APPLICATION_FAILED)
+        - Submitted-but-unverified (SUBMISSION_UNVERIFIED)
+        """
+        if company and title and self.has_applied_to_company_and_title(company, title):
+            return False, f"Already confirmed application for {title} @ {company}"
+
+        app = self.get_by_job_id(job_id)
+        if not app:
+            return True, "No prior application record found"
+
+        status = app.status
+        if status in (JobStatus.APPLIED_CONFIRMED.value, JobStatus.APPLIED.value):
+            return False, f"Application already confirmed (Ref: {app.confirmation_reference})"
+
+        if status == JobStatus.SUBMISSION_UNVERIFIED.value:
+            return False, "Application submission is unverified; manual history audit required before retrying to prevent duplicate submission"
+
+        if status == JobStatus.APPLICATION_STARTED.value:
+            if app.started_at:
+                now = datetime.now(timezone.utc)
+                started = app.started_at if app.started_at.tzinfo else app.started_at.replace(tzinfo=timezone.utc)
+                age_minutes = (now - started).total_seconds() / 60.0
+                if age_minutes < 15:
+                    return False, f"Application is currently in progress (lease active: {age_minutes:.1f}m)"
+
+        if status in (JobStatus.APPLICATION_BLOCKED.value, JobStatus.BLOCKED.value):
+            return False, f"Application halted by safety gate: {app.failure_reason}"
+
+        return True, "Eligible for submission attempt"
 
     def has_applied_to_company_and_title(self, company: str, title: str) -> bool:
         """Check if an application was submitted for the same company and title."""
@@ -185,3 +231,25 @@ class ApplicationRepository:
     def get_todays_applications(self) -> List[ApplicationModel]:
         today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         return self.session.query(ApplicationModel).filter(ApplicationModel.created_at >= today_start).all()
+
+    def save_outreach_draft(self, application_id: str, draft_data: Dict[str, Any]) -> None:
+        """Saves a recruiter outreach draft in the application database for review.
+        Never auto-sent to the recruiter.
+        """
+        app = self.session.query(ApplicationModel).filter(ApplicationModel.application_id == application_id).first()
+        if app:
+            if hasattr(app, "outreach_draft"):
+                app.outreach_draft = draft_data
+            qa = dict(app.questions_answered or {})
+            qa["recruiter_outreach_draft"] = draft_data
+            app.questions_answered = qa
+            self.session.flush()
+
+        self.log_event(
+            application_id,
+            from_status="OUTREACH_DRAFTED",
+            to_status="OUTREACH_PENDING_REVIEW",
+            reason="Recruiter outreach draft created and saved for manual review (not auto-sent)",
+            payload=draft_data,
+        )
+        self.session.commit()

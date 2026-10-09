@@ -200,9 +200,22 @@ class Orchestrator:
                     docx_path, pdf_path, val_report = resume_agent.generate_tailored_resume(job, score)
                     resumes_generated += 1
 
+                    # Generate Executive Cover Letter & Recruiter Outreach Draft for High-Matches (>= 80%) or International roles
+                    cover_letter_doc = None
+                    cl_pdf_path = None
+                    outreach_draft = None
+                    try:
+                        if score.overall_score >= 80.0:
+                            cl_docx, cl_pdf = cover_letter_agent.generate_cover_letter(job, score)
+                            cl_pdf_path = cl_pdf if cl_pdf.exists() else cl_docx
+                            cover_letter_doc = str(cl_pdf_path)
+                            outreach_draft = outreach_agent.draft_outreach(job, score)
+                    except Exception as cl_err:
+                        logger.warning(f"Cover letter / outreach drafting note: {cl_err}")
+
                     # Process Automated Application (Naukri Direct, LinkedIn Easy Apply, or Greenhouse/Lever ATS)
                     if job.application_method == ApplicationMethod.LINKEDIN_EASY_APPLY and linkedin_adapter:
-                        rec = linkedin_adapter.apply_easy_apply(job, score, docx_path, pdf_path)
+                        rec = linkedin_adapter.apply_easy_apply(job, score, docx_path, pdf_path, cover_letter_path=cl_pdf_path)
                         status = rec.status
                         outcome_reason = rec.failure_reason
                         app_repo.record_application(rec)
@@ -228,17 +241,6 @@ class Orchestrator:
                         continue
 
                     matched_items_for_briefing.append((job, score, evidence))
-
-                    # Generate Executive Cover Letter & Recruiter Outreach Draft for High-Matches (>= 80%) or International / Confirmed roles
-                    cover_letter_doc = None
-                    outreach_draft = None
-                    try:
-                        if score.overall_score >= 80.0 or status == JobStatus.APPLIED_CONFIRMED:
-                            cl_docx, cl_pdf = cover_letter_agent.generate_cover_letter(job, score)
-                            cover_letter_doc = str(cl_pdf if cl_pdf.exists() else cl_docx)
-                            outreach_draft = outreach_agent.draft_outreach(job, score)
-                    except Exception as cl_err:
-                        logger.warning(f"Cover letter / outreach drafting note: {cl_err}")
 
                     applications_attempted += 1
                     if status == JobStatus.APPLIED_CONFIRMED:

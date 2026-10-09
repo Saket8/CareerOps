@@ -162,6 +162,10 @@ linkedin:
     - "hybrid"
     - "remote"
   target_regions:
+    - name: "India"
+      location: "India"
+    - name: "Pan India"
+      location: "India"
     - name: "Europe"
       location: "Europe"
     - name: "Nordics"
@@ -172,8 +176,6 @@ linkedin:
       location: "United States"
     - name: "United Kingdom"
       location: "United Kingdom"
-    - name: "India"
-      location: "India"
   queries:
     - "OCI Architect"
     - "Oracle Cloud Infrastructure Architect"

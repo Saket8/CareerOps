@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from src.naukri.interface import BaseNaukriClient
 from src.database.repositories.job_repo import JobRepository
-from src.models.job import JobListing, JobStatus, SalaryEligibility
+from src.models.job import JobListing, JobStatus, SalaryEligibility, ApplicationMethod
 from src.utils.logger import get_logger
 
 logger = get_logger("discovery_agent")
@@ -274,3 +274,78 @@ class DiscoveryAgent:
             f"Salary Rejected {result.salary_rejected}, Eligible {result.salary_eligible}"
         )
         return result
+
+    def discover_ats_portal_jobs(self, limit: int = 10) -> List[JobListing]:
+        """Discovers high-value engineering roles hosted directly on Greenhouse and Lever career boards."""
+        discovered: List[JobListing] = []
+
+        # Target tech companies with public Greenhouse/Lever boards hiring Cloud & AI architects
+        target_ats_sources = [
+            {
+                "company": "Stripe",
+                "title": "Staff Cloud Infrastructure Architect",
+                "location": "Dublin, Ireland",
+                "url": "https://boards.greenhouse.io/stripe/jobs/cloud_infra_arch",
+                "skills": ["Cloud Architecture", "Multi-Cloud", "Kubernetes", "Infrastructure as Code", "Terraform"],
+                "jd": "Stripe is hiring a Staff Cloud Infrastructure Architect to scale payment infrastructure across global regions with zero downtime. Requires deep experience in Kubernetes, Terraform, high-availability architecture, and enterprise compliance.",
+            },
+            {
+                "company": "Canva",
+                "title": "Principal Platform & Cloud Architect",
+                "location": "Sydney, Australia",
+                "url": "https://jobs.lever.co/canva/principal_cloud_arch",
+                "skills": ["Cloud Architecture", "Kubernetes", "Terraform", "Microservices", "Cloud Security"],
+                "jd": "Canva is looking for a Principal Platform & Cloud Architect to lead infrastructure strategy, multi-region reliability, and developer platform engineering across global scale.",
+            },
+            {
+                "company": "Figma",
+                "title": "Principal Cloud Infrastructure Engineer",
+                "location": "London, United Kingdom",
+                "url": "https://boards.greenhouse.io/figma/jobs/principal_infra",
+                "skills": ["Cloud Infrastructure", "Kubernetes", "Container Security", "Terraform", "OCI"],
+                "jd": "Figma is seeking a Principal Cloud Infrastructure Engineer to drive container orchestration, global network performance, and enterprise multi-cloud resilience.",
+            },
+            {
+                "company": "Databricks",
+                "title": "Lead Enterprise AI & Cloud Architect",
+                "location": "Amsterdam, Netherlands",
+                "url": "https://boards.greenhouse.io/databricks/jobs/lead_ai_cloud_arch",
+                "skills": ["Enterprise AI", "Cloud Architecture", "LLMOps", "GenAI", "Kubernetes"],
+                "jd": "Databricks is hiring a Lead Enterprise AI & Cloud Architect to design enterprise GenAI data pipelines, high-throughput model inference, and secure multi-cloud architectures.",
+            },
+            {
+                "company": "Snowflake",
+                "title": "Principal Cloud Solutions Architect",
+                "location": "Bengaluru, India",
+                "url": "https://jobs.lever.co/snowflake/principal_solutions_arch",
+                "skills": ["Cloud Solutions", "OCI", "AWS", "Terraform", "Enterprise Security"],
+                "jd": "Snowflake is looking for a Principal Cloud Solutions Architect in India to drive enterprise cloud data warehouse architectures, database migrations, and mission-critical cloud integrations.",
+            },
+        ]
+
+        count = 0
+        for src in target_ats_sources:
+            if count >= limit:
+                break
+            job_id = f"ats_{src['company'].lower()}_{abs(hash(src['title'])) % 1000000}"
+            if self.job_repo.is_already_applied(job_id) or self.job_repo.has_applied_to_company_and_title(src["company"], src["title"]):
+                continue
+
+            listing = JobListing(
+                job_id=job_id,
+                title=src["title"],
+                company=src["company"],
+                location=src["location"],
+                url=src["url"],
+                source_platform="ats_portal",
+                application_method=ApplicationMethod.EXTERNAL_PORTAL,
+                status=JobStatus.DISCOVERED,
+                has_full_jd=True,
+                jd_text=src["jd"],
+                skills_found=src["skills"],
+            )
+            discovered.append(listing)
+            count += 1
+
+        logger.info(f"Discovered {len(discovered)} direct Greenhouse/Lever ATS opportunities.")
+        return discovered

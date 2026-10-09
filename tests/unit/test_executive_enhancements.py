@@ -188,3 +188,69 @@ def test_telegram_notifier(monkeypatch):
     assert len(sent_msgs) == 3
     assert "Daily Pipeline Complete" in sent_msgs[2][0]
 
+
+def test_recruiter_lead_discovery_and_personalized_outreach(candidate_truth):
+    from src.linkedin.adapter import LinkedInAdapter
+    config = {}
+    li_adapter = LinkedInAdapter(config=config, candidate_truth=candidate_truth, offline_mode=True)
+    lead = li_adapter.find_recruiter_lead("NewRocket", "Agentic AI Architect")
+    assert lead["found"] is True
+    assert "NewRocket" in lead["company"]
+    assert "Hiring Lead" in lead["name"]
+
+    outreach_agent = OutreachAgent(candidate_truth, config)
+    job = JobListing(
+        job_id="test_job_nr_1",
+        title="Agentic AI Architect",
+        company="NewRocket",
+        location="Amsterdam, Netherlands",
+        url="https://example.com/job/nr1",
+    )
+    score = JobScore(
+        job_id="test_job_nr_1",
+        overall_score=92.5,
+        architecture_score=95.0,
+        cloud_score=90.0,
+        oci_score=90.0,
+        ai_score=90.0,
+        agentic_ai_score=90.0,
+        kubernetes_score=90.0,
+        security_score=90.0,
+        multicloud_score=90.0,
+        experience_alignment=95.0,
+        skill_alignment=95.0,
+        passed_threshold=True,
+    )
+    draft = outreach_agent.draft_outreach(job, score, recruiter_lead=lead)
+    assert "Hi Hiring Lead," in draft.inmail_message
+    assert "Hi Hiring Lead," in draft.cold_email_message
+    assert "NewRocket" in draft.hiring_lead_target
+
+
+def test_linkedin_profile_seo_optimization(candidate_truth):
+    from src.linkedin.adapter import LinkedInAdapter
+    config = {}
+    li_adapter = LinkedInAdapter(config=config, candidate_truth=candidate_truth, offline_mode=True)
+    res = li_adapter.optimize_profile_keywords()
+    assert res["success"] is True
+    assert "Principal Cloud & AI Architect" in res["headline"]
+    assert len(res["headline"]) <= 220
+    assert res["network_notification"] == "DISABLED"
+    assert res["open_to_work_public_badge"] == "NEVER_ENABLED"
+
+
+def test_discovery_ats_portal_jobs(monkeypatch):
+    from src.agents.discovery import DiscoveryAgent
+    mock_client = MagicMock()
+    mock_repo = MagicMock()
+    mock_repo.is_already_applied.return_value = False
+    mock_repo.has_applied_to_company_and_title.return_value = False
+
+    agent = DiscoveryAgent(mock_client, mock_repo, config={})
+    jobs = agent.discover_ats_portal_jobs(limit=3)
+    assert len(jobs) == 3
+    assert any("boards.greenhouse.io" in j.url for j in jobs)
+    assert any("jobs.lever.co" in j.url for j in jobs)
+    assert all(j.application_method == ApplicationMethod.EXTERNAL_PORTAL for j in jobs)
+
+

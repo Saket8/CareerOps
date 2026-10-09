@@ -174,8 +174,20 @@ class Orchestrator:
                     except Exception as li_err:
                         logger.error(f"LinkedIn discovery error: {li_err}")
 
+                # 1c. DIRECT ATS PORTAL DISCOVERY (Greenhouse, Lever)
+                ats_discovered_jobs = []
+                try:
+                    logger.info("Discovering direct Greenhouse and Lever ATS opportunities...")
+                    ats_discovered_jobs = discovery_agent.discover_ats_portal_jobs(limit=5)
+                    jobs_scanned_count += len(ats_discovered_jobs)
+                    for aj in ats_discovered_jobs:
+                        job_repo.save_job(aj)
+                    session.commit()
+                except Exception as ats_err:
+                    logger.warning(f"ATS portal discovery note: {ats_err}")
+
                 # 2. QUALIFICATION & SCORING
-                eligible_jobs_pool = list(disc_result.eligible_jobs) + li_discovered_jobs
+                eligible_jobs_pool = list(disc_result.eligible_jobs) + li_discovered_jobs + ats_discovered_jobs
                 qualifying_jobs = []
                 for job in eligible_jobs_pool:
                     score, evidence = qualification_agent.evaluate_job(job)
@@ -209,7 +221,16 @@ class Orchestrator:
                             cl_docx, cl_pdf = cover_letter_agent.generate_cover_letter(job, score)
                             cl_pdf_path = cl_pdf if cl_pdf.exists() else cl_docx
                             cover_letter_doc = str(cl_pdf_path)
-                            outreach_draft = outreach_agent.draft_outreach(job, score)
+
+                            # Strategy 1: Discover specific recruiter/hiring lead on LinkedIn
+                            recruiter_lead = None
+                            if linkedin_adapter:
+                                try:
+                                    recruiter_lead = linkedin_adapter.find_recruiter_lead(job.company, job.title)
+                                except Exception as rl_err:
+                                    logger.debug(f"Recruiter lead discovery note: {rl_err}")
+
+                            outreach_draft = outreach_agent.draft_outreach(job, score, recruiter_lead=recruiter_lead)
                     except Exception as cl_err:
                         logger.warning(f"Cover letter / outreach drafting note: {cl_err}")
 

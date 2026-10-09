@@ -28,11 +28,22 @@ def main():
     parser.add_argument("--cleanup", "--apply-retention", dest="cleanup", action="store_true", help="Execute retention policy to purge stale data and reclaim storage")
     parser.add_argument("--interview-briefing", "--force-interview", dest="force_interview", action="store_true", help="Force generation and email dispatch of consolidated daily interview briefing")
     parser.add_argument("--refresh-profile", "--upload-cv", dest="refresh_profile", action="store_true", help="Re-upload master CV to Naukri profile to refresh Resdex rank")
+    parser.add_argument("--optimize-linkedin", "--optimize-profile", dest="optimize_linkedin", action="store_true", help="Optimize LinkedIn Profile headline, about section, and SEO keywords")
     parser.add_argument("--force-run", action="store_true", help="Bypass day-of-week schedule check")
 
     args = parser.parse_args()
 
     config = load_config()
+
+    if args.optimize_linkedin:
+        from src.linkedin.adapter import LinkedInAdapter
+        from candidate.profile_extractor import get_candidate_truth
+        print("\n[INFO] Executing LinkedIn Profile SEO Optimization (Headline, About, Keywords)...")
+        cand_truth = get_candidate_truth()
+        li_adapter = LinkedInAdapter(config=config, candidate_truth=cand_truth, offline_mode=args.offline)
+        res = li_adapter.optimize_profile_keywords(dry_run=args.dry_run)
+        print(f"[RESULT] {res}\n")
+        sys.exit(0 if res.get("success") else 1)
 
     if args.refresh_profile:
         from src.naukri.playwright_adapter import PlaywrightBrowserAdapter

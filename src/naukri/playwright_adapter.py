@@ -320,6 +320,27 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
 
                     time.sleep(6)  # Wait for AJAX upload processing
 
+                    # Step 3b: Resdex Keyword & Headline Rank Refresh
+                    try:
+                        headline_target = (
+                            "Principal Cloud & AI Architect | 12+ Yrs | OCI, AWS, Multi-Cloud, Kubernetes (OKE), Terraform | "
+                            "GenAI & Agentic AI Platforms | Immediate Joiner"
+                        )
+                        edit_hl = page.locator(".resumeHeadline .edit, a:has-text('Add Resume Headline'), span:has-text('Resume Headline') ~ span.edit, .resumeHeadline span.edit").first
+                        if edit_hl.is_visible(timeout=2000):
+                            edit_hl.click()
+                            time.sleep(1.5)
+                            hl_textarea = page.locator("#resumeHeadlineTxt, textarea.resumeHeadlineTxt, textarea[id*='resumeHeadline']").first
+                            if hl_textarea.is_visible(timeout=2000):
+                                hl_textarea.fill(headline_target)
+                                save_hl = page.locator(".resumeHeadline button:has-text('Save'), form[name*='resumeHeadline'] button:has-text('Save'), button.btn-dark-ot:has-text('Save')").first
+                                if save_hl.is_visible(timeout=2000):
+                                    save_hl.click()
+                                    time.sleep(2)
+                                    logger.info("Refreshed Naukri Resume Headline to trigger maximum Resdex search recency.")
+                    except Exception as hl_err:
+                        logger.debug(f"Resdex headline refresh non-fatal note: {hl_err}")
+
                     # Step 4: Verify actual profile update timestamp in DOM
                     updated_meta = page.evaluate("""() => {
                         const cvEl = document.querySelector('#lazyAttachCV .updateOn');

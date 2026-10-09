@@ -39,28 +39,35 @@ class OutreachAgent:
         self,
         job: JobListing,
         score: JobScore,
+        recruiter_lead: Optional[Dict[str, Any]] = None,
     ) -> OutreachDraft:
         """Generates hyper-targeted 3-bullet executive outreach for high-match opportunities."""
         cand = self.candidate_truth.candidate
         comp = job.company
         title = job.title
 
-        # Determine target persona to contact
+        # Determine target persona or use discovered lead
         is_director_level = any(k in title.lower() for k in ("lead", "principal", "director", "staff", "architect"))
-        if is_director_level:
-            target_title = f"{comp} Director of Engineering OR Head of Cloud Architecture"
+        if recruiter_lead and recruiter_lead.get("name"):
+            lead_name = recruiter_lead.get("first_name") or recruiter_lead.get("name").split()[0]
+            target_title = f"{recruiter_lead.get('name')} ({recruiter_lead.get('title', 'Talent Acquisition')})"
+            search_kw = f"{comp} {recruiter_lead.get('title', 'Talent Acquisition')}"
+            linkedin_search_url = recruiter_lead.get("profile_url") or f"https://www.linkedin.com/search/results/people/?keywords={html.escape(comp + ' Talent Acquisition')}"
+            greeting = f"Hi {lead_name},"
         else:
-            target_title = f"{comp} Technical Recruiter OR Talent Acquisition Lead"
-
-        # LinkedIn Recruiter Search URL
-        search_kw = f"{comp} Talent Acquisition Cloud OR Engineering Manager"
-        linkedin_search_url = f"https://www.linkedin.com/search/results/people/?keywords={html.escape(search_kw)}"
+            if is_director_level:
+                target_title = f"{comp} Director of Engineering OR Head of Cloud Architecture"
+            else:
+                target_title = f"{comp} Technical Recruiter OR Talent Acquisition Lead"
+            search_kw = f"{comp} Talent Acquisition Cloud OR Engineering Manager"
+            linkedin_search_url = f"https://www.linkedin.com/search/results/people/?keywords={html.escape(search_kw)}"
+            greeting = "Hi [Name],"
 
         subject = f"{cand.name} — Principal Cloud & AI Architect for {title} @ {comp}"
 
         # 3-Bullet Executive Pitch
         inmail_body = (
-            f"Hi [Name],\n\n"
+            f"{greeting}\n\n"
             f"I recently applied for the {title} role at {comp} and wanted to reach out directly given how closely my enterprise background aligns with your architectural goals.\n\n"
             f"A brief snapshot of what I bring:\n"
             f"• 12 Years Total Enterprise IT Tenure: Proven track record driving large-scale enterprise cloud transformations, multi-region high availability, and 99.99% operational reliability.\n"
@@ -75,7 +82,7 @@ class OutreachAgent:
         )
 
         cold_email_body = (
-            f"Hi [Name],\n\n"
+            f"{greeting}\n\n"
             f"Hope this note finds you well. I noticed {comp} is actively expanding its engineering leadership with the {title} opening in {job.location}.\n\n"
             f"As a Principal Cloud & AI Engineer with 12 years of enterprise tenure (6.5 years OCI/Cloud, 5.0 years AI/GenAI), I have led cost-optimization migrations delivering >30% efficiency while preserving carrier-grade uptime.\n\n"
             f"Would you be open to a 10-minute introductory sync this week?\n\n"

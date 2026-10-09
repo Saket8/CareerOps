@@ -442,8 +442,7 @@ class LinkedInAdapter:
                             const noRadio = fs.querySelector('input[value="No" i], input[value="no" i], input[value="false" i]');
 
                             if (legend.includes('sponsor')) {
-                                const target = isDom ? noRadio : yesRadio;
-                                if (target && !target.checked) target.click();
+                                if (yesRadio && !yesRadio.checked) yesRadio.click();
                             } else if (legend.includes('relocate') || legend.includes('authorized') || legend.includes('onsite') || legend.includes('hybrid')) {
                                 if (yesRadio && !yesRadio.checked) yesRadio.click();
                             } else {

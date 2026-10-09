@@ -752,11 +752,14 @@ class CandidateAnswerResolver:
         if not self.strict_truth_only:
             logger.info(f"Applying intelligent logical fallback for unique question: '{question_text}'")
             if self._is_yes_no_inquiry(q_lower):
+                if any(ind in q_lower for ind in ["sponsorship", "sponsor", "work authorization", "authorized to work", "relocation", "relocate"]):
+                    return FormQuestionAnswerResult(can_answer=True, answer_value="Yes", field_type=field_type, confidence=0.85)
+
                 negative_indicators = [
                     "break", "gap", "crime", "criminal", "convicted", "court", "case", "bond",
                     "disciplinary", "blacklisted", "previously applied", "earlier applied",
                     "applied before", "worked earlier", "former employee", "relatives", "family member",
-                    "sponsorship required", "visa required", "holding any offer", "offer in hand",
+                    "holding any offer", "offer in hand",
                     "differently abled", "disability", "conviction"
                 ]
                 if any(ind in q_lower for ind in negative_indicators):

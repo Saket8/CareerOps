@@ -1,6 +1,8 @@
 """Discovery Agent for executing multi-query job search and early salary filtering."""
 
 import re
+from pathlib import Path
+import json
 from typing import List, Dict, Any, Set
 from sqlalchemy.orm import Session
 
@@ -32,6 +34,32 @@ class DiscoveryAgent:
         self.blocked_companies = [
             c.lower().strip() for c in config.get("safety", {}).get("blocked_companies", ["cognizant", "cts"])
         ]
+
+    @staticmethod
+    def is_restricted_program(title: str, jd_text: str = "") -> bool:
+        """Identifies gender-specific returnship or affirmative programs that do not align with candidate profile."""
+        patterns = [
+            r"\bwomen\b", r"\bwoman\b", r"\bfemale\b",
+            r"\breturnship\b", r"\breturn\s+to\s+work\b",
+            r"\bher\s+second\s+innings\b", r"\bcareer\s+comeback\b",
+            r"\bre-ignite\b", r"\bdiversity\s+returnship\b",
+            r"\bevolve\s*\|\s*.*returnship\b", r"\bwomen\s+only\b",
+            r"\bwomen\s+returnee\b", r"\brestart\s+with\b",
+        ]
+        learned_path = Path("data/learned_exclusions.json")
+        if learned_path.exists():
+            try:
+                with open(learned_path, "r", encoding="utf-8") as f:
+                    extra = json.load(f).get("patterns", [])
+                    patterns.extend(extra)
+            except Exception:
+                pass
+
+        comb_text = f"{title or ''} {jd_text or ''}".lower()
+        for pat in patterns:
+            if re.search(pat, comb_text, re.IGNORECASE):
+                return True
+        return False
 
     def is_blocked_company(self, company_name: str) -> bool:
         """Checks if company matches any blocked employer string (e.g. current employer)."""
@@ -102,6 +130,15 @@ class DiscoveryAgent:
                     logger.info(
                         f"DOMAIN GATE: Skipping job {listing.job_id} ('{listing.title}' @ {listing.company}) "
                         f"centered on excluded technology (Snowflake/Databricks)."
+                    )
+                    result.duplicates_skipped += 1
+                    continue
+
+                # 0d. Program/Diversity Gate: Skip roles targeting gender-specific returnship programs
+                if self.is_restricted_program(listing.title, listing.jd_text):
+                    logger.info(
+                        f"PROGRAM GATE: Skipping job {listing.job_id} ('{listing.title}' @ {listing.company}) "
+                        f"targeting specific gender/returnship program."
                     )
                     result.duplicates_skipped += 1
                     continue

@@ -18,6 +18,10 @@ class TopApplicationItem(BaseModel):
     reason: Optional[str] = None
     evidence_path: Optional[str] = None
     confirmation_ref: Optional[str] = None
+    cover_letter_path: Optional[str] = None
+    outreach_target: Optional[str] = None
+    outreach_inmail: Optional[str] = None
+    outreach_search_url: Optional[str] = None
 
 
 class DailyReportData(BaseModel):

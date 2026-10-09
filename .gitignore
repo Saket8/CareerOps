@@ -1,13 +1,21 @@
-# Environment and Credentials
+# Environment, Credentials & Browser Profiles
 .env
 *.env
 *.pem
 *.key
 artifacts/naukri_auth.json
+artifacts/linkedin_auth.json
+artifacts/linkedin_cookies*
+artifacts/chrome_*_profile/
+artifacts/dispatched_emails.json
+.li_profile/
+resumes/generated/
+cover_letters/
+reports/
+data/
 
 # SQLite databases & runtime storage
-*.sqlite
-*.sqlite3
+*.sqlite*
 *.db
 naukri_career_agent.sqlite
 
@@ -25,6 +33,10 @@ __pycache__/
 logs/
 tasks/
 scratch/
+scripts/test_*.py
+scripts/check_verification*.py
+scripts/save_and_test_cookies.py
+scripts/step2_save_and_update.py
 *.log
 
 # Debug dumps and temporary screenshots

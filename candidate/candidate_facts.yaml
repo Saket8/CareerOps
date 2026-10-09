@@ -8,8 +8,9 @@ candidate:
   location: "Noida, India"
   preferred_locations:
     - "Pan India"
-    - "Remote"
+    - "On-site"
     - "Hybrid"
+    - "Remote"
     - "WFH"
     - "Noida"
     - "Gurgaon"
@@ -19,11 +20,39 @@ candidate:
     - "Pune"
     - "Mumbai"
     - "Chennai"
+    - "United States"
+    - "Europe"
+    - "United Kingdom"
+    - "Germany"
+    - "Netherlands"
+    - "Ireland"
+    - "Switzerland"
+    - "Nordics"
+    - "Sweden"
+    - "Denmark"
+    - "Norway"
+    - "Finland"
+    - "Australia"
+    - "New Zealand"
+    - "Singapore"
+    - "United Arab Emirates"
+    - "Global / Worldwide"
+  relocation_target_regions:
+    - "Europe (UK, Germany, Netherlands, Ireland, Switzerland)"
+    - "Nordic Countries (Sweden, Denmark, Norway, Finland)"
+    - "Australia & New Zealand"
+    - "United States & Canada"
+    - "Singapore & UAE"
+    - "Pan India"
+  preferred_work_modes:
+    - "onsite"
+    - "hybrid"
+    - "remote"
   total_experience_years: 12
   cloud_experience_years: 6.5
   oci_experience_years: 6.5
   kubernetes_experience_years: 5.0
-  ai_experience_years: 2.0
+  ai_experience_years: 5.0
   python_experience_years: 5.0
   database_experience_years: 12.0
   dba_experience_years: 10.0

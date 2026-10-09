@@ -107,6 +107,39 @@ class QualificationAgent:
             self.job_repo.save_job(job)
             return zero_score, empty_evidence
 
+        # 0b. Program/Diversity Gate (Returnship / Gender-specific mismatch)
+        from src.agents.discovery import DiscoveryAgent
+        if DiscoveryAgent.is_restricted_program(job.title, job.jd_text or ""):
+            logger.warning(f"Program Gate: Blocking qualification for job '{job.title}' at '{job.company}' due to gender/returnship program mismatch.")
+            zero_score = JobScore(
+                job_id=job.job_id,
+                overall_score=0.0,
+                architecture_score=0.0,
+                cloud_score=0.0,
+                oci_score=0.0,
+                ai_score=0.0,
+                agentic_ai_score=0.0,
+                kubernetes_score=0.0,
+                security_score=0.0,
+                multicloud_score=0.0,
+                experience_alignment=0.0,
+                skill_alignment=0.0,
+                passed_threshold=False,
+                match_reasons=[],
+                strengths=[],
+                gaps=["Role targets gender-specific or returnship program that does not align with candidate profile"],
+                categories=[],
+            )
+            empty_evidence = JobEvidence(
+                job_id=job.job_id,
+                observed_facts=[],
+                inferred_signals=[],
+                generated_actions=[],
+            )
+            job.status = JobStatus.REJECTED
+            self.job_repo.save_job(job)
+            return zero_score, empty_evidence
+
         query = getattr(job, "discovered_via_query", "") or getattr(job, "source_query", "") or ""
         skills = getattr(job, "skills_found", []) or []
         text = f"{job.title}\n{query}\n{job.jd_text or ''}\n{' '.join(skills)}".lower()

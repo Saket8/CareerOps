@@ -62,4 +62,15 @@ def load_config(config_path: Path = CONFIG_FILE) -> Dict[str, Any]:
     if "DATABASE_URL" in os.environ:
         config["database"]["db_url"] = os.environ["DATABASE_URL"].strip()
 
+    if "TELEGRAM_BOT_TOKEN" in os.environ:
+        if "telegram" not in config:
+            config["telegram"] = {}
+        config["telegram"]["bot_token"] = os.environ["TELEGRAM_BOT_TOKEN"].strip()
+        config["telegram"]["enabled"] = True
+
+    if "TELEGRAM_CHAT_ID" in os.environ:
+        if "telegram" not in config:
+            config["telegram"] = {}
+        config["telegram"]["chat_id"] = os.environ["TELEGRAM_CHAT_ID"].strip()
+
     return config

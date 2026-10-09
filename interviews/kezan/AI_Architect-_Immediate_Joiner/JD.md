@@ -2,7 +2,7 @@
 **Company:** kezan  
 **Location:** Delhi / NCR, Gurugram, Bengaluru (onsite)  
 **Salary:** 30-45 Lacs PA (ELIGIBLE)  
-**Source Query:** Generative AI Architect  
+**Source Query:** Agentic AI Architect  
 **Platform:** naukri  
 **Job URL:** https://www.naukri.com/job-listings-ai-architect-immediate-joiner-kezan-consulting-gurugram-bengaluru-delhi-ncr-10-to-16-years-300926032089  
 

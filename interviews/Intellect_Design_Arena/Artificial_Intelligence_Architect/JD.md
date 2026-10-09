@@ -2,7 +2,7 @@
 **Company:** Intellect Design Arena  
 **Location:** Delhi / NCR, Chennai, Bengaluru (onsite)  
 **Salary:** 25-40 Lacs PA (ELIGIBLE)  
-**Source Query:** AI Architect  
+**Source Query:** Agentic AI Architect  
 **Platform:** naukri  
 **Job URL:** https://www.naukri.com/job-listings-artificial-intelligence-architect-intellect-design-arena-chennai-bengaluru-delhi-ncr-12-to-17-years-290926020488  
 

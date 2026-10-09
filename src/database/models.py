@@ -56,6 +56,7 @@ class JobModel(Base):
     evidence = relationship("JobEvidenceModel", back_populates="job", uselist=False, cascade="all, delete-orphan")
     applications = relationship("ApplicationModel", back_populates="job", cascade="all, delete-orphan")
     interview_packs = relationship("InterviewPackModel", back_populates="job", cascade="all, delete-orphan")
+    failure_analyses = relationship("ApplicationFailureAnalysisModel", back_populates="job", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("ix_jobs_company_title", "company", "title"),
@@ -259,3 +260,30 @@ class AgentRunModel(Base):
     failed_count = Column(Integer, default=0)
     error_summary = Column(Text, nullable=True)
     metadata_json = Column(JSON, default=dict)
+
+
+class ApplicationFailureAnalysisModel(Base):
+    __tablename__ = "application_failure_analyses"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    job_id = Column(String(128), ForeignKey("jobs.job_id"), nullable=False, index=True)
+    application_id = Column(String(128), nullable=True, index=True)
+    run_id = Column(String(128), nullable=True, index=True)
+    company = Column(String(256), nullable=False)
+    job_title = Column(String(256), nullable=False)
+    job_url = Column(Text, nullable=True)
+    failure_status = Column(String(64), nullable=False, index=True)
+    raw_failure_reason = Column(Text, nullable=True)
+    screening_questions = Column(JSON, default=list)
+    screening_answers = Column(JSON, default=dict)
+    evidence_path = Column(Text, nullable=True)
+    root_cause_category = Column(String(64), nullable=False, index=True)
+    analysis_summary = Column(Text, nullable=False)
+    self_healing_action = Column(String(64), nullable=True)
+    self_healing_details = Column(JSON, default=dict)
+    healing_status = Column(String(32), default="RESOLVED", index=True)
+    retry_eligible = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    job = relationship("JobModel", back_populates="failure_analyses")

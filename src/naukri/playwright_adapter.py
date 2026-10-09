@@ -756,7 +756,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         try:
                             if ab.is_visible():
                                 txt = ab.inner_text().strip().lower()
-                                if "applied" in txt or txt in ("applied", "already applied"):
+                                if re.fullmatch(r"(?:already\s+)?applied(?:\s+(?:today|yesterday|\d+\s+(?:day|week|month)s?\s+ago))?", txt):
                                     is_already_applied = True
                                     break
                         except Exception:
@@ -775,7 +775,8 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             pass
 
                 if not is_already_applied:
-                    if re.search(r'\b(?:already\s+applied|applied\s+today|applied\s+\d+\s+days?\s+ago)\b', body_visible_text, re.I):
+                    if any(re.fullmatch(r"(?:already\s+)?applied(?:\s+(?:today|yesterday|\d+\s+(?:day|week|month)s?\s+ago))?", line.strip(), re.I)
+                           for line in body_visible_text.splitlines()):
                         is_already_applied = True
 
                 if is_already_applied:
@@ -790,8 +791,8 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         canonical_job_url=canonical_url,
                         started_at=started_at,
                         submitted_at=None,
-                        status=JobStatus.APPLIED,
-                        confirmation_detected=False,
+                        status=JobStatus.APPLIED_CONFIRMED,
+                        confirmation_detected=True,
                         confirmation_text="Already applied in previous session on Naukri",
                         confirmation_reference="ALREADY_APPLIED",
                         final_url=page.url,
@@ -828,8 +829,8 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             canonical_job_url=canonical_url,
                             started_at=started_at,
                             submitted_at=None,
-                            status=JobStatus.APPLIED,
-                            confirmation_detected=False,
+                            status=JobStatus.APPLIED_CONFIRMED,
+                            confirmation_detected=True,
                             confirmation_text="Already applied on Naukri",
                             confirmation_reference="ALREADY_APPLIED",
                             final_url=page.url,
@@ -945,6 +946,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
 
                 drawer = page.locator(drawer_selector).first
                 chat_confirmed = False
+                chat_interaction_blocked = False
                 if drawer.is_visible():
                     logger.info("Chatbot recruiter drawer detected. Answering screening questions...")
                     chat_turns = 0
@@ -952,8 +954,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         chat_turns += 1
                         if not drawer.is_visible():
                             if questions_answered:
-                                logger.info(f"Chatbot drawer closed after answering {len(questions_answered)} questions.")
-                                chat_confirmed = True
+                                logger.info(f"Chatbot drawer closed after answering {len(questions_answered)} questions; checking explicit submission evidence.")
                             break
 
                         drawer_text = drawer.inner_text().lower()
@@ -968,22 +969,8 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             "we have received your application",
                             "profile has been shared",
                             "application completed",
-                            "thank you for applying",
-                            "thanks for applying",
                         ]):
                             logger.info("Confirmation text observed in chatbot drawer.")
-                            chat_confirmed = True
-                            break
-
-                        page_text_lower = page.content().lower()
-                        if any(c in page_text_lower for c in [
-                            "applied to",
-                            "you have successfully applied",
-                            "successfully applied",
-                            "application has been sent",
-                            "saveapply"
-                        ]):
-                            logger.info("Confirmation text/URL observed on page during chatbot flow.")
                             chat_confirmed = True
                             break
 
@@ -1173,11 +1160,60 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                             matching_chip = cand
                                             break
 
+                                    # Upper-bound options such as "<10 years", "under 10", or "less than 10".
+                                    upper_match = re.search(r"(?:<|less\s+than|under|below)\s*(\d+(?:\.\d+)?)", cand_text)
+                                    if upper_match and numeric_val < float(upper_match.group(1)):
+                                        matching_chip = cand
+                                        break
+
+                                    # Lower-bound options such as ">10 years" or "10+ years".
+                                    lower_match = re.search(r"(?:>|at\s+least|more\s+than)\s*(\d+(?:\.\d+)?)|(?<!\d)(\d+(?:\.\d+)?)\s*\+", cand_text)
+                                    if lower_match:
+                                        threshold = float(lower_match.group(1) or lower_match.group(2))
+                                        if numeric_val >= threshold:
+                                            matching_chip = cand
+                                            break
+
                                     # Check for threshold: e.g. "60% & above", "70% and above", "above 60%", "60+%"
                                     thresh_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:%|\s)*(?:\+|and above|& above|above|or more|more)", cand_text)
                                     if thresh_match:
                                         thresh = float(thresh_match.group(1))
                                         if numeric_val >= thresh:
+                                            matching_chip = cand
+                                            break
+                            except Exception:
+                                pass
+
+                        # Location / City / Relocation Normalization Matching
+                        if not matching_chip and any(w in latest_q.lower() for w in ["location", "city", "residing", "relocate", "relocation", "where are you located", "which city"]):
+                            try:
+                                cand_locators = drawer.locator(
+                                    "label, button, a, [role='button'], [role='radio'], [role='checkbox'], "
+                                    "[class*='chip'], [class*='option'], [class*='radio'], [class*='checkbox'], "
+                                    "[class*='pill'], [class*='choice'], [class*='reply'], [class*='answer'], "
+                                    "li, span, div"
+                                ).all()
+                                primary_ncr_terms = ["delhi / ncr", "delhi/ncr", "delhi ncr", "delhi", "noida", "gurugram", "gurgaon", "greater noida", "ncr"]
+                                secondary_pref_terms = [p.lower() for p in getattr(candidate_truth.candidate, "preferred_locations", []) if p.lower() not in ["pan india", "remote", "hybrid", "wfh"]]
+
+                                for cand in cand_locators:
+                                    if not cand.is_visible():
+                                        continue
+                                    cand_text = (cand.text_content(timeout=500) or "").strip().lower()
+                                    if not cand_text or cand_text in ["save", "submit", "continue", "next", "send", "apply", "skip this question", "skip"]:
+                                        continue
+                                    if any(term in cand_text for term in primary_ncr_terms):
+                                        matching_chip = cand
+                                        break
+
+                                if not matching_chip:
+                                    for cand in cand_locators:
+                                        if not cand.is_visible():
+                                            continue
+                                        cand_text = (cand.text_content(timeout=500) or "").strip().lower()
+                                        if not cand_text or cand_text in ["save", "submit", "continue", "next", "send", "apply", "skip this question", "skip"]:
+                                            continue
+                                        if any(term in cand_text for term in secondary_pref_terms):
                                             matching_chip = cand
                                             break
                             except Exception:
@@ -1265,8 +1301,9 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                     )
                                 except Exception:
                                     pass
-                            time.sleep(2)
-                            continue
+                            logger.warning(f"Chatbot cannot answer '{latest_q}': no matching choice or visible input. Stopping before submit.")
+                            chat_interaction_blocked = True
+                            break
 
                         try:
                             chat_input.click(force=True, timeout=5000)
@@ -1312,6 +1349,44 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         else:
                             chat_input.press("Enter")
                         time.sleep(4)
+
+                    if drawer.is_visible() and not chat_confirmed:
+                        logger.warning("Recruiter screening drawer is still open without an explicit completion message; stopping before page-level Apply.")
+                        chat_interaction_blocked = True
+
+                # Do not click the page's Apply button when screening did not advance.
+                # That button remains visible on an incomplete recruiter drawer and can
+                # otherwise create a misleading transient confirmation.
+                if chat_interaction_blocked:
+                    evidence = VerificationEvidence(
+                        confirmed=False,
+                        status=JobStatus.NEEDS_MANUAL_INTERVENTION,
+                        verification_level="CHATBOT_INPUT_UNAVAILABLE",
+                        final_url=page.url,
+                        evidence_summary="Recruiter screening could not be answered because no matching option or input was available; submission was not attempted.",
+                    )
+                    page.screenshot(path=evidence_path)
+                    browser.close()
+                    return ApplicationRecord(
+                        application_id=app_id,
+                        job_id=job.job_id,
+                        application_method=ApplicationMethod.NAUKRI_DIRECT.value,
+                        source_job_url=job.url,
+                        canonical_job_url=canonical_url,
+                        started_at=started_at,
+                        submitted_at=None,
+                        status=evidence.status,
+                        confirmation_detected=False,
+                        confirmation_text=None,
+                        confirmation_reference=None,
+                        final_url=evidence.final_url,
+                        verification_method=evidence.verification_level,
+                        questions_detected=questions_detected,
+                        questions_answered=questions_answered,
+                        evidence_path=evidence_path,
+                        failure_reason=evidence.evidence_summary,
+                        dry_run=False,
+                    )
 
                 # Step 7: Handle dynamic form inputs if standard modal is displayed
                 form_inputs = page.locator("input[type='text'], input[type='number'], textarea")
@@ -1388,10 +1463,15 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                 time.sleep(2)
                 initial_page_content = page.content()
                 initial_url = page.url
+                try:
+                    initial_visible_text = page.locator("body").inner_text(timeout=3000)
+                except Exception:
+                    initial_visible_text = None
                 intermediate_evidence = self.verifier.verify_submission(
                     page_content=initial_page_content,
                     final_url=initial_url,
                     page_title=page.title(),
+                    visible_text=initial_visible_text,
                 )
 
                 # Mandatory post-submit reload of canonical listing to assert live green badge
@@ -1409,7 +1489,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                     for ab in applied_badge.all():
                         if ab.is_visible():
                             badge_text = ab.inner_text().strip().lower()
-                            if badge_text in ["applied", "already applied"] or "applied" in badge_text:
+                            if badge_text in ["applied", "already applied"]:
                                 badge_confirmed = True
                                 break
 
@@ -1433,17 +1513,18 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         final_url=page.url,
                         evidence_summary="Recruiter chatbot drawer completed all questionnaire turns with confirmed submission.",
                     )
-                elif intermediate_evidence.confirmed or "saveapply" in initial_url.lower() or any(c in initial_page_content.lower() for c in ["applied to", "application sent", "successfully applied"]):
-                    # Weaker transient signal without reloaded badge -> SUBMISSION_UNVERIFIED
+                elif intermediate_evidence.confirmed:
+                    # A visible confirmation without a durable badge/reference is
+                    # genuinely ambiguous and must remain explicitly unverified.
                     logger.warning(f"Submission had transient confirmation cues but green badge was not asserted on reload for {job.job_id}")
                     evidence = VerificationEvidence(
                         confirmed=False,
                         status=JobStatus.SUBMISSION_UNVERIFIED,
-                        verification_level="SUBMISSION_UNVERIFIED",
-                        confirmation_text="Transient confirmation detected without reloaded badge assertion",
+                        verification_level="VISIBLE_CONFIRMATION_NO_RELOADED_BADGE",
+                        confirmation_text=intermediate_evidence.confirmation_text or "Visible confirmation detected without reloaded badge assertion",
                         confirmation_reference=intermediate_evidence.confirmation_reference or "TRANSIENT_CONFIRMATION",
                         final_url=page.url,
-                        evidence_summary="Transient apply cues detected, but green badge was absent on post-submit reload.",
+                        evidence_summary="Visible confirmation appeared after the attempt, but the canonical listing did not show an applied badge after reload. Verify the application manually before retrying.",
                     )
                 else:
                     evidence = VerificationEvidence(
@@ -1476,6 +1557,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                     questions_detected=questions_detected,
                     questions_answered=questions_answered,
                     evidence_path=evidence_path,
+                    failure_reason=evidence.evidence_summary if not evidence.confirmed else None,
                     dry_run=False,
                 )
 

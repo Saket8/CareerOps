@@ -2,7 +2,7 @@
 **Company:** Tata Consultancy Services  
 **Location:** Hyderabad (onsite)  
 **Salary:** Not Disclosed (UNDISCLOSED)  
-**Source Query:** Generative AI Architect  
+**Source Query:** Agentic AI Architect  
 **Platform:** naukri  
 **Job URL:** https://www.naukri.com/job-listings-agentic-ai-architect-llms-rag-autonomous-agents-xp-10-hyderabad-tata-consultancy-services-hyderabad-10-to-20-years-280926031876  
 

@@ -2,7 +2,7 @@
 **Company:** Tata Consultancy Services  
 **Location:** Kochi, Chennai, Bengaluru (onsite)  
 **Salary:** Not Disclosed (UNDISCLOSED)  
-**Source Query:** Oracle Cloud Migration Architect  
+**Source Query:** Oracle Cloud Infrastructure Architect  
 **Platform:** naukri  
 **Job URL:** https://www.naukri.com/job-listings-adm-architect-tata-consultancy-services-kochi-chennai-bengaluru-10-to-18-years-010926013273  
 

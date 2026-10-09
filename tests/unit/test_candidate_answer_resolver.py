@@ -47,7 +47,7 @@ def test_resolver_ai_and_python_facts():
     # Verified AI experience
     res = resolver.resolve_question("How many years of experience do you have in GenAI / LLM architectures?")
     assert res.can_answer is True
-    assert res.answer_value == "2"
+    assert res.answer_value == "5"
 
     # Verified Python experience
     res = resolver.resolve_question("How many years of experience in Python programming?")
@@ -142,7 +142,7 @@ def test_resolver_expanded_screening_questions():
     # 1. Generative AI with whitespace / punctuation variations
     res_genai = resolver.resolve_question("How many years of experience do you have in Generative Ai?")
     assert res_genai.can_answer is True
-    assert res_genai.answer_value == "2"
+    assert res_genai.answer_value == "5"
 
     res_genai_yn = resolver.resolve_question("Do you have experience in Generative AI?")
     assert res_genai_yn.can_answer is True
@@ -151,7 +151,7 @@ def test_resolver_expanded_screening_questions():
     # 2. AIOps
     res_aiops = resolver.resolve_question("How many years of experience do you have in AIOps?")
     assert res_aiops.can_answer is True
-    assert res_aiops.answer_value == "2"
+    assert res_aiops.answer_value == "5"
 
     # 3. System Design & Solutioning
     res_sys = resolver.resolve_question("How many years of experience do you have in System Design and solutioning?")
@@ -217,7 +217,7 @@ def test_resolver_expanded_screening_questions():
     # 12. Machine Learning / Deep Learning
     res_ml = resolver.resolve_question("How many years of experience do you have in Machine Learning?")
     assert res_ml.can_answer is True
-    assert res_ml.answer_value == "2"
+    assert res_ml.answer_value == "5"
 
     # 13. Offer in Hand / Competing Offers
     res_offer = resolver.resolve_question("Do you have any offer in hand? If yes, mention CTC.")
@@ -270,7 +270,7 @@ def test_resolver_new_chatbot_screening_questions():
     # 3. AIML normalization
     res = resolver.resolve_question("How many years of experience do you have in Aiml?")
     assert res.can_answer is True
-    assert res.answer_value == "2"
+    assert res.answer_value == "5"
 
     # 4. Contract / 12 Months Contract
     res = resolver.resolve_question("Are you open for 12 Months Contract?")
@@ -323,7 +323,7 @@ def test_resolver_recruiter_chatbot_all_32_live_questions():
         ("How many years of experience do you have in HLD?", "6"),
         ("How many years of experience do you have in Healthcare?", "0"),
         ("How many years of experience do you have in IDENTITY AND ACCESS MANAGEMENT (IAM)?", "6"),
-        ("How many years of experience do you have in Large Language Model?", "2"),
+        ("How many years of experience do you have in Large Language Model?", "5"),
         ("How many years of experience do you have in Microservices?", "5"),
         ("How many years of experience do you have in Oracle Hyperion?", "0"),
         ("How many years of experience do you have in PLSQL?", "10"),

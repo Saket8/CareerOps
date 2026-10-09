@@ -36,16 +36,51 @@ class ReportingAgent:
             return True
 
         valid_apps = [a for a in data.top_applications if _is_valid_report_app(a)]
-        # Confirmed apps must be authentic live applications with non-mock references
+        def _is_legitimate_filter_rejection(a):
+            if a.status in ("DISQUALIFIED_BY_SCREENING", "DISQUALIFIED_DIVERSITY", "DISQUALIFIED_SCREENING", "READY_FOR_RETRY", "REJECTED"):
+                return True
+            # Title check for restricted programs
+            from src.agents.discovery import DiscoveryAgent
+            if DiscoveryAgent.is_restricted_program(a.role or ""):
+                return True
+            r_lower = (a.reason or "").lower()
+            if any(term in r_lower for term in (
+                "women returnship", "returnship", "gender", "experience threshold",
+                "seniority threshold", "screening rule", "filter rejection", "screening dropped",
+                "disqualified", "program mismatch", "candidate provided verified truth on skill experience"
+            )):
+                return True
+            # Check database for failure analysis category
+            try:
+                from src.database.connection import get_db_session
+                from src.database.models import ApplicationFailureAnalysisModel
+                with get_db_session() as s:
+                    fa = s.query(ApplicationFailureAnalysisModel).filter(
+                        ApplicationFailureAnalysisModel.company == a.company,
+                        ApplicationFailureAnalysisModel.job_title == a.role,
+                    ).first()
+                    if fa and fa.root_cause_category in ("DIVERSITY_PROGRAM_RESTRICTION", "EXPERIENCE_THRESHOLD_RESTRICTION", "LOCATION_SYNONYM_MISMATCH"):
+                        return True
+            except Exception:
+                pass
+            return False
+
         confirmed_apps = [
             a for a in valid_apps
             if a.status in ("APPLIED_CONFIRMED", "APPLIED")
-            and not (a.confirmation_ref and any(a.confirmation_ref.startswith(p) for p in ("MOCK_", "SIM_")))
+            and (data.dry_run or not (a.confirmation_ref and any(a.confirmation_ref.startswith(p) for p in ("MOCK_", "SIM_"))))
         ]
         unverified_apps = [a for a in valid_apps if a.status == "SUBMISSION_UNVERIFIED"]
         blocked_apps = [a for a in valid_apps if a.status in ("APPLICATION_BLOCKED", "BLOCKED")]
-        manual_intervention_apps = [a for a in valid_apps if a.status == "NEEDS_MANUAL_INTERVENTION"]
-        failed_apps = [a for a in valid_apps if a.status in ("APPLICATION_FAILED", "FAILED")]
+        manual_intervention_apps = [
+            a for a in valid_apps
+            if a.status == "NEEDS_MANUAL_INTERVENTION" and not _is_legitimate_filter_rejection(a)
+        ]
+        # Legitimate filter rejections are never reported as failed applications
+        failed_apps = [
+            a for a in valid_apps
+            if a.status in ("APPLICATION_FAILED", "FAILED") and not _is_legitimate_filter_rejection(a)
+        ]
         external_apps = [
             a for a in valid_apps
             if a.status == "EXTERNAL_APPLICATION_REQUIRED"
@@ -55,7 +90,8 @@ class ReportingAgent:
         # Any residual external_apps whose URL was actually on naukri.com belongs in manual_intervention_apps
         for a in valid_apps:
             if a.status == "EXTERNAL_APPLICATION_REQUIRED" and a not in external_apps and a not in manual_intervention_apps:
-                manual_intervention_apps.append(a)
+                if not _is_legitimate_filter_rejection(a):
+                    manual_intervention_apps.append(a)
 
         # Markdown format
         md_content = f"""# CAREER AGENT — APPLICATION REPORT
@@ -87,17 +123,26 @@ Date: {data.date}
 """
         if confirmed_apps:
             for idx, item in enumerate(confirmed_apps, 1):
+                is_linkedin = "linkedin" in (item.method or "").lower() or "linkedin" in (item.url or "").lower()
+                method_label = "LINKEDIN_EASY_APPLY" if is_linkedin else item.method
                 md_content += f"{idx}. **{item.role}**\n"
                 md_content += f"   - **Company:** {item.company}\n"
                 md_content += f"   - **Salary:** {item.salary}\n"
                 md_content += f"   - **Match:** `{item.match_score}%`\n"
-                md_content += f"   - **Method:** {item.method}\n"
+                md_content += f"   - **Method:** {method_label}\n"
                 md_content += f"   - **Status:** `{item.status}`\n"
                 if item.confirmation_ref:
                     md_content += f"   - **Confirmation Ref:** `{item.confirmation_ref}`\n"
+                if item.cover_letter_path:
+                    md_content += f"   - **Executive Cover Letter:** `{Path(item.cover_letter_path).name}`\n"
+                if item.outreach_target and item.outreach_search_url:
+                    md_content += f"   - **Hiring Contact Search:** [{item.outreach_target}]({item.outreach_search_url})\n"
                 if item.url:
                     md_content += f"   - **Live Job Link:** [{item.url}]({item.url})\n"
-                    md_content += f"   - **Verification:** Click link above in your browser — displays the official green **'Applied'** badge on your Naukri account.\n"
+                    if is_linkedin:
+                        md_content += f"   - **Verification:** Click link above in your browser — displays the official **'Applied'** badge on your LinkedIn account.\n"
+                    else:
+                        md_content += f"   - **Verification:** Click link above in your browser — displays the official green **'Applied'** badge on your Naukri account.\n"
                 md_content += "\n"
         else:
             md_content += "_No confirmed applications in this run._\n\n"
@@ -162,12 +207,16 @@ Date: {data.date}
             rows = []
             for app in apps_list:
                 is_confirmed = app.status in ("APPLIED_CONFIRMED", "APPLIED")
+                is_linkedin = "linkedin" in (app.method or "").lower() or "linkedin" in (app.url or "").lower()
                 status_color = "#16a34a" if is_confirmed else "#d97706" if ("UNVERIFIED" in app.status or "INTERVENTION" in app.status) else "#dc2626"
                 status_bg = "#dcfce7" if is_confirmed else "#fef3c7" if ("UNVERIFIED" in app.status or "INTERVENTION" in app.status) else "#fee2e2"
                 verify_btn_html = ""
                 if app.url:
                     if is_confirmed:
-                        verify_btn_html = f'<a href="{app.url}" target="_blank" style="display: inline-block; background-color: #16a34a; color: #ffffff; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 11px; white-space: nowrap;">Verify (Applied) &rarr;</a>'
+                        if is_linkedin:
+                            verify_btn_html = f'<a href="{app.url}" target="_blank" style="display: inline-block; background-color: #0077b5; color: #ffffff; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 11px; white-space: nowrap;">LinkedIn (Applied) &rarr;</a>'
+                        else:
+                            verify_btn_html = f'<a href="{app.url}" target="_blank" style="display: inline-block; background-color: #16a34a; color: #ffffff; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-weight: 700; font-size: 11px; white-space: nowrap;">Verify (Applied) &rarr;</a>'
                     else:
                         verify_btn_html = f'<a href="{app.url}" target="_blank" style="color: #2563eb; text-decoration: underline; font-size: 11px;">View Listing</a>'
 
@@ -175,16 +224,25 @@ Date: {data.date}
                 escaped_company = html.escape(str(app.company or ''))
                 escaped_salary = html.escape(str(app.salary or 'Not Disclosed'))
                 escaped_status = html.escape(str(app.status or ''))
+                badge_html = '<span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background-color: #0077b5; color: #ffffff; margin-left: 6px;">LinkedIn</span>' if is_linkedin else '<span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background-color: #2563eb; color: #ffffff; margin-left: 6px;">Naukri</span>'
+
+                extra_info = []
+                if item.cover_letter_path:
+                    extra_info.append(f'<span style="color:#0284c7;font-weight:600;">&#128196; Cover Letter Attached</span>')
+                if item.outreach_search_url:
+                    extra_info.append(f'<a href="{item.outreach_search_url}" target="_blank" style="color:#4f46e5;text-decoration:none;font-weight:600;">&#128100; Find Hiring Lead &rarr;</a>')
+                extra_html = f'<div style="font-size:11px;margin-top:4px;">{" &bull; ".join(extra_info)}</div>' if extra_info else ""
 
                 rows.append(f"""
                 <tr>
                     <td style="padding: 12px 14px; border-bottom: 1px solid #e2e8f0; vertical-align: middle;">
                         <div style="font-weight: 700; color: #0f172a; font-size: 13px; line-height: 1.35;">
-                            <a href="{app.url or '#'}" target="_blank" style="color: #0f172a; text-decoration: none;">{escaped_role}</a>
+                            <a href="{app.url or '#'}" target="_blank" style="color: #0f172a; text-decoration: none;">{escaped_role}</a>{badge_html}
                         </div>
                         <div style="font-size: 12px; color: #64748b; margin-top: 3px; font-weight: 500;">
                             <span style="color: #1e293b; font-weight: 600;">{escaped_company}</span> &bull; <span style="color: #475569;">{escaped_salary}</span>
                         </div>
+                        {extra_html}
                     </td>
                     <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; text-align: center; vertical-align: middle; white-space: nowrap;">
                         <span style="display: inline-block; padding: 3px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700; background-color: #dcfce7; color: #166534;">{app.match_score}%</span>

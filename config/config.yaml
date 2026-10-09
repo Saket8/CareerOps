@@ -149,3 +149,44 @@ search:
       - "Generative AI Architect"
       - "AI Platform Security"
       - "AI Infrastructure Architect"
+
+linkedin:
+  enabled: true
+  auto_submit: true  # Fully unattended submission per user directive (no manual review)
+  max_applications_per_day: 25
+  user_data_dir: "/u01/CareerOps/.li_profile"
+  auth_state_path: "artifacts/linkedin_auth.json"
+  email_alerts: true
+  work_modes:
+    - "onsite"
+    - "hybrid"
+    - "remote"
+  target_regions:
+    - name: "Europe"
+      location: "Europe"
+    - name: "Nordics"
+      location: "Nordics"
+    - name: "Australia"
+      location: "Australia"
+    - name: "United States"
+      location: "United States"
+    - name: "United Kingdom"
+      location: "United Kingdom"
+    - name: "India"
+      location: "India"
+  queries:
+    - "OCI Architect"
+    - "Oracle Cloud Infrastructure Architect"
+    - "OCI Cloud Architect"
+    - "Principal Cloud Architect"
+    - "AI Architect"
+    - "GenAI Architect"
+    - "Agentic AI Architect"
+
+telegram:
+  enabled: true
+  bot_token: ""  # Loaded from TELEGRAM_BOT_TOKEN in .env
+  chat_id: "-1003761096081"
+  notify_on_applied: true
+  notify_on_interview: true
+  notify_on_daily_summary: true

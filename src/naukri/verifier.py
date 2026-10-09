@@ -61,9 +61,14 @@ class ApplicationVerifier:
         final_url: str = "",
         page_title: str = "",
         is_simulated_in_test: bool = False,
+        visible_text: Optional[str] = None,
     ) -> VerificationEvidence:
         """Inspects HTML content and URL for definitive submission confirmation."""
-        content_lower = page_content.lower()
+        # Production callers pass rendered body text so hidden scripts/templates do
+        # not masquerade as a confirmation. Keep page_content as a compatibility
+        # fallback for unit fixtures and non-browser callers.
+        confirmation_content = visible_text if visible_text is not None else page_content
+        content_lower = confirmation_content.lower()
         title_lower = page_title.lower()
         url_lower = final_url.lower()
 
@@ -82,7 +87,7 @@ class ApplicationVerifier:
             "/login" in url_lower
             or "/nlogin" in url_lower
             or any(t in title_lower for t in ["candidate login", "sign in", "login to apply"])
-            or bool(re.search(r'<(?:h1|h2|h3)[^>]*>\s*(?:login\s+to\s+apply|sign\s+in\s+to\s+apply)\s*<', page_content, re.IGNORECASE))
+                or bool(re.search(r'<(?:h1|h2|h3)[^>]*>\s*(?:login\s+to\s+apply|sign\s+in\s+to\s+apply)\s*<', page_content, re.IGNORECASE))
         )
         if is_login_page:
             logger.warning("Login barrier detected during verification")
@@ -95,12 +100,19 @@ class ApplicationVerifier:
             )
 
         # 1. Check for Level 3 "Already Applied" state with dedicated UI element / badge
-        has_already_applied_badge = bool(
-            re.search(r'class="[^"]*(?:already-applied|applied-btn)[^"]*"', page_content, re.IGNORECASE)
-            or re.search(r'<(?:button|span|div)[^>]*class="[^"]*applied[^"]*"[^>]*>\s*Already Applied\s*</', page_content, re.IGNORECASE)
-            or re.search(r'<(?:button|span|div)[^>]*disabled[^>]*>\s*Already Applied\s*</', page_content, re.IGNORECASE)
-            or re.search(r'applied\s+to\s+["\'][^"\']+["\']', page_content, re.IGNORECASE)
-        )
+        if visible_text is not None:
+            visible_lines = {line.strip().lower() for line in confirmation_content.splitlines() if line.strip()}
+            has_already_applied_badge = bool(
+                visible_lines.intersection({"applied", "already applied"})
+                or re.search(r'applied\s+to\s+["\'][^"\']+["\']', confirmation_content, re.IGNORECASE)
+            )
+        else:
+            has_already_applied_badge = bool(
+                re.search(r'class="[^"]*(?:already-applied|applied-btn)[^"]*"', page_content, re.IGNORECASE)
+                or re.search(r'<(?:button|span|div)[^>]*class="[^"]*applied[^"]*"[^>]*>\s*Already Applied\s*</', page_content, re.IGNORECASE)
+                or re.search(r'<(?:button|span|div)[^>]*disabled[^>]*>\s*Already Applied\s*</', page_content, re.IGNORECASE)
+                or re.search(r'applied\s+to\s+["\'][^"\']+["\']', page_content, re.IGNORECASE)
+            )
         if has_already_applied_badge:
             return VerificationEvidence(
                 confirmed=True,
@@ -115,7 +127,7 @@ class ApplicationVerifier:
         # 2. Check for Captured Reference ID
         captured_ref = None
         for ref_pat in self.REFERENCE_PATTERNS:
-            match = ref_pat.search(page_content)
+            match = ref_pat.search(confirmation_content)
             if match:
                 captured_ref = match.group(1).strip()
                 break
@@ -123,7 +135,7 @@ class ApplicationVerifier:
         # 3. Check for Definitive Confirmation Text
         definitive_text = None
         for conf_pat in self.DEFINITIVE_CONFIRMATION_PATTERNS:
-            match = conf_pat.search(page_content)
+            match = conf_pat.search(confirmation_content)
             if match:
                 definitive_text = match.group(0).strip()
                 break
@@ -178,7 +190,7 @@ class ApplicationVerifier:
         # 5. Check for Soft Confirmation Text (without reference) -> SUBMISSION_UNVERIFIED
         soft_text = None
         for soft_pat in self.SOFT_CONFIRMATION_PATTERNS:
-            match = soft_pat.search(page_content)
+            match = soft_pat.search(confirmation_content)
             if match:
                 soft_text = match.group(0).strip()
                 break
@@ -204,7 +216,7 @@ class ApplicationVerifier:
             )
 
         # 6. In offline/test simulation mode with explicit test token
-        if is_simulated_in_test and "CONF_" in page_content:
+        if is_simulated_in_test and "CONF_" in confirmation_content:
             return VerificationEvidence(
                 confirmed=True,
                 status=JobStatus.APPLIED_CONFIRMED,

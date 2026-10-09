@@ -3,11 +3,17 @@ combined with an intelligent, non-halting logical fallback for recruiter chatbot
 """
 
 import re
-from typing import Dict, Any, Optional, Tuple
+import json
+from pathlib import Path
+from typing import Dict, Any, Optional, Tuple, List
 from src.models.candidate import CandidateTruth
 from src.utils.logger import get_logger
 
 logger = get_logger("candidate_answer_resolver")
+
+NCR_CANONICAL_LOCATIONS = [
+    "delhi / ncr", "delhi/ncr", "delhi ncr", "delhi", "noida", "greater noida", "gurgaon", "gurugram", "faridabad", "ghaziabad", "ncr"
+]
 
 
 class FormQuestionAnswerResult:
@@ -85,9 +91,39 @@ class CandidateAnswerResolver:
 
         return False
 
+    def get_compatible_location_options(self, available_options: List[str]) -> List[str]:
+        """Matches available location options against candidate's primary location (Noida/NCR)
+        and verified preferred locations (considering willing_to_relocate)."""
+        ncr_opts = []
+        pref_opts = []
+        pref_locations = [p.lower() for p in getattr(self.cand, "preferred_locations", [])]
+
+        for opt in available_options:
+            opt_clean = opt.strip()
+            opt_lower = opt_clean.lower()
+            if not opt_lower or opt_lower in ["skip this question", "skip", "none of the above"]:
+                continue
+
+            # 1. Primary region match (Noida / NCR)
+            if any(term in opt_lower for term in NCR_CANONICAL_LOCATIONS):
+                ncr_opts.append(opt_clean)
+            elif any(pref in opt_lower for pref in pref_locations if pref not in ["pan india", "remote", "hybrid", "wfh"]):
+                pref_opts.append(opt_clean)
+
+        return ncr_opts + pref_opts
+
     def resolve_question(self, question_text: str, field_type: str = "text") -> FormQuestionAnswerResult:
         """Determines if question can be answered strictly from verified facts and intelligent heuristics."""
         q_lower = question_text.lower().strip()
+
+        # Recruiter prompts sometimes request a project/program domain in free text.
+        # Use only domains explicitly present in the candidate's verified history.
+        if any(term in q_lower for term in ["which domain", "what domain", "domain have you managed", "domain experience"]):
+            return FormQuestionAnswerResult(
+                can_answer=True,
+                answer_value="Cloud infrastructure and architecture, including OCI and telecom billing (DBSS/BRM modernization)",
+                field_type=field_type,
+            )
 
         # 0. Candidate Full Name / Identity as per Aadhar / PAN
         if any(term in q_lower for term in ["full name", "name as per aadhar", "name as per pan", "your name", "first name? middle name", "first name?"]):
@@ -269,7 +305,7 @@ class CandidateAnswerResolver:
 
         # AI / GenAI / LLM / RAG / AIOps / MLOps / AIML / Machine Learning
         if bool(re.search(r"\b(generative ai|genai|gen ai|aiml|ai/ml|ai-ml|llm|rag|agentic|aiops|mlops|artificial intelligence|machine learning|deep learning|ai|ml|large language model)\b", q_lower)) and any(term in q_lower for term in ["experience", "years", "work", "worked", "architectures", "models"]):
-            ai_years = getattr(self.cand, "ai_experience_years", 2.0)
+            ai_years = getattr(self.cand, "ai_experience_years", 5.0)
             if ai_years is not None:
                 if self._is_yes_no_inquiry(q_lower):
                     return FormQuestionAnswerResult(
@@ -290,7 +326,7 @@ class CandidateAnswerResolver:
                     field_type=field_type,
                     unverified_reason="AI/GenAI experience years not found in verified candidate facts.",
                 )
-            return FormQuestionAnswerResult(can_answer=True, answer_value="2", field_type=field_type)
+            return FormQuestionAnswerResult(can_answer=True, answer_value="5", field_type=field_type)
 
         # Architecture, System Design & Solutioning / HLD
         if any(term in q_lower for term in ["enterprise architecture", "enterprise architect", "system design", "solutioning", "solution architect", "solution architecture", "technical architect", "technical architecture", "cloud architecture", "architecture", "hld", "high level design", "high-level design"]) and any(term in q_lower for term in ["experience", "years", "work", "worked", "design"]):

@@ -7,7 +7,7 @@
 |---|---|---|
 | Architecture Responsibility | 85.0% | High enterprise design focus |
 | Cloud Infrastructure (OCI/Multi-cloud) | 75.0% | 6+ years OCI + cross-cloud interconnectivity |
-| OCI Specialization | 40.0% | Deep platform mastery, 6 Oracle Certifications |
+| OCI Specialization | 60.0% | Deep platform mastery, 6 Oracle Certifications |
 | AI / GenAI / Platform | 60.0% | GenAI CloudOps, LangChain, MCP server modernization |
 | Agentic AI Frameworks | 40.0% | Autonomous database ops (ODAOS), local LLMs |
 | Kubernetes Platform (OKE) | 60.0% | Production private OKE, FSS storage, RBAC |

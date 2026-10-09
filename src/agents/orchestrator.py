@@ -25,11 +25,13 @@ from src.agents.application import ApplicationAgent
 from src.agents.interview_agent import InterviewAgent
 from src.agents.market_intelligence import MarketIntelligenceAgent
 from src.agents.reporting import ReportingAgent
+from src.agents.failure_analysis_agent import FailureAnalysisAgent
 from src.email_service.smtp_mailer import SmtpMailer
 from src.maintenance.retention_manager import RetentionManager
 from candidate.profile_extractor import get_candidate_truth
 from src.models.report import DailyReportData, TopApplicationItem
-from src.models.job import JobStatus
+from src.models.job import JobStatus, ApplicationMethod
+from src.linkedin import LinkedInAdapter
 from src.utils.logger import get_logger
 
 logger = get_logger("orchestrator")
@@ -91,13 +93,39 @@ class Orchestrator:
                 application_agent = ApplicationAgent(
                     naukri_client, job_repo, app_repo, resume_repo, self.candidate_truth, self.config
                 )
+                li_cfg = self.config.get("linkedin", {})
+                li_enabled = bool(li_cfg.get("enabled", True))
+                linkedin_adapter = (
+                    LinkedInAdapter(
+                        config=self.config,
+                        candidate_truth=self.candidate_truth,
+                        offline_mode=self.offline_mode,
+                    )
+                    if li_enabled
+                    else None
+                )
                 interview_agent = InterviewAgent(interview_repo, self.candidate_truth)
                 market_agent = MarketIntelligenceAgent(job_repo, market_repo, app_repo, self.candidate_truth)
+
+                # Advanced Executive & Automation Agents
+                from src.agents.cover_letter_agent import CoverLetterAgent
+                from src.agents.outreach_agent import OutreachAgent
+                from src.agents.ats_filler import AtsPortalFiller
+                from src.email_service.inbound_email_tracker import InboundEmailTracker
+
+                cover_letter_agent = CoverLetterAgent(self.candidate_truth, self.config)
+                outreach_agent = OutreachAgent(self.candidate_truth, self.config)
+                ats_filler = AtsPortalFiller(self.candidate_truth, self.config, offline_mode=self.offline_mode)
+                inbound_tracker = InboundEmailTracker(self.config)
+
                 rep_cfg = self.config.get("reporting", {})
                 daily_dir = Path(rep_cfg["daily_dir"]) if "daily_dir" in rep_cfg else Path("reports/daily")
                 weekly_dir = Path(rep_cfg["weekly_dir"]) if "weekly_dir" in rep_cfg else Path("reports/weekly")
                 reporting_agent = ReportingAgent(daily_dir=daily_dir, weekly_dir=weekly_dir)
                 smtp_mailer = SmtpMailer(self.config)
+
+                from src.utils.telegram_notifier import TelegramNotifier
+                telegram_notifier = TelegramNotifier(self.config)
 
                 top_applications = []
                 matched_items_for_briefing = []
@@ -132,9 +160,24 @@ class Orchestrator:
                 salary_rejected_count = disc_result.salary_rejected
                 session.commit()
 
+                # 1b. LINKEDIN INTERNATIONAL DISCOVERY (Europe, Nordics, Australia, US, India)
+                li_discovered_jobs = []
+                if linkedin_adapter:
+                    try:
+                        logger.info("Executing LinkedIn international Easy Apply discovery across target regions (Europe, Nordics, Australia, US, India)...")
+                        li_limit = min(query_limit, 10)
+                        li_discovered_jobs = linkedin_adapter.discover_jobs(limit_per_query=li_limit)
+                        jobs_scanned_count += len(li_discovered_jobs)
+                        for lj in li_discovered_jobs:
+                            job_repo.save_job(lj)
+                        session.commit()
+                    except Exception as li_err:
+                        logger.error(f"LinkedIn discovery error: {li_err}")
+
                 # 2. QUALIFICATION & SCORING
+                eligible_jobs_pool = list(disc_result.eligible_jobs) + li_discovered_jobs
                 qualifying_jobs = []
-                for job in disc_result.eligible_jobs:
+                for job in eligible_jobs_pool:
                     score, evidence = qualification_agent.evaluate_job(job)
 
                     if score.overall_score >= qualification_agent.high_match_threshold:
@@ -157,21 +200,62 @@ class Orchestrator:
                     docx_path, pdf_path, val_report = resume_agent.generate_tailored_resume(job, score)
                     resumes_generated += 1
 
-                    # Process Automated Application
-                    outcome = application_agent.process_application(job, score, docx_path, pdf_path)
-                    rec = outcome.app_record
-                    status = outcome.status
+                    # Process Automated Application (Naukri Direct, LinkedIn Easy Apply, or Greenhouse/Lever ATS)
+                    if job.application_method == ApplicationMethod.LINKEDIN_EASY_APPLY and linkedin_adapter:
+                        rec = linkedin_adapter.apply_easy_apply(job, score, docx_path, pdf_path)
+                        status = rec.status
+                        outcome_reason = rec.failure_reason
+                        app_repo.record_application(rec)
+                        job_repo.update_status(job.job_id, status)
+                        session.commit()
+                    elif ats_filler.is_supported_portal(job.url):
+                        logger.info(f"Detected supported Greenhouse/Lever board for {job.title} @ {job.company}. Invoking AtsPortalFiller...")
+                        rec = ats_filler.fill_and_apply(job, docx_path, pdf_path)
+                        status = rec.status
+                        outcome_reason = rec.failure_reason
+                        app_repo.record_application(rec)
+                        job_repo.update_status(job.job_id, status)
+                        session.commit()
+                    else:
+                        outcome = application_agent.process_application(job, score, docx_path, pdf_path)
+                        rec = outcome.app_record
+                        status = outcome.status
+                        outcome_reason = outcome.reason
 
                     # If skipped because already applied in previous session, do not count as new or include in report
-                    if status == JobStatus.APPLIED or "already applied" in (outcome.reason or "").lower() or (rec and "already applied" in (rec.failure_reason or "").lower()):
+                    if status == JobStatus.APPLIED or "already applied" in (outcome_reason or "").lower() or (rec and "already applied" in (rec.failure_reason or "").lower()):
                         logger.info(f"Job already applied in past session: '{job.title}' @ {job.company}. Excluded from today's report.")
                         continue
 
                     matched_items_for_briefing.append((job, score, evidence))
 
+                    # Generate Executive Cover Letter & Recruiter Outreach Draft for High-Matches (>= 80%) or International / Confirmed roles
+                    cover_letter_doc = None
+                    outreach_draft = None
+                    try:
+                        if score.overall_score >= 80.0 or status == JobStatus.APPLIED_CONFIRMED:
+                            cl_docx, cl_pdf = cover_letter_agent.generate_cover_letter(job, score)
+                            cover_letter_doc = str(cl_pdf if cl_pdf.exists() else cl_docx)
+                            outreach_draft = outreach_agent.draft_outreach(job, score)
+                    except Exception as cl_err:
+                        logger.warning(f"Cover letter / outreach drafting note: {cl_err}")
+
                     applications_attempted += 1
                     if status == JobStatus.APPLIED_CONFIRMED:
                         confirmed_count += 1
+                        try:
+                            telegram_notifier.notify_application_submitted(
+                                company=job.company,
+                                role=job.title,
+                                location=job.location,
+                                platform=method if 'method' in locals() else job.source_platform.capitalize(),
+                                match_score=score.overall_score,
+                                confirmation_ref=rec.confirmation_reference if rec else None,
+                                job_url=job.url,
+                                cover_letter=bool(cover_letter_doc),
+                            )
+                        except Exception as tg_err:
+                            logger.debug(f"Telegram notification note: {tg_err}")
                     elif status == JobStatus.SUBMISSION_UNVERIFIED:
                         unverified_count += 1
                     elif status in (JobStatus.APPLICATION_BLOCKED, JobStatus.BLOCKED):
@@ -183,24 +267,44 @@ class Orchestrator:
                     elif status == JobStatus.NEEDS_MANUAL_INTERVENTION:
                         manual_count += 1
 
-                    # Top application item with full audit evidence
-                    method = rec.application_method if rec else "Naukri Direct"
+                    # Top application item with full audit evidence and executive collateral
+                    if rec:
+                        method = rec.application_method
+                    elif job.application_method == ApplicationMethod.LINKEDIN_EASY_APPLY:
+                        method = "LinkedIn Easy Apply"
+                    elif ats_filler.is_supported_portal(job.url):
+                        method = "Greenhouse/Lever ATS"
+                    else:
+                        method = "Naukri Direct"
                     ref = rec.confirmation_reference if rec else None
                     portal_url = (rec.external_application_url if (rec and rec.external_application_url) else job.url)
+                    # Compute market compensation intelligence estimation if undisclosed
+                    from src.utils.compensation_intelligence import CompensationIntelligence
+                    comp_est = CompensationIntelligence.estimate_compensation(job)
+                    salary_display = (
+                        job.salary.raw_text
+                        if (job.salary and job.salary.is_disclosed and job.salary.raw_text and "not disclosed" not in job.salary.raw_text.lower())
+                        else (comp_est.formatted_band if comp_est else "Not Disclosed")
+                    )
+
                     top_applications.append(
                         TopApplicationItem(
                             company=job.company,
                             role=job.title,
-                            salary=job.salary.raw_text or "Not Disclosed",
+                            salary=salary_display,
                             match_score=score.overall_score,
                             key_factors=score.strengths[:3],
                             resume_used=docx_path.name,
                             status=status.value,
                             url=portal_url,
                             method=method,
-                            reason=rec.failure_reason if (rec and rec.failure_reason) else outcome.reason,
+                            reason=rec.failure_reason if (rec and rec.failure_reason) else outcome_reason,
                             evidence_path=rec.evidence_path if rec else None,
                             confirmation_ref=ref,
+                            cover_letter_path=cover_letter_doc,
+                            outreach_target=outreach_draft.hiring_lead_target if outreach_draft else None,
+                            outreach_inmail=outreach_draft.inmail_message if outreach_draft else None,
+                            outreach_search_url=outreach_draft.linkedin_search_url if outreach_draft else None,
                         )
                     )
 
@@ -211,6 +315,49 @@ class Orchestrator:
 
                     # Commit immediately after each application attempt to isolate transactions
                     session.commit()
+
+                # 3b. Autonomous Failure Analysis & Self-Healing Agent
+                try:
+                    failure_agent = FailureAnalysisAgent(session, self.candidate_truth, self.config)
+                    failure_diagnostics = failure_agent.analyze_and_heal_run(run_id=run_id)
+                    logger.info(f"Self-healing complete. Diagnosed and resolved {len(failure_diagnostics)} application cases.")
+
+                    # Map diagnostics to top_applications so report reflects true filter rejections
+                    diag_map = {d.job_id: d for d in failure_diagnostics}
+                    for item in top_applications:
+                        matched_diag = None
+                        for jid, d in diag_map.items():
+                            if d.company.lower() == item.company.lower() and d.job_title.lower() == item.role.lower():
+                                matched_diag = d
+                                break
+                        if matched_diag:
+                            if matched_diag.root_cause_category in ("DIVERSITY_PROGRAM_RESTRICTION", "EXPERIENCE_THRESHOLD_RESTRICTION"):
+                                item.status = "DISQUALIFIED_BY_SCREENING"
+                                item.reason = matched_diag.analysis_summary
+                            elif matched_diag.root_cause_category == "LOCATION_SYNONYM_MISMATCH":
+                                item.status = "READY_FOR_RETRY"
+                                item.reason = "Location synonym learned; queued for autonomous retry."
+
+                    session.commit()
+                except Exception as fa_err:
+                    logger.error(f"Failure analysis and self-healing error: {fa_err}")
+
+                # 3c. Inbound Recruiter Email & Interview Invitation Scan
+                try:
+                    if not self.offline_mode:
+                        inbound_msgs = inbound_tracker.scan_inbox(max_messages=20)
+                        if inbound_msgs:
+                            logger.info(f"Inbound Email Tracker detected {len(inbound_msgs)} recruiter messages.")
+                            for rmsg in inbound_msgs:
+                                if rmsg.category == "INTERVIEW":
+                                    telegram_notifier.notify_interview_invite(
+                                        sender=rmsg.sender,
+                                        subject=rmsg.subject,
+                                        company=rmsg.matched_company,
+                                        snippet=rmsg.snippet,
+                                    )
+                except Exception as inb_err:
+                    logger.debug(f"Inbound email scan note: {inb_err}")
 
                 # Check if Friday (weekday 4 in python 0=Mon, 4=Fri) or forced weekly run
                 is_friday = start_time.weekday() == 4 or force_weekly
@@ -229,9 +376,9 @@ class Orchestrator:
                 confirmed_count = len([a for a in top_applications if a.status == JobStatus.APPLIED_CONFIRMED.value])
                 unverified_count = len([a for a in top_applications if a.status == JobStatus.SUBMISSION_UNVERIFIED.value])
                 blocked_count = len([a for a in top_applications if a.status in (JobStatus.APPLICATION_BLOCKED.value, JobStatus.BLOCKED.value)])
-                failed_count = len([a for a in top_applications if a.status in (JobStatus.APPLICATION_FAILED.value, JobStatus.FAILED.value)])
+                failed_count = len([a for a in top_applications if a.status in (JobStatus.APPLICATION_FAILED.value, JobStatus.FAILED.value) and a.status != "DISQUALIFIED_BY_SCREENING"])
                 external_count = len([a for a in top_applications if a.status == JobStatus.EXTERNAL_APPLICATION_REQUIRED.value])
-                manual_count = len([a for a in top_applications if a.status == JobStatus.NEEDS_MANUAL_INTERVENTION.value])
+                manual_count = len([a for a in top_applications if a.status == JobStatus.NEEDS_MANUAL_INTERVENTION.value and a.status != "READY_FOR_RETRY"])
 
                 total_scanned = disc_result.total_found if disc_result.total_found > 0 else len(top_applications)
                 daily_data = DailyReportData(
@@ -400,6 +547,18 @@ class Orchestrator:
                         logger.info(f"Recorded email dispatch checkpoint for run {run_id} to {dispatch_history_path}.")
                     except Exception as hist_err:
                         logger.warning(f"Could not record email dispatch history: {hist_err}")
+
+                # Push daily executive pipeline summary to Telegram
+                try:
+                    telegram_notifier.notify_daily_summary(
+                        date_str=date_str,
+                        confirmed_count=confirmed_count,
+                        qualified_count=daily_data.qualified_jobs,
+                        scanned_count=daily_data.jobs_scanned,
+                        dry_run=self.dry_run,
+                    )
+                except Exception as tg_err:
+                    logger.warning(f"Could not send Telegram daily summary: {tg_err}")
 
                 # Record run finish in DB
                 run_repo.finish_run(

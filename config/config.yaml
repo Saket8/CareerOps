@@ -23,7 +23,8 @@ application:
   high_match_threshold: 85.0
   min_salary_lpa: null  # Raised floor to ₹30 LPA (user's current CTC); no ceiling
   undisclosed_salary_allowed: true
-  max_applications_per_day: 35
+  max_applications_per_day: 25  # Hard cap for total applications per daily pipeline run
+  max_run_duration_seconds: 3600  # 60 minute hard time limit per daily execution to prevent runaway jobs
   dry_run: false  # LIVE mode enabled per user preference
   retry_attempts: 3
   retry_backoff_seconds: 5
@@ -192,3 +193,5 @@ telegram:
   notify_on_applied: true
   notify_on_interview: true
   notify_on_daily_summary: true
+  notify_on_recruiter_draft: false  # Disable per-job recruiter draft spam; drafts remain saved in CRM database
+  max_draft_alerts_per_run: 3        # If enabled, maximum drafts dispatched to Telegram per day

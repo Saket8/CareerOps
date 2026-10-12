@@ -303,7 +303,29 @@ class Orchestrator:
                 qualifying_jobs.sort(key=lambda item: item[1].overall_score, reverse=True)
                 qualified_jobs_count = len(qualifying_jobs)
 
+                # Read run limit guards from configuration
+                app_cfg = self.config.get("application", {})
+                max_apps_per_day = int(app_cfg.get("max_applications_per_day", 25))
+                max_duration_sec = float(app_cfg.get("max_run_duration_seconds", 3600))  # Default 60 min ceiling
+
                 for job, score, evidence in qualifying_jobs:
+                    # Enforce daily application ceiling
+                    if applications_attempted >= max_apps_per_day:
+                        logger.info(
+                            f"Daily application cap reached ({applications_attempted}/{max_apps_per_day}). "
+                            "Halting further submissions for this run to prevent overload."
+                        )
+                        break
+
+                    # Enforce pipeline duration ceiling (time limit guard)
+                    elapsed_now = (datetime.now(timezone.utc) - start_time).total_seconds()
+                    if elapsed_now >= max_duration_sec:
+                        logger.warning(
+                            f"Execution time limit reached ({elapsed_now:.0f}s >= {max_duration_sec:.0f}s). "
+                            "Gracefully wrapping up run to prevent lingering processes."
+                        )
+                        break
+
                     src_name = get_source_label(job, ats_filler)
 
                     # 1. Careful Status & Retry Rules: audit history before retrying an ambiguous submission to avoid duplicates

@@ -72,19 +72,26 @@ class TelegramNotifier:
         cover_letter: bool = False,
     ) -> bool:
         """Sends an instant alert when a job application is successfully submitted."""
-        cl_tag = " | 📄 <i>Cover Letter Attached</i>" if cover_letter else ""
+        tg_cfg = self.config.get("telegram", {})
+        if not tg_cfg.get("notify_on_applied", True):
+            return False
+
+        cl_tag = "Yes (Tailored PDF Cover Letter Attached)" if cover_letter else "Master Profile CV"
         msg = (
-            f"🚀 <b>CareerOps — Application Submitted!</b>\n\n"
-            f"🏢 <b>Company:</b> {company}\n"
-            f"🎯 <b>Role:</b> {role}\n"
-            f"📍 <b>Location:</b> {location}\n"
-            f"🌐 <b>Platform:</b> {platform}\n"
-            f"📊 <b>Profile Match:</b> <code>{match_score:.1f}%</code>{cl_tag}\n"
+            f"✅ <b>Job Application Submitted & Confirmed</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🏢 <b>Company:</b> {html.escape(company)}\n"
+            f"🎯 <b>Role:</b> {html.escape(role)}\n"
+            f"📍 <b>Location:</b> {html.escape(location)}\n"
+            f"🌐 <b>Platform:</b> {html.escape(platform)}\n"
+            f"📊 <b>ATS Match Score:</b> <code>{match_score:.1f}%</code>\n"
+            f"📄 <b>Cover Letter:</b> {cl_tag}\n"
         )
         if confirmation_ref:
-            msg += f"🔖 <b>Ref:</b> <code>{confirmation_ref}</code>\n"
+            msg += f"🔖 <b>Submission Ref:</b> <code>{html.escape(confirmation_ref)}</code>\n"
         if job_url:
-            msg += f"\n🔗 <a href='{job_url}'>View Listing / Verify Status</a>"
+            msg += f"🔗 <a href='{job_url}'>View Job Posting</a>\n"
+        msg += f"━━━━━━━━━━━━━━━━━━━━━━"
 
         return self.send_message(msg)
 
@@ -96,15 +103,21 @@ class TelegramNotifier:
         snippet: Optional[str] = None,
     ) -> bool:
         """Sends high-priority push alert when an inbound interview invite is detected."""
+        tg_cfg = self.config.get("telegram", {})
+        if not tg_cfg.get("notify_on_interview", True):
+            return False
+
         msg = (
-            f"🎉 <b>URGENT: Recruiter Interview Invitation!</b>\n\n"
-            f"🏢 <b>Company:</b> {company or 'Enterprise Partner'}\n"
-            f"👤 <b>From:</b> {sender}\n"
-            f"📝 <b>Subject:</b> {subject}\n"
+            f"🎉 <b>Action Required: Recruiter Interview Invitation Received!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🏢 <b>Company:</b> {html.escape(company or 'Enterprise Employer')}\n"
+            f"👤 <b>Recruiter / Sender:</b> {html.escape(sender)}\n"
+            f"📝 <b>Subject:</b> {html.escape(subject)}\n"
         )
         if snippet:
-            msg += f"\n💬 <i>\"{snippet[:250]}...\"</i>\n"
-        msg += "\n⚡ <i>Status updated to INTERVIEW in your CareerOps CRM.</i>"
+            msg += f"\n💬 <i>\"{html.escape(snippet[:300])}...\"</i>\n"
+        msg += f"\n⚡ <i>Updated to INTERVIEW in your CareerOps CRM database.</i>"
+        msg += f"\n━━━━━━━━━━━━━━━━━━━━━━"
 
         return self.send_message(msg)
 
@@ -118,12 +131,17 @@ class TelegramNotifier:
         source_summary: Optional[Dict[str, int]] = None,
     ) -> bool:
         """Sends the daily executive completion summary via Telegram."""
+        tg_cfg = self.config.get("telegram", {})
+        if not tg_cfg.get("notify_on_daily_summary", True):
+            return False
+
         mode_tag = " [DRY RUN]" if dry_run else " [LIVE]"
         msg = (
             f"📊 <b>CareerOps — Daily Pipeline Complete{mode_tag}</b>\n"
-            f"📅 <b>Date:</b> {date_str}\n\n"
-            f"• <b>Jobs Scanned:</b> {scanned_count}\n"
-            f"• <b>Qualified Roles:</b> {qualified_count}\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📅 <b>Date:</b> {date_str}\n"
+            f"• <b>Total Jobs Scanned:</b> {scanned_count}\n"
+            f"• <b>Qualified Roles (≥70%):</b> {qualified_count}\n"
             f"• <b>Applications Confirmed:</b> <b>{confirmed_count}</b>\n"
         )
         if source_summary:
@@ -131,7 +149,8 @@ class TelegramNotifier:
             for src_name, c_cnt in source_summary.items():
                 msg += f"  - {src_name}: <b>{c_cnt}</b>\n"
 
-        msg += "\n📬 <i>Full report and tailored dossiers delivered to your email.</i>"
+        msg += "\n📬 <i>Daily application report and tailored dossier delivered to your email.</i>"
+        msg += "\n━━━━━━━━━━━━━━━━━━━━━━"
         return self.send_message(msg)
 
     def notify_recruiter_draft(
@@ -147,6 +166,11 @@ class TelegramNotifier:
         """Sends a recruiter outreach draft to Telegram for human review and 1-click dispatch.
         NOTE: This is strictly for human review. CareerOps NEVER sends messages to recruiters automatically.
         """
+        tg_cfg = self.config.get("telegram", {})
+        # If notify_on_recruiter_draft is explicitly False, suppress to prevent spam
+        if tg_cfg.get("notify_on_recruiter_draft") is False:
+            return False
+
         clean_company = html.escape(company)
         clean_role = html.escape(role)
         clean_contact = html.escape(contact_source)
@@ -154,18 +178,20 @@ class TelegramNotifier:
         clean_pitch = html.escape(pitch)
 
         msg = (
-            f"📨 <b>CareerOps — Recruiter Outreach Draft for Review</b>\n\n"
+            f"📨 <b>CareerOps — Recruiter Outreach Draft for Review</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🏢 <b>Company:</b> {clean_company}\n"
             f"🎯 <b>Role:</b> {clean_role}\n"
-            f"👤 <b>Contact / Target:</b> {clean_contact}\n"
+            f"👤 <b>Recruiter Target:</b> {clean_contact}\n"
             f"📊 <b>Match Rationale:</b> {clean_rationale}\n"
             f"🔗 <a href='{job_url}'>View Job Posting</a>\n\n"
-            f"📝 <b>Proposed 3-Bullet Pitch:</b>\n"
-            f"<blockquote>{clean_pitch[:600]}...</blockquote>\n\n"
+            f"📝 <b>Draft 3-Bullet InMail Pitch:</b>\n"
+            f"<blockquote>{clean_pitch[:500]}...</blockquote>\n\n"
         )
         if inmail_url:
             msg += f"👉 <a href='{inmail_url}'>Review Profile & Send on LinkedIn ↗</a>\n\n"
         msg += "⚠️ <i>Draft saved in database for review. Not sent to recruiter automatically.</i>"
+        msg += "\n━━━━━━━━━━━━━━━━━━━━━━"
 
         return self.send_message(msg)
 

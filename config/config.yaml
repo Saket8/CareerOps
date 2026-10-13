@@ -190,8 +190,9 @@ telegram:
   enabled: true
   bot_token: ""  # Loaded from TELEGRAM_BOT_TOKEN in .env
   chat_id: "-1003761096081"
-  notify_on_applied: true
-  notify_on_interview: true
-  notify_on_daily_summary: true
-  notify_on_recruiter_draft: false  # Disable per-job recruiter draft spam; drafts remain saved in CRM database
-  max_draft_alerts_per_run: 3        # If enabled, maximum drafts dispatched to Telegram per day
+  notify_on_applied: false           # Do NOT send per-job submission alerts to Telegram (all applies delivered in morning email)
+  notify_on_interview: true         # Instant alert for incoming recruiter interview invites
+  notify_on_daily_summary: true     # Daily summary after morning run finishes
+  notify_on_recruiter_draft: true   # Telegram alerts ONLY for high-value recruiter 1-to-1 message drafts
+  min_match_score_for_draft: 85.0   # Only high-value roles (>= 85% match)
+  max_draft_alerts_per_run: 5       # Cap to top high-value opportunities per day

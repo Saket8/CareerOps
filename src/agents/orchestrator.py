@@ -232,6 +232,7 @@ class Orchestrator:
                 manual_count = 0
                 interview_packs_generated = 0
                 strong_matches = 0
+                drafts_dispatched_telegram = 0
 
                 # 0. PROFILE RESUME REFRESH (Re-upload master CV on weekday morning run to maintain Resdex rank)
                 profile_refresh_status = None
@@ -370,19 +371,26 @@ class Orchestrator:
 
                             outreach_draft = outreach_agent.draft_outreach(job, score, recruiter_lead=recruiter_lead)
                             if outreach_draft:
-                                # Dispatch draft to Telegram channel for human review (NEVER auto-sent to recruiter)
-                                try:
-                                    telegram_notifier.notify_recruiter_draft(
-                                        company=job.company,
-                                        role=job.title,
-                                        contact_source=outreach_draft.hiring_lead_target or "Talent Acquisition",
-                                        job_url=job.url,
-                                        match_rationale=", ".join(score.strengths[:3]) if score.strengths else "High architectural alignment",
-                                        pitch=outreach_draft.inmail_message,
-                                        inmail_url=outreach_draft.linkedin_search_url,
-                                    )
-                                except Exception as tg_draft_err:
-                                    logger.debug(f"Telegram draft notification note: {tg_draft_err}")
+                                # Dispatch draft to Telegram channel ONLY for high-value recruiter one-to-one message drafts with direct link
+                                tg_cfg = self.config.get("telegram", {})
+                                min_draft_score = float(tg_cfg.get("min_match_score_for_draft", 85.0))
+                                max_draft_alerts = int(tg_cfg.get("max_draft_alerts_per_run", 5))
+
+                                if score.overall_score >= min_draft_score and drafts_dispatched_telegram < max_draft_alerts:
+                                    try:
+                                        sent_tg = telegram_notifier.notify_recruiter_draft(
+                                            company=job.company,
+                                            role=job.title,
+                                            contact_source=outreach_draft.hiring_lead_target or "Talent Acquisition",
+                                            job_url=job.url,
+                                            match_rationale=", ".join(score.strengths[:3]) if score.strengths else "High architectural alignment",
+                                            pitch=outreach_draft.inmail_message,
+                                            inmail_url=outreach_draft.linkedin_search_url,
+                                        )
+                                        if sent_tg:
+                                            drafts_dispatched_telegram += 1
+                                    except Exception as tg_draft_err:
+                                        logger.debug(f"Telegram draft notification note: {tg_draft_err}")
                     except Exception as cl_err:
                         logger.warning(f"Cover letter / outreach drafting note: {cl_err}")
 

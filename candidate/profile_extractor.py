@@ -35,13 +35,34 @@ def extract_text_from_docx(file_path: Path) -> str:
 
 
 def load_candidate_facts(facts_path: Path = FACTS_PATH) -> CandidateTruth:
-    """Load and validate candidate truth facts against Pydantic schema."""
+    """Load and validate candidate truth facts against Pydantic schema with .env salary injection."""
     if not facts_path.exists():
         raise FileNotFoundError(f"Candidate facts file not found at {facts_path}")
-    
+
+    from dotenv import load_dotenv
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+    if env_path.exists():
+        load_dotenv(env_path)
+
     with open(facts_path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
-    
+
+    # Inject salary from .env (Single Source of Truth)
+    env_curr_sal = os.environ.get("CURRENT_SALARY_LPA")
+    env_min_sal = os.environ.get("MIN_ACCEPTABLE_SALARY_LPA") or os.environ.get("MIN_SALARY_LPA") or env_curr_sal
+
+    if env_curr_sal is not None and env_curr_sal.strip():
+        try:
+            data["candidate"]["current_salary_lpa"] = float(env_curr_sal.strip())
+        except ValueError:
+            pass
+
+    if env_min_sal is not None and env_min_sal.strip():
+        try:
+            data["candidate"]["min_acceptable_salary_lpa"] = float(env_min_sal.strip())
+        except ValueError:
+            pass
+
     return CandidateTruth(**data)
 
 

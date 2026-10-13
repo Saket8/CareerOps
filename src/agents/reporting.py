@@ -120,7 +120,7 @@ Date: {data.date}
 
 ## Executive Pipeline Summary
 - **Jobs discovered:** {data.jobs_scanned}
-- **Salary rejected (< ₹30 LPA):** {data.salary_rejected}
+- **Salary rejected (< minimum compensation floor):** {data.salary_rejected}
 - **Qualified:** {data.qualified_jobs}
 - **Strong matches (Score >= 85%):** {data.strong_matches}
 - **Applications confirmed:** {len(confirmed_apps)}
@@ -165,7 +165,7 @@ Date: {data.date}
 
         if external_apps:
             md_content += "### ⭐ HIGH-VALUE EXTERNAL OPPORTUNITIES (RECOMMENDED FOR 1-CLICK MANUAL APPLICATION)\n"
-            md_content += "_The following opportunities scored high for your profile (≥75% match, ₹30+ LPA) but require submission on external enterprise career portals (Workday, Greenhouse, Taleo). Direct links are provided below for 1-click manual submission:_\n\n"
+            md_content += "_The following opportunities scored high for your profile (≥75% match, meeting compensation criteria) but require submission on external enterprise career portals (Workday, Greenhouse, Taleo). Direct links are provided below for 1-click manual submission:_\n\n"
             for idx, item in enumerate(external_apps, 1):
                 factors = ", ".join(item.key_factors[:3]) if item.key_factors else "High architecture alignment"
                 md_content += f"{idx}. **{item.role}** @ **{item.company}**\n"
@@ -487,7 +487,7 @@ Date: {data.date}
         <span style="background-color: #0284c7; color: #ffffff; padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700;">Recommended for Manual Apply</span>
       </div>
       <div style="font-size: 13px; color: #0c4a6e; margin-bottom: 12px; line-height: 1.5;">
-        The following opportunities scored high for your profile (&ge;75% match, &ge;₹30 LPA) but require submission on external enterprise portals (Workday, Greenhouse, Taleo). Click <strong>"Apply on Company Portal &rarr;"</strong> below to open the external job listing directly:
+        The following opportunities scored high for your profile (&ge;75% match, meeting compensation criteria) but require submission on external enterprise portals (Workday, Greenhouse, Taleo). Click <strong>"Apply on Company Portal &rarr;"</strong> below to open the external job listing directly:
       </div>
       <div class="table-wrapper" style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; border: 1px solid #bae6fd; background-color: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
         <table style="width: 100%; min-width: 480px; border-collapse: collapse; text-align: left; font-size: 13px;">

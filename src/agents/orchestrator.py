@@ -85,7 +85,10 @@ def check_submission_gates(
         return False, "BLOCKED_EMPLOYER", f"Current employer blocklist: {job.company}"
 
     # 2. Salary Gate (Minimum Acceptable Floor)
-    min_salary = float(config.get("application", {}).get("min_salary_lpa", candidate_truth.candidate.min_acceptable_salary_lpa or 30.0))
+    sal_override = config.get("application", {}).get("min_salary_lpa")
+    if sal_override is None:
+        sal_override = candidate_truth.candidate.min_acceptable_salary_lpa or candidate_truth.candidate.current_salary_lpa or 30.0
+    min_salary = float(sal_override)
     if job.salary and job.salary.is_disclosed and job.salary.max_lpa is not None:
         if job.salary.max_lpa < min_salary:
             return False, "SALARY_BELOW_MINIMUM", f"Salary ({job.salary.max_lpa} LPA) below threshold ({min_salary} LPA)"
@@ -181,7 +184,10 @@ class Orchestrator:
                 }
 
                 # Clients and Agents
-                min_salary_floor = self.config.get("application", {}).get("min_salary_lpa", 30.0)
+                sal_floor_val = self.config.get("application", {}).get("min_salary_lpa")
+                if sal_floor_val is None:
+                    sal_floor_val = self.candidate_truth.candidate.min_acceptable_salary_lpa or self.candidate_truth.candidate.current_salary_lpa or 30.0
+                min_salary_floor = float(sal_floor_val)
                 naukri_client = PlaywrightBrowserAdapter(offline_mode=self.offline_mode, min_salary_lpa=min_salary_floor)
                 discovery_agent = DiscoveryAgent(naukri_client, job_repo, self.config)
                 qualification_agent = QualificationAgent(job_repo, self.candidate_truth, self.config)

@@ -35,11 +35,20 @@ def load_config(config_path: Path = CONFIG_FILE) -> Dict[str, Any]:
         except ValueError:
             logger.warning("Invalid MATCH_THRESHOLD in env, using config value")
 
-    if "MIN_SALARY_LPA" in os.environ:
+    # Resolve single source of truth for salary floor from environment / .env
+    env_salary = (
+        os.environ.get("MIN_SALARY_LPA")
+        or os.environ.get("MIN_ACCEPTABLE_SALARY_LPA")
+        or os.environ.get("CURRENT_SALARY_LPA")
+    )
+    if env_salary is not None and env_salary.strip():
         try:
-            config["application"]["min_salary_lpa"] = float(os.environ["MIN_SALARY_LPA"])
+            config["application"]["min_salary_lpa"] = float(env_salary.strip())
         except ValueError:
-            logger.warning("Invalid MIN_SALARY_LPA in env, using config value")
+            logger.warning(f"Invalid salary value '{env_salary}' in env")
+    elif config.get("application", {}).get("min_salary_lpa") is None:
+        # Default safety benchmark when env is not configured
+        config["application"]["min_salary_lpa"] = 30.0
 
     if "MAX_APPLICATIONS_PER_DAY" in os.environ:
         try:

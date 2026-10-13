@@ -73,6 +73,7 @@ candidate:
   twelfth_passout_year: "2010"
   twelfth_percentage: "78%"
   current_salary_disclosed: false
+  # Salary values are injected at runtime from .env (Single Source of Truth)
   current_salary_lpa: null
   min_acceptable_salary_lpa: null
   target_salary_lpa: null  # No upper ceiling per user directive

@@ -30,7 +30,7 @@ from src.email_service.smtp_mailer import SmtpMailer
 from src.maintenance.retention_manager import RetentionManager
 from candidate.profile_extractor import get_candidate_truth
 from src.models.report import DailyReportData, TopApplicationItem, SourceBreakdownItem
-from src.models.job import JobStatus, ApplicationMethod, JobListing
+from src.models.job import JobStatus, ApplicationMethod, JobListing, ApplicationRecord
 from src.models.candidate import CandidateTruth
 from src.linkedin import LinkedInAdapter
 from src.utils.logger import get_logger
@@ -404,7 +404,23 @@ class Orchestrator:
                     applications_attempted += 1
                     source_counts[src_name]["attempted"] += 1
 
-                    if job.application_method == ApplicationMethod.LINKEDIN_EASY_APPLY and linkedin_adapter:
+                    if self.dry_run:
+                        status = JobStatus.APPLICATION_READY
+                        outcome_reason = "Dry run mode active: Live submission skipped per zero-dummy-apply policy."
+                        rec = ApplicationRecord(
+                            application_id=f"app_dryrun_{job.job_id}",
+                            job_id=job.job_id,
+                            application_method=job.application_method.value if hasattr(job.application_method, "value") else str(job.application_method),
+                            source_job_url=job.url,
+                            canonical_job_url=job.url,
+                            status=JobStatus.APPLICATION_READY,
+                            dry_run=True,
+                            failure_reason="Dry run mode active: Live submission skipped per zero-dummy-apply policy.",
+                        )
+                        app_repo.record_application(rec)
+                        job_repo.update_status(job.job_id, status)
+                        session.commit()
+                    elif job.application_method == ApplicationMethod.LINKEDIN_EASY_APPLY and linkedin_adapter:
                         rec = linkedin_adapter.apply_easy_apply(job, score, docx_path, pdf_path, cover_letter_path=cl_pdf_path)
                         status = rec.status
                         outcome_reason = rec.failure_reason
@@ -456,19 +472,9 @@ class Orchestrator:
                     if status == JobStatus.APPLIED_CONFIRMED:
                         confirmed_count += 1
                         source_counts[src_name]["confirmed"] += 1
-                        try:
-                            telegram_notifier.notify_application_submitted(
-                                company=job.company,
-                                role=job.title,
-                                location=job.location,
-                                platform=method if 'method' in locals() else job.source_platform.capitalize(),
-                                match_score=score.overall_score,
-                                confirmation_ref=rec.confirmation_reference if rec else None,
-                                job_url=job.url,
-                                cover_letter=bool(cover_letter_doc),
-                            )
-                        except Exception as tg_err:
-                            logger.debug(f"Telegram notification note: {tg_err}")
+                        # Per user directive: Telegram alert ONLY for high-value recruiter outreach drafts with direct links
+                        # Routine application confirmations belong in the morning summary email, not Telegram
+                        pass
                     elif status == JobStatus.SUBMISSION_UNVERIFIED:
                         unverified_count += 1
                         source_counts[src_name]["failed"] += 1
@@ -597,7 +603,7 @@ class Orchestrator:
                 external_count = len([a for a in top_applications if a.status == JobStatus.EXTERNAL_APPLICATION_REQUIRED.value])
                 manual_count = len([a for a in top_applications if a.status == JobStatus.NEEDS_MANUAL_INTERVENTION.value and a.status != "READY_FOR_RETRY"])
 
-                total_scanned = disc_result.total_found if disc_result.total_found > 0 else len(top_applications)
+                total_scanned = jobs_scanned_count if jobs_scanned_count > 0 else len(top_applications)
                 source_breakdown = [
                     SourceBreakdownItem(
                         source=src,

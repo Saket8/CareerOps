@@ -79,6 +79,7 @@ safety:
 search:
   enabled: true
   max_jobs_per_query: 30
+  max_discovery_duration_seconds: 600  # 10 minute ceiling on discovery to prevent runaway runs
   locations:
     - "Pan India"
     - "Remote"
@@ -89,67 +90,24 @@ search:
     max_years: 16
   queries:
     oracle_cloud:
-      - "Oracle Cloud Infrastructure Architect"
-      - "OCI Cloud Architect"
-      - "Oracle Cloud Administrator"
-      - "OCI Cloud Administrator"
-      - "OCI Architect"
       - "Principal OCI Architect"
+      - "OCI Cloud Architect"
+      - "Oracle Cloud Infrastructure Architect"
       - "OCI Solutions Architect"
-      - "Oracle Cloud Infrastructure Administrator"
-      - "Oracle Cloud Lead"
       - "OCI DevOps Architect"
-      - "Oracle Cloud Migration Architect"
-      - "OCI Platform Architect"
     oci_security_iam:
       - "OCI Security Architect"
-      - "OCI Security Engineer"
-      - "OCI Security Admin"
       - "Oracle Cloud Security Architect"
-      - "Oracle Cloud Security Engineer"
-      - "Oracle Cloud Security Administrator"
-      - "OCI IAM Security Architect"
       - "OCI IAM Architect"
-      - "OCI IAM Engineer"
-      - "Oracle Cloud IAM Architect"
-      - "Oracle Cloud IAM Engineer"
-      - "Oracle Cloud IAM Administrator"
-    oci_network_compute:
-      - "OCI Network Architect"
-      - "OCI Network Engineer"
-      - "OCI Network Administrator"
-      - "Oracle Cloud Network Architect"
-      - "Oracle Cloud Network Engineer"
-      - "Oracle Cloud Network Administrator"
-      - "OCI Compute Architect"
-      - "OCI Compute Engineer"
-      - "OCI Compute Administrator"
-      - "Oracle Cloud Compute Architect"
-      - "Oracle Cloud Compute Engineer"
-      - "Oracle Cloud Compute Administrator"
-      - "OCI Infrastructure Architect"
-      - "Oracle Cloud Infrastructure Engineer"
     oci_microservices_cloudnative:
-      - "Oracle Cloud Microservices Architect"
-      - "Oracle Cloud Microservices Engineer"
-      - "OCI Microservices Architect"
       - "OCI Cloud Native Architect"
       - "Oracle Cloud OKE Architect"
       - "OCI Kubernetes Architect"
     llm_ops_ai:
-      - "LLMOps Architect"
-      - "LLMOps Engineer"
-      - "AI Architect"
       - "GenAI Architect"
-      - "AI Solutions Architect"
-      - "AI Platform Architect"
-      - "Enterprise AI Architect"
       - "Agentic AI Architect"
+      - "AI Solutions Architect"
       - "Cloud GenAI Architect"
-      - "GenAI Cloud Architect"
-      - "Generative AI Architect"
-      - "AI Platform Security"
-      - "AI Infrastructure Architect"
 
 linkedin:
   enabled: true

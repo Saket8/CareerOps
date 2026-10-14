@@ -1,6 +1,7 @@
 """Discovery Agent for executing multi-query job search and early salary filtering."""
 
 import re
+import time
 from pathlib import Path
 import json
 from typing import List, Dict, Any, Set
@@ -95,19 +96,39 @@ class DiscoveryAgent:
 
         logger.info(f"Starting discovery across {len(all_queries)} queries (Min Salary: ₹{self.min_salary_lpa} LPA)")
 
-        for query in all_queries:
-            try:
-                listings = self.client.search_jobs(
-                    query=query,
-                    locations=locations,
-                    experience_min=exp_range.get("min_years", 10),
-                    experience_max=exp_range.get("max_years", 16),
-                    limit=query_limit,
-                )
-            except Exception as exc:
-                logger.error(f"Error during search for '{query}': {exc}")
-                continue
+        max_discovery_sec = float(search_config.get("max_discovery_duration_seconds", 600))
+        query_items = []
 
+        if hasattr(self.client, "search_jobs_batch") and not getattr(self.client, "offline_mode", False):
+            batch_map = self.client.search_jobs_batch(
+                queries=all_queries,
+                locations=locations,
+                experience_min=exp_range.get("min_years", 10),
+                experience_max=exp_range.get("max_years", 16),
+                limit=query_limit,
+                max_duration_seconds=int(max_discovery_sec),
+            )
+            query_items = list(batch_map.items())
+        else:
+            disc_start = time.time()
+            for query in all_queries:
+                if time.time() - disc_start > max_discovery_sec:
+                    logger.warning(f"DISCOVERY TIMEOUT: Exceeded {max_discovery_sec}s. Halting query loop.")
+                    break
+                try:
+                    q_listings = self.client.search_jobs(
+                        query=query,
+                        locations=locations,
+                        experience_min=exp_range.get("min_years", 10),
+                        experience_max=exp_range.get("max_years", 16),
+                        limit=query_limit,
+                    )
+                    query_items.append((query, q_listings))
+                except Exception as exc:
+                    logger.error(f"Error during search for '{query}': {exc}")
+                    continue
+
+        for query, listings in query_items:
             for listing in listings:
                 result.total_found += 1
 

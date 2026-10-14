@@ -29,6 +29,7 @@ class DiscoveryAgent:
     def __init__(self, client: BaseNaukriClient, job_repo: JobRepository, config: Dict[str, Any]):
         self.client = client
         self.job_repo = job_repo
+        self.config = config
         sal_val = config.get("application", {}).get("min_salary_lpa")
         if sal_val is None:
             sal_val = os.environ.get("MIN_ACCEPTABLE_SALARY_LPA") or os.environ.get("MIN_SALARY_LPA") or os.environ.get("CURRENT_SALARY_LPA") or 30.0

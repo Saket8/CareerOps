@@ -166,34 +166,108 @@ sudo chmod 0644 /etc/cron.d/careerops
 
 ```mermaid
 flowchart TD
-    Cron["Cron Scheduler (08:53 IST / 03:23 UTC)"] --> Runner["run_daily.sh"]
-    Runner --> Main["main.py --all"]
-    
-    subgraph Pipeline ["Autonomous Execution Pipeline"]
-        Main --> Reupload["Naukri Resume Re-uploader (Resdex Freshness)"]
-        Main --> Discovery["Job Discovery Engine"]
-        Discovery --> NaukriDisc["Naukri Search"]
-        Discovery --> LIDisc["LinkedIn International Search"]
-        
-        NaukriDisc --> Qual["Multi-Pillar Semantic Matcher"]
-        LIDisc --> Qual
-        
-        Qual --> Gates{"Submission & Safety Gates"}
-        Gates -->|Fail: Blocked/Salary/Data Domain| Skip["Skip & Record"]
-        Gates -->|Fail: No Visa/Relocation| LISkip["Visa & Relocation Gate Reject"]
-        
-        Gates -->|Pass| Tailor["ATS Resume & Cover Letter Generator"]
-        Tailor --> AppNaukri["Naukri Direct Applier"]
-        Tailor --> AppLI["LinkedIn Easy Apply (Live DOM Check)"]
-        
-        Tailor --> Outreach["Recruiter Outreach Agent (Score >= 85%)"]
+    %% Global Styling Classes
+    classDef trigger fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#0369a1;
+    classDef booster fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#b45309;
+    classDef discovery fill:#f3e8ff,stroke:#9333ea,stroke-width:2px,color:#6b21a8;
+    classDef gate fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#b91c1c;
+    classDef qualify fill:#ecfdf5,stroke:#059669,stroke-width:2px,color:#047857;
+    classDef apply fill:#fdf4ff,stroke:#c026d3,stroke-width:2px,color:#86198f;
+    classDef outreach fill:#ffedd5,stroke:#ea580c,stroke-width:2px,color:#c2410c;
+    classDef notify fill:#f1f5f9,stroke:#475569,stroke-width:2px,color:#334155;
+
+    subgraph T1 ["Tier 1: Automated Scheduling & Runtime Wrapper"]
+        CRON["Linux Cron: /etc/cron.d/careerops (08:53 IST / 03:23 UTC)"]:::trigger
+        CRON --> WRAPPER["run_daily.sh (flock Atomic Lock & Xvfb :99 Headless Framebuffer)"]:::trigger
+        WRAPPER --> MAIN["main.py --all (CLI Orchestrator & Workflow Engine)"]:::trigger
+        ENV[".env (Credentials & Compensation Truth)"]:::trigger -.-> MAIN
+        YAML["config.yaml & candidate_facts.yaml"]:::trigger -.-> MAIN
     end
-    
-    AppNaukri --> DB[(SQLite Database)]
-    AppLI --> DB
-    
-    DB --> Email["Daily Consolidated Dispatch Email (SMTP)"]
-    Outreach --> Telegram["High-Value Recruiter Alerts (Telegram)"]
+
+    subgraph T2 ["Tier 2: Recruiter Profile Freshness & Resdex Booster"]
+        MAIN --> BOOSTER["Resdex Booster Engine"]:::booster
+        BOOSTER --> UPLOAD["Naukri Profile: Re-upload Master CV"]:::booster
+        BOOSTER --> TIMESTAMP["Reset Profile Modification Timestamp (Peak Screening Window)"]:::booster
+        TIMESTAMP --> TOP_RANK["Boosts Candidate into Top 1% Resdex Recruiter Results"]:::booster
+    end
+
+    subgraph T3 ["Tier 3: Multi-Platform Job Discovery & Pre-Filtering"]
+        MAIN --> DISCOVERY["DiscoveryAgent (Multi-Platform Parallel Ingestion)"]:::discovery
+        DISCOVERY --> NK_DISC["Naukri Scraper: Targeted Cloud, OCI & AI Architecture"]:::discovery
+        DISCOVERY --> LI_DISC["LinkedIn Adapter: International Easy Apply Pipelines"]:::discovery
+        DISCOVERY --> ATS_DISC["Direct ATS Scrapers: Greenhouse, Lever & Workday"]:::discovery
+
+        NK_DISC --> DEDUP["Deduplication & Pre-Filter Pipeline"]:::discovery
+        LI_DISC --> DEDUP
+        ATS_DISC --> DEDUP
+
+        DEDUP --> CHK_BLOCK{"Employer Blocklist Filter"}:::gate
+        CHK_BLOCK -- Current Employer --> DROP_BLOCK["Drop Listing (Safety Invariant)"]:::gate
+        CHK_BLOCK -- Clean --> CHK_DOMAIN{"Domain Exclusion Gate"}:::gate
+        CHK_DOMAIN -- Data/Excluded Title --> DROP_DOMAIN["Drop Listing (Domain Safety)"]:::gate
+        CHK_DOMAIN -- Pass --> CHK_SALARY{"Salary Ceiling vs Floor Filter"}:::gate
+        CHK_SALARY -- Underpaying --> DROP_SALARY["SALARY_REJECTED (Below Floor)"]:::gate
+        CHK_SALARY -- Eligible / Undisclosed --> ELIGIBLE_POOL["Pre-Qualified Job Pool"]:::discovery
+    end
+
+    subgraph T4 ["Tier 4: Semantic Qualification & International Visa Gate"]
+        ELIGIBLE_POOL --> QUAL["QualificationAgent (Semantic Competency Matcher)"]:::qualify
+        QUAL --> PILLARS["Multi-Pillar Scoring: Cloud, OCI, Kubernetes, AI/GenAI, Security"]:::qualify
+
+        PILLARS --> CHK_INTL{"International Role?"}:::gate
+        CHK_INTL -- Yes --> VISA_GATE{"VisaRelocationGate (Live DOM Pre-Screen)"}:::gate
+        VISA_GATE -- No Visa / No Relo --> DROP_VISA["VISA_REJECTED / RELOCATION_REJECTED"]:::gate
+        VISA_GATE -- Affirmative Sponsorship --> PASS_VISA["Visa Gate Cleared"]:::qualify
+        CHK_INTL -- No (Domestic) --> PASS_VISA
+
+        PASS_VISA --> SCORE_CHK{"Semantic Score >= 70%?"}:::qualify
+        SCORE_CHK -- No --> DROP_SCORE["QUALIFICATION_FAILED (<70%)"]:::gate
+        SCORE_CHK -- Yes --> QUALIFIED_QUEUE["Submission Ready Queue"]:::qualify
+    end
+
+    subgraph T5 ["Tier 5: Autonomous Browser Application & Chatbot Solver"]
+        QUALIFIED_QUEUE --> APP_AGENT["ApplicationAgent (Daily Hard Cap Enforcement)"]:::apply
+        APP_AGENT --> TAILOR["Dynamic ATS Resume Tailoring Engine (PDF Generation)"]:::apply
+
+        TAILOR --> ROUTE_METHOD{"Submission Routing"}:::apply
+        ROUTE_METHOD -- Naukri Direct --> NK_APPLY["Naukri Playwright Flow"]:::apply
+        NK_APPLY --> CHATBOT{"Chatbot Questionnaire Drawer?"}:::apply
+        CHATBOT -- Yes --> SOLVER["CandidateAnswerResolver (Ground Truth Solver)"]:::apply
+        CHATBOT -- No --> SUBMIT_NK["1-Click Direct Application"]:::apply
+        SOLVER --> SUBMIT_NK
+
+        ROUTE_METHOD -- LinkedIn Easy Apply --> LI_APPLY["LinkedIn Playwright Flow"]:::apply
+        LI_APPLY --> SDUI_NAV["SDUI Multi-Step Navigation & Typeahead"]:::apply
+        SDUI_NAV --> Q_SOLVER["Deterministic Form Solver (Yes to Visa/Relo)"]:::apply
+        Q_SOLVER --> SUBMIT_LI["Review & Submit Application"]:::apply
+
+        ROUTE_METHOD -- External ATS --> EXT_APPLY["AtsPortalFiller (Workday/Greenhouse/Lever)"]:::apply
+
+        SUBMIT_NK --> VERIFY_BADGE{"Zero-False-Positive DOM Badge Reload Check"}:::apply
+        SUBMIT_LI --> VERIFY_BADGE
+        EXT_APPLY --> VERIFY_BADGE
+
+        VERIFY_BADGE -- Official Badge Verified --> DB_CONFIRMED["Persist APPLIED_CONFIRMED to SQLite"]:::apply
+        VERIFY_BADGE -- Stalled / Manual Review --> DB_REVIEW["Flag EXTERNAL_PORTAL / NEEDS_MANUAL"]:::apply
+    end
+
+    subgraph T6 ["Tier 6: Executive Recruiter Outreach & Alerts"]
+        DB_CONFIRMED --> HIGH_MATCH{"Match Score >= 85%?"}:::outreach
+        HIGH_MATCH -- Yes --> OUTREACH["OutreachAgent: Recruiter Lead Discovery"]:::outreach
+        OUTREACH --> FIND_REC["Locate Hiring Manager / Lead Recruiter Profile"]:::outreach
+        FIND_REC --> GEN_PITCH["Generate Tailored 3-Bullet InMail Pitch"]:::outreach
+        GEN_PITCH --> TELEGRAM_ALERT["Telegram Channel: Instant Recruiter Alert + Direct URL"]:::notify
+
+        HIGH_MATCH -- No --> DB_PERSIST["Standard Batch Retention"]:::notify
+    end
+
+    subgraph T7 ["Tier 7: Consolidated Reporting, DB & Retention"]
+        DB_CONFIRMED --> SQLITE[("SQLite Database: WAL Mode & ACID Transactions")]:::notify
+        DB_REVIEW --> SQLITE
+        SQLITE --> REPORT_AGENT["ReportingAgent: Generate Markdown & HTML Dossier"]:::notify
+        REPORT_AGENT --> SMTP["SmtpMailer: Daily Consolidated Digest to User Email"]:::notify
+        SMTP --> JANITOR["RetentionManager: Cleanup Scratch Artifacts & VACUUM DB"]:::notify
+    end
 ```
 
 ---

@@ -1,31 +1,38 @@
-# CareerOps: Autonomous Career Operations Platform
+# CareerOps: Autonomous Career Operations Platform (Naukri & LinkedIn)
 
-An enterprise-grade, autonomous career operations agent that monitors job portals (Naukri.com), matches opportunities using semantic profile alignment, applies autonomously with human-like screening interactions, automatically re-uploads candidate CVs daily for Resdex ranking freshness, and generates daily dispatch email reports.
+An enterprise-grade, autonomous career operations platform that orchestrates multi-platform job discovery and applications across **Naukri.com** and **LinkedIn Easy Apply**. It matches opportunities against grounded candidate facts, enforces strict visa sponsorship and relocation gates for international roles, automatically re-uploads candidate CVs for recruiter freshness, drafts high-value executive recruiter pitches, and delivers unified daily email and Telegram briefings.
 
 ---
 
 ## 🌟 Key Features
 
-1. **Autonomous Discovery & Semantic Matching**
-   - Continuously searches targeted roles (Cloud Architect, OCI Engineer, Kubernetes Specialist).
-   - Evaluates job descriptions against grounded candidate facts (`candidate_facts.yaml`), calculating threshold match scores before taking action.
+### 1. Dual-Platform Autonomous Discovery & Semantic Matching
+- **Naukri Pipeline**: Monitors targeted Cloud, OCI, Kubernetes, and AI/GenAI Architecture roles across India.
+- **LinkedIn Pipeline**: Continuously searches international opportunities across Europe, the Nordics, Australia, the US, the UK, Canada, Singapore, and the UAE.
+- **Multi-Pillar Semantic Qualification**: Evaluates job descriptions against verified candidate competencies (`candidate_facts.yaml`), scoring roles across Architecture, Cloud, OCI, AI/GenAI, Kubernetes, and Security.
 
-2. **Smart Application Engine**
-   - Headless browser automation via Playwright with anti-bot evasion techniques.
-   - Dynamic screening chatbot handler: answers screening questions (experience, CTC, notice period, certifications) reliably.
-   - Duplicate prevention: checks today's dispatch history and SQLite database to prevent redundant applications.
+### 2. LinkedIn International Easy Apply & Visa/Relocation Gate
+- **Strict Visa Sponsorship Gate**: Only applies to international roles that affirmatively confirm employer visa sponsorship for applicants from India.
+- **Mandatory Relocation Assistance**: Requires verified employer relocation packages (flight, relocation stipend, housing support).
+- **Live Page DOM Pre-Screening**: Reads full job posting text directly from the live page before clicking Easy Apply—automatically disqualifying roles with exclusion clauses (`no sponsorship`, `local candidates only`, `without sponsorship`) or domestic non-sponsorship.
+- **Automated Multi-Step Form Resolution**: Navigates multi-step Server-Driven UI (SDUI) modals, selects profile-saved master resumes, and answers screening questionnaires honestly and deterministically.
 
-3. **Daily Resume Freshness Automation**
-   - Scheduled automated re-upload of candidate CVs to Naukri profile every weekday morning.
-   - Boosts recruiter visibility and Resdex search rankings by keeping the profile actively refreshed.
+### 3. Smart Naukri Application Engine
+- Headless browser automation via Playwright with anti-bot evasion and persistent session handling.
+- Dynamic screening chatbot solver: resolves complex questions (experience tenure, compensation, notice period, certifications).
+- Duplicate prevention: checks historical application records and database states to eliminate redundant applications.
 
-4. **Profile Optimization & SEO**
-   - Live automated updates to Naukri Profile Headline, Executive Profile Summary, and Key Skills.
-   - Ensures alignment with high-demand recruiter keywords and character limits.
+### 4. Recruiter Outreach & High-Value Telegram Alerts
+- **Executive Outreach Drafting**: Automatically drafts personalized 1-to-1 InMail messages for hiring managers and recruiters on high-match roles (≥85%).
+- **Noise-Free Telegram Alerts**: Dispatches instant Telegram notifications strictly for top recruiter outreach opportunities with direct links, plus incoming interview notices—keeping standard application confirmations aggregated in the morning email.
 
-5. **Automated Daily Reporting**
-   - Generates responsive HTML reports summarizing daily applied jobs, match scores, and direct URLs.
-   - Dispatches reports via SMTP with evidence tracking.
+### 5. Daily Profile Freshness Automation
+- Automatically re-uploads master CVs to Naukri profile every weekday morning during the peak recruiter screening window (08:53 IST).
+- Maximizes Resdex search rank freshness and recruiter profile views.
+
+### 6. Unified Daily Reporting
+- Generates a consolidated, responsive HTML and Markdown daily report delivered via SMTP.
+- Features side-by-side application breakdown across Naukri, LinkedIn, and direct ATS boards with direct live verification links.
 
 ---
 
@@ -33,16 +40,34 @@ An enterprise-grade, autonomous career operations agent that monitors job portal
 
 ```mermaid
 flowchart TD
-    Cron["Cron Scheduler (08:53 IST)"] --> Runner["run_daily.sh"]
+    Cron["Cron Scheduler (08:53 IST / 03:23 UTC)"] --> Runner["run_daily.sh"]
     Runner --> Main["main.py --all"]
-    Main --> Reupload["Naukri Resume Re-uploader"]
-    Main --> Discovery["Job Discovery Agent"]
-    Discovery --> Matcher["Semantic Evaluator Agent"]
-    Matcher --> Filter["Already-Applied & Match Gate"]
-    Filter --> Applier["Application Agent (Playwright)"]
-    Applier --> Screener["Interactive Chatbot Screener"]
-    Applier --> DB[(SQLite Database)]
-    DB --> Reporter["Email Dispatcher (SMTP)"]
+    
+    subgraph Pipeline ["Autonomous Execution Pipeline"]
+        Main --> Reupload["Naukri Resume Re-uploader (Resdex Freshness)"]
+        Main --> Discovery["Job Discovery Engine"]
+        Discovery --> NaukriDisc["Naukri Search"]
+        Discovery --> LIDisc["LinkedIn International Search"]
+        
+        NaukriDisc --> Qual["Multi-Pillar Semantic Matcher"]
+        LIDisc --> Qual
+        
+        Qual --> Gates{"Submission & Safety Gates"}
+        Gates -->|Fail: Blocked/Salary/Data Domain| Skip["Skip & Record"]
+        Gates -->|Fail: No Visa/Relocation| LISkip["Visa & Relocation Gate Reject"]
+        
+        Gates -->|Pass| Tailor["ATS Resume & Cover Letter Generator"]
+        Tailor --> AppNaukri["Naukri Direct Applier"]
+        Tailor --> AppLI["LinkedIn Easy Apply (Live DOM Check)"]
+        
+        Tailor --> Outreach["Recruiter Outreach Agent (Score >= 85%)"]
+    end
+    
+    AppNaukri --> DB[(SQLite Database)]
+    AppLI --> DB
+    
+    DB --> Email["Daily Consolidated Dispatch Email (SMTP)"]
+    Outreach --> Telegram["High-Value Recruiter Alerts (Telegram)"]
 ```
 
 ---
@@ -51,7 +76,7 @@ flowchart TD
 
 ### 1. Prerequisites
 - Python 3.11+
-- Playwright Chromium with Xvfb virtual framebuffer (for headless VPS execution)
+- Playwright Chromium with Xvfb virtual framebuffer (for headless Linux/VPS execution)
 - Linux / macOS / Windows WSL
 
 ### 2. Installation
@@ -65,24 +90,34 @@ playwright install chromium
 ```
 
 ### 3. Environment Configuration
-Copy the template and configure your credentials:
+Copy the configuration template:
 ```bash
 cp .env.example .env
 ```
-Fill in `.env`:
+
+Configure `.env`:
 ```ini
 # Naukri Credentials
 NAUKRI_USERNAME=your_email@example.com
 NAUKRI_PASSWORD=your_password
 
-# Email Dispatcher
+# LinkedIn Session Configuration (Optional Session Persistence)
+LINKEDIN_USERNAME=your_linkedin_email@example.com
+LINKEDIN_PASSWORD=your_linkedin_password
+LINKEDIN_LI_AT=your_optional_li_at_cookie
+
+# Email Dispatcher (SMTP)
 SMTP_USERNAME=your_email@example.com
 SMTP_PASSWORD=your_app_password
 EMAIL_RECIPIENT=your_email@example.com
 
-# Candidate Compensation Truth (LPA - Optional / Customizable)
+# Telegram Alerts (Optional)
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+TELEGRAM_CHAT_ID=your_telegram_chat_id
+
+# Candidate Compensation Truth (LPA - Single Source of Truth)
 # Set your current CTC and minimum acceptable salary floor.
-# The agent dynamically resolves all qualification gates against these values.
+# All qualification and discovery gates dynamically resolve against these values.
 CURRENT_SALARY_LPA=your_current_ctc_lpa
 MIN_ACCEPTABLE_SALARY_LPA=your_min_acceptable_floor_lpa
 ```
@@ -91,29 +126,34 @@ MIN_ACCEPTABLE_SALARY_LPA=your_min_acceptable_floor_lpa
 
 ## 💻 Usage
 
-### Run Full Daily Cycle (Re-upload, Match, Apply & Report)
+### Run Full Weekday Pipeline (Re-upload, Discover, Gate, Apply & Report)
 ```bash
 python main.py --all
 ```
 
 ### Run Specific Tasks
 ```bash
-# Re-upload candidate CV only
+# Re-upload candidate CV to Naukri profile
 python main.py --reupload-cv
 
-# Run job discovery & applications
+# Run job discovery and automated submissions (Naukri + LinkedIn)
 python main.py --run-applications
 
-# Dispatch daily summary report
+# Dispatch daily summary email report
 python main.py --send-report
+
+# Run LinkedIn Easy Apply discovery & application specifically
+python -m src.cli.linkedin_cli --discover --apply
 ```
 
 ---
 
 ## 🔒 Security & Privacy
-- **Confidential Compensation Protection**: Candidate salary and compensation figures are never stored or hardcoded in git. All salary evaluation is resolved dynamically from your private `.env` file (Single Source of Truth), keeping the repository 100% shareable and customizable by anyone.
-- Sensitive credentials (`.env`), session tokens (`artifacts/naukri_auth.json`), and application databases are strictly gitignored.
-- Never commit active credentials or personal auth states.
+
+- **Confidential Compensation Protection**: Candidate salary and compensation figures are never stored or hardcoded in git. All compensation logic is resolved dynamically from your private `.env` file (Single Source of Truth), keeping the repository 100% shareable and customizable by anyone.
+- **Employer Safety Blocklists**: Configurable company blocklists prevent discovery, scoring, or applying to current or conflicting employers.
+- **Domain Gate Enforcement**: Strictly excludes non-target domains (e.g., Data Architect, Big Data, Data Engineering) to ensure 100% alignment with verified target tracks (Cloud/OCI & AI/GenAI Architecture).
+- **Session Protection**: Active session tokens, cookies, auth states (`artifacts/linkedin_auth.json`, `artifacts/naukri_auth.json`), and SQLite databases are strictly gitignored.
 
 ---
 

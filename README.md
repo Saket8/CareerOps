@@ -389,13 +389,13 @@ All compensation evaluation is handled securely and dynamically via your private
 
 ```ini
 # .env (Single Source of Truth)
-CURRENT_SALARY_LPA=            # Your current CTC in LPA
-MIN_ACCEPTABLE_SALARY_LPA=     # Minimum acceptable salary threshold in LPA
+CURRENT_SALARY_LPA=                # Your current CTC in LPA
+MIN_ACCEPTABLE_SALARY_LPA=         # Minimum acceptable salary threshold in LPA
 ```
 
 - **Underpaying Job Filter**: Any job disclosing a maximum compensation lower than `MIN_ACCEPTABLE_SALARY_LPA` is automatically marked as `SALARY_REJECTED` during discovery.
 - **Undisclosed Salaries**: Jobs with undisclosed or negotiable salaries are automatically accepted for qualification so you never miss top-tier unadvertised packages (`undisclosed_salary_allowed: true`).
-- **Flexible Ranges**: Ranges spanning above your threshold (e.g. ranges meeting your configured threshold floor) are automatically accepted.
+- **Flexible Ranges**: Advertised compensation ranges spanning at or above your configured threshold floor are automatically accepted.
 
 ---
 

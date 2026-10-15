@@ -207,11 +207,11 @@
 
 ### Phase 21: Production Hardening & Configurable Compensation Floor
 - [x] **Phase 21.1: Salary Guardrail Unification (.env Compensation Truth)**
-  - [x] Set `min_salary_lpa: null` in `config/config.yaml`
-  - [x] Set `current_salary_lpa: null` and `min_acceptable_salary_lpa: null` in `candidate/candidate_facts.yaml`
+  - [x] Externalize `min_salary_lpa` to `.env` (Single Source of Truth)
+  - [x] Set `current_salary_lpa: null` and `min_acceptable_salary_lpa: null` in `candidate/candidate_facts.yaml` (injected at runtime via `.env`)
   - [x] Update `src/models/candidate.py` schema with `current_salary_lpa`
-  - [x] Update `src/naukri/candidate_answer_resolver.py` to resolve current CTC as 30 LPA
-  - [x] Update `src/utils/salary_parser.py` default to 30.0 LPA
+  - [x] Update `src/naukri/candidate_answer_resolver.py` to resolve current CTC dynamically from `.env`
+  - [x] Update `src/utils/salary_parser.py` default threshold
   - [x] Wire dynamic config salary into `PlaywrightBrowserAdapter` and `BrowserScrapingAdapter`
   - [x] Update unit tests in `tests/unit/test_salary_parser.py` and `tests/unit/test_config.py`
 - [x] **Phase 21.2: P0 Immediate Safety & Invariant Hardening**
@@ -249,12 +249,12 @@
 
 ### Phase 23: Salary Range Eligibility Ceiling Refinement (Max Range >= Floor Acceptable)
 - [x] **Phase 23.1: Salary Parser Range Ceiling Implementation**
-  - [x] Update `src/utils/salary_parser.py` so ranges starting below ₹30 LPA with ceiling $\ge$ ₹30 LPA are `ELIGIBLE`
-  - [x] Enforce rejection only when maximum range is $< 30$ LPA
+  - [x] Update `src/utils/salary_parser.py` so ranges starting below floor with ceiling $\ge$ floor are `ELIGIBLE`
+  - [x] Enforce rejection only when maximum range is below the compensation floor
   - [x] Update rejection reason to reference maximum salary bound
 - [x] **Phase 23.2: Comprehensive Unit Test Suite Update**
-  - [x] Update `tests/unit/test_salary_parser.py` with cases for ranges exceeding ₹30 LPA (e.g., 20-35, 25-35, 25-40 LPA)
-  - [x] Verify rejection cases (e.g., 15-25, 18-28 LPA where max < 30 LPA)
+  - [x] Update `tests/unit/test_salary_parser.py` with cases for ranges exceeding compensation floor
+  - [x] Verify rejection cases where max ceiling is below floor
   - [x] Run full pytest suite across integration and unit tests (70/70 passing)
 - [x] **Phase 23.3: Lessons & Documentation Alignment**
   - [x] Update `tasks/lessons.md` with operational rule for range ceiling acceptance

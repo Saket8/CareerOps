@@ -79,6 +79,12 @@ NAUKRI_PASSWORD=your_password
 SMTP_USERNAME=your_email@example.com
 SMTP_PASSWORD=your_app_password
 EMAIL_RECIPIENT=your_email@example.com
+
+# Candidate Compensation Truth (LPA - Optional / Customizable)
+# Set your current CTC and minimum acceptable salary floor.
+# The agent dynamically resolves all qualification gates against these values.
+CURRENT_SALARY_LPA=your_current_ctc_lpa
+MIN_ACCEPTABLE_SALARY_LPA=your_min_acceptable_floor_lpa
 ```
 
 ---
@@ -105,6 +111,7 @@ python main.py --send-report
 ---
 
 ## 🔒 Security & Privacy
+- **Confidential Compensation Protection**: Candidate salary and compensation figures are never stored or hardcoded in git. All salary evaluation is resolved dynamically from your private `.env` file (Single Source of Truth), keeping the repository 100% shareable and customizable by anyone.
 - Sensitive credentials (`.env`), session tokens (`artifacts/naukri_auth.json`), and application databases are strictly gitignored.
 - Never commit active credentials or personal auth states.
 

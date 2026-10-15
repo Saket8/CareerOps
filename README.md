@@ -148,6 +148,214 @@ python -m src.cli.linkedin_cli --discover --apply
 
 ---
 
+## 🛠️ User Customization Guide: Tailor to Any Profile & Preference
+
+CareerOps is built to be 100% modular and adaptable to any candidate, tech stack, or geographic preference. Feel free to customize the settings below:
+
+### 1. Domestic Jobs in India vs. International Relocation (LinkedIn)
+
+Depending on where you live and where you want to work, configure the LinkedIn gate in [`config/config.yaml`](config/config.yaml):
+
+#### Scenario A: You Want International Roles Offering Visa Sponsorship & Relocation (Current Default)
+If you are located in India (or elsewhere) and strictly want international roles that sponsor your work visa and pay for relocation:
+```yaml
+# config/config.yaml
+linkedin:
+  require_visa_sponsorship: true   # Strictly requires affirmative visa sponsorship
+  require_relocation: true          # Strictly requires relocation assistance
+  target_regions:
+    - name: "Europe"
+      location: "Europe"
+    - name: "Nordics"
+      location: "Nordics"
+    - name: "Australia"
+      location: "Australia"
+    - name: "United States"
+      location: "United States"
+    - name: "United Kingdom"
+      location: "United Kingdom"
+    - name: "Canada"
+      location: "Canada"
+    - name: "Singapore"
+      location: "Singapore"
+    - name: "UAE"
+      location: "United Arab Emirates"
+```
+
+#### Scenario B: You Prefer Domestic Jobs in India on LinkedIn
+If you want to apply to domestic Indian jobs via LinkedIn Easy Apply (no visa sponsorship or relocation required):
+```yaml
+# config/config.yaml
+linkedin:
+  require_visa_sponsorship: false  # Disable international visa requirement
+  require_relocation: false         # Disable relocation package requirement
+  target_regions:
+    - name: "India"
+      location: "India"
+    - name: "Pan India"
+      location: "India"
+    - name: "Bengaluru"
+      location: "Bengaluru"
+    - name: "Noida"
+      location: "Noida"
+    - name: "Delhi NCR"
+      location: "Delhi NCR"
+    - name: "Hyderabad"
+      location: "Hyderabad"
+    - name: "Pune"
+      location: "Pune"
+```
+
+#### Scenario C: Local Citizen / Resident in the US, UK, or EU
+If you already possess unrestricted work authorization in your target country (e.g., US citizen/Green Card in the US, EU citizen in Europe):
+- Set `require_visa_sponsorship: false` and `require_relocation: false` in `config/config.yaml`.
+- Set `target_regions` to your target countries or metro regions.
+- Update `work_authorization` in [`candidate/candidate_facts.yaml`](candidate/candidate_facts.yaml) (e.g. `US Citizen`, `EU Permanent Resident`).
+
+---
+
+### 2. Customizing Your Tech Stack & Search Queries
+
+CareerOps currently targets Cloud, OCI, and AI/GenAI Architecture, but can be adapted for any engineering discipline in [`config/config.yaml`](config/config.yaml):
+
+```yaml
+# config/config.yaml
+search:
+  queries:
+    # Example 1: AWS / Azure Cloud Engineering
+    aws_azure_cloud:
+      - "Principal AWS Solutions Architect"
+      - "Lead Azure Cloud Architect"
+      - "Cloud Infrastructure Architect"
+
+    # Example 2: DevOps, SRE & Platform Engineering
+    devops_sre:
+      - "Lead SRE / Site Reliability Engineer"
+      - "Staff Platform Engineer"
+      - "Kubernetes Architect"
+
+    # Example 3: Full-Stack / Backend Engineering
+    backend_development:
+      - "Staff Backend Engineer (Python / Go)"
+      - "Principal Software Engineer (Java / Distributed Systems)"
+
+    # Example 4: Data Engineering (If you ARE a Data Architect/Engineer)
+    # Note: If targeting data roles, remember to remove 'data architect' from safety.excluded_job_titles!
+    data_engineering:
+      - "Principal Data Architect"
+      - "Lead Data Platform Engineer"
+```
+
+Update your LinkedIn search queries accordingly:
+```yaml
+linkedin:
+  queries:
+    - "Principal AWS Architect"
+    - "Lead DevOps Engineer"
+    - "Staff Platform Engineer"
+```
+
+---
+
+### 3. Setting Your Compensation Bracket & CTC Floor (`.env`)
+
+All compensation evaluation is handled securely and dynamically via your private `.env` file without revealing salary in code:
+
+```ini
+# .env (Single Source of Truth)
+CURRENT_SALARY_LPA=            # Your current CTC in LPA
+MIN_ACCEPTABLE_SALARY_LPA=     # Minimum acceptable salary threshold in LPA
+```
+
+- **Underpaying Job Filter**: Any job disclosing a maximum compensation lower than `MIN_ACCEPTABLE_SALARY_LPA` is automatically marked as `SALARY_REJECTED` during discovery.
+- **Undisclosed Salaries**: Jobs with undisclosed or negotiable salaries are automatically accepted for qualification so you never miss top-tier unadvertised packages (`undisclosed_salary_allowed: true`).
+- **Flexible Ranges**: Ranges spanning above your threshold (e.g. ranges meeting your configured threshold floor) are automatically accepted.
+
+---
+
+### 4. Updating Your Candidate Profile Facts & Master Resume
+
+All profile matching, screening questions, and dynamic resume tailoring rely on Grounded Truth:
+
+1. **Master Resume**:
+   - Place your primary resume in [`resumes/master/`](resumes/master/) (e.g. `resumes/master/John_Doe_Cloud_Architect.docx`).
+   - Update `resume.source_path` in `config/config.yaml`.
+
+2. **Candidate Profile Facts ([`candidate/candidate_facts.yaml`](candidate/candidate_facts.yaml))**:
+   Edit your verified identity, tenure, and preferences:
+   ```yaml
+   candidate:
+     name: "Your Name"
+     title: "Your Target Role"
+     email: "your_email@example.com"
+     phone: "+91-9876543210"
+     location: "Bengaluru, India"
+     preferred_locations: ["Bengaluru", "Remote", "Hybrid"]
+     total_experience_years: 10.0
+     notice_period_days: 60
+     willing_to_relocate: true
+     work_authorization: "Indian Citizen"
+   ```
+
+3. **Verified Competencies**:
+   Populate your primary platforms, tools, and certifications under `verified_competencies` in `candidate_facts.yaml`. The agent will strictly tailor ATS resumes based on these verified facts with zero hallucination.
+
+---
+
+### 5. Safety Blocklists & Domain Exclusions
+
+Protect your current employer and filter out unwanted job titles in [`config/config.yaml`](config/config.yaml):
+
+```yaml
+safety:
+  # 1. Employer Safety Blocklist (Never search or apply to your current employer)
+  blocked_companies:
+    - "Your Current Employer"
+    - "Subsidiary Company Name"
+
+  # 2. Excluded Job Titles & Domains
+  # Add titles you want to strictly reject (e.g., Data Architect, Sales, Support)
+  excluded_job_titles:
+    - "data architect"
+    - "data engineer"
+    - "sales engineer"
+    - "technical support"
+    - "snowflake"
+    - "databricks"
+```
+
+> [!TIP]
+> **If you ARE a Data Architect or Data Engineer:** Simply remove `"data architect"` and `"data engineer"` from `excluded_job_titles`! The gate will immediately permit data roles to qualify and apply.
+
+---
+
+### 6. Tuning Application Quotas, Match Thresholds & Dry-Run Mode
+
+```yaml
+# config/config.yaml
+application:
+  match_threshold: 70.0          # Minimum semantic match score (%) required to apply
+  high_match_threshold: 85.0     # Score threshold triggering executive recruiter cover letters & drafts
+  max_applications_per_day: 25   # Daily hard cap on submitted applications
+  max_run_duration_seconds: 3600 # 60-minute hard ceiling per run to prevent lingering processes
+  dry_run: false                 # Set to 'true' for dry-run simulation
+```
+
+- **Testing Safely in Dry-Run Mode**:
+  Run in dry-run mode before going live to verify discovery, scoring, and tailored resume generation without submitting any real applications:
+  ```bash
+  DRY_RUN=true python main.py --all
+  ```
+
+---
+
+### 7. Notification Channels (Email & Telegram)
+
+- **Email Reports**: Enter your destination email in `.env` (`EMAIL_RECIPIENT=your_email@example.com`). Generates a consolidated HTML report summarizing daily submissions, match scores, and direct job links.
+- **Telegram Notifications**: Create a bot via [@BotFather](https://t.me/BotFather) and set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env`. Receive real-time alerts strictly for recruiter outreach drafts (≥85% match) and incoming interview invitations.
+
+---
+
 ## 🔒 Security & Privacy
 
 - **Confidential Compensation Protection**: Candidate salary and compensation figures are never stored or hardcoded in git. All compensation logic is resolved dynamically from your private `.env` file (Single Source of Truth), keeping the repository 100% shareable and customizable by anyone.

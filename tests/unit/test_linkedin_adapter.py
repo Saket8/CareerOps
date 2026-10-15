@@ -197,6 +197,27 @@ def test_linkedin_apply_easy_apply_rejects_unqualified(mock_config, candidate_tr
     assert "VISA_SPONSORSHIP_EXCLUDED" in rec.failure_reason
 
 
+def test_visa_relocation_gate_disabled_allows_domestic():
+    """Verify that when a user customizes config with require_visa_sponsorship=False and require_relocation=False, domestic roles pass."""
+    from src.utils.visa_relocation_gate import VisaRelocationGate
+
+    job_india = JobListing(
+        job_id="li_india_custom",
+        title="OCI Cloud Architect",
+        company="Oracle India",
+        location="Bengaluru, Karnataka, India",
+        url="https://www.linkedin.com/jobs/view/100007/",
+        jd_text="Seeking Cloud Architect for Bengaluru office.",
+    )
+    custom_li_config = {
+        "require_visa_sponsorship": False,
+        "require_relocation": False,
+    }
+    passed, reason = VisaRelocationGate.evaluate(job_india, custom_li_config)
+    assert passed is True
+    assert "PASSED" in reason
+
+
 def test_candidate_answer_resolver_international_relocation(candidate_truth):
     from src.naukri.candidate_answer_resolver import CandidateAnswerResolver
     resolver = CandidateAnswerResolver(candidate_truth, strict_truth_only=False)

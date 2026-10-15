@@ -99,13 +99,17 @@ class VisaRelocationGate:
         loc = (job.location or "").lower()
         is_domestic = any(d in loc for d in DOMESTIC_INDIA_INDICATORS)
         
-        # If the job is located inside India, it cannot provide visa sponsorship from India or international relocation
-        if is_domestic:
+        # If the user requires visa sponsorship or relocation from India, domestic roles cannot provide it
+        if (req_sponsorship or req_relocation) and is_domestic:
             return (
                 False,
                 f"DOMESTIC_INDIA_ROLE: Job location '{job.location}' is within India. "
-                "LinkedIn applications are reserved strictly for international opportunities offering visa sponsorship from India and relocation assistance.",
+                "LinkedIn applications are currently configured strictly for international opportunities offering visa sponsorship from India and relocation assistance.",
             )
+
+        # If user explicitly disabled both visa sponsorship and relocation requirements, allow all roles
+        if not req_sponsorship and not req_relocation:
+            return True, "PASSED: Visa sponsorship and relocation requirements disabled in configuration."
 
         # Combine all descriptive text
         text_parts = [

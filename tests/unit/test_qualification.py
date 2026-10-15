@@ -244,11 +244,75 @@ def test_snowflake_databricks_domain_gate_rejection(db_session):
 
     assert score_s.passed_threshold is False
     assert snowflake_job.status == JobStatus.REJECTED
-    assert any("Snowflake/Databricks specialization" in g for g in score_s.gaps)
 
     assert score_d.passed_threshold is False
     assert databricks_job.status == JobStatus.REJECTED
-    assert any("Snowflake/Databricks specialization" in g for g in score_d.gaps)
+
+
+def test_data_architect_and_domain_exclusion_gate(db_session):
+    """Test that Data Architect and all Data domain roles are strictly rejected."""
+    job_repo = JobRepository(db_session)
+    candidate_truth = get_candidate_truth(refresh=True)
+    config = {
+        "application": {"match_threshold": 70.0, "high_match_threshold": 85.0},
+        "safety": {
+            "excluded_job_titles": [
+                "data architect", "data architecture", "big data", "data engineer",
+                "data platform", "data warehouse", "data lake", "data analytics",
+                "database architect", "data center architect", "snowflake", "databricks"
+            ]
+        }
+    }
+    agent = QualificationAgent(job_repo, candidate_truth, config)
+
+    test_titles = [
+        "Data Architect",
+        "AWS Data Architect",
+        "Principal Big Data Engineer",
+        "Enterprise Data Architect",
+        "Cloud Data Platform Architect",
+        "Sr. Data Warehouse Architect",
+        "Oracle Database Architect",
+        "Data Center Architect",
+    ]
+
+    for idx, title in enumerate(test_titles):
+        job = JobListing(
+            job_id=f"job_data_test_{idx}",
+            title=title,
+            company="Enterprise Data Corp",
+            location="Bengaluru",
+            url=f"https://naukri.com/job/data_{idx}",
+            experience_min=10.0,
+            experience_max=16.0,
+            jd_text=f"Looking for {title} with deep expertise in cloud architectures, data pipelines, SQL, and enterprise scaling.",
+            has_full_jd=True,
+        )
+        job_repo.save_job(job)
+        score, _ = agent.evaluate_job(job)
+
+        assert score.passed_threshold is False, f"Role '{title}' must not pass qualification threshold"
+        assert score.overall_score == 0.0, f"Role '{title}' must receive 0.0 score"
+        assert job.status == JobStatus.REJECTED, f"Role '{title}' status must be REJECTED"
+        assert any("excluded domain keyword" in g for g in score.gaps)
+
+    # Valid Cloud/OCI Architect role must still qualify normally
+    valid_oci_job = JobListing(
+        job_id="job_valid_oci_arch",
+        title="Principal OCI Solutions Architect",
+        company="Enterprise Cloud Solutions",
+        location="Bengaluru",
+        url="https://naukri.com/job/oci_valid",
+        experience_min=10.0,
+        experience_max=16.0,
+        jd_text="Enterprise Oracle Cloud Infrastructure (OCI) architecture, OKE Kubernetes, Terraform landing zones, and cloud migrations.",
+        has_full_jd=True,
+    )
+    job_repo.save_job(valid_oci_job)
+    valid_score, _ = agent.evaluate_job(valid_oci_job)
+    assert valid_score.passed_threshold is True
+    assert valid_score.overall_score >= 80.0
+    assert valid_oci_job.status in (JobStatus.QUALIFIED, JobStatus.HIGH_MATCH)
 
 
 

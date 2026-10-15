@@ -148,12 +148,21 @@ class DiscoveryAgent:
                     result.duplicates_skipped += 1
                     continue
 
-                # 0c. Domain Gate: Skip roles whose title targets excluded technologies (Snowflake, Databricks)
+                # 0c. Domain Gate: Skip roles whose title targets excluded domains (Data Architect, Data Engineer, Big Data, etc.)
                 title_lower = (listing.title or "").lower()
-                if any(tech in title_lower for tech in ["snowflake", "databricks"]):
+                excluded_domains = self.config.get("safety", {}).get("excluded_job_titles", [
+                    "data architect", "data architecture", "big data", "data engineer",
+                    "data engineering", "data platform", "data warehouse", "data warehousing",
+                    "data lake", "data lakehouse", "data analytics", "data modeler",
+                    "data modeling", "data governance", "data pipeline", "data scientist",
+                    "data science", "data lead", "database architect", "data center architect",
+                    "data centre architect", "snowflake", "databricks"
+                ])
+                matched_excluded = next((d.lower() for d in excluded_domains if d.lower() in title_lower), None)
+                if matched_excluded:
                     logger.info(
                         f"DOMAIN GATE: Skipping job {listing.job_id} ('{listing.title}' @ {listing.company}) "
-                        f"centered on excluded technology (Snowflake/Databricks)."
+                        f"centered on excluded domain ({matched_excluded})."
                     )
                     result.duplicates_skipped += 1
                     continue

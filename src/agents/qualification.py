@@ -19,7 +19,7 @@ logger = get_logger("qualification_agent")
 DIMENSION_KEYWORDS = {
     "architecture": [
         "architect", "architecture", "solutions architect", "enterprise architect",
-        "cloud administrator", "cloud admin", "oci administrator", "database administrator",
+        "cloud administrator", "cloud admin", "oci administrator",
         "cloud engineer", "infrastructure engineer", "systems engineer", "network engineer", "security engineer",
         "landing zone", "system design", "high availability", "disaster recovery",
         "topology", "scalability", "governance", "modernization"
@@ -180,6 +180,49 @@ class QualificationAgent:
                 job.status = JobStatus.REJECTED
                 self.job_repo.save_job(job)
                 return zero_score, empty_evidence
+
+        # 0d. Data Domain & Technology Exclusion Gate
+        # Candidate is strictly a Cloud / OCI & AI / GenAI Architect, NOT a Data Architect / Data Engineer.
+        title_lower = (job.title or "").lower()
+        excluded_domains = self.config.get("safety", {}).get("excluded_job_titles", [
+            "data architect", "data architecture", "big data", "data engineer",
+            "data engineering", "data platform", "data warehouse", "data warehousing",
+            "data lake", "data lakehouse", "data analytics", "data modeler",
+            "data modeling", "data governance", "data pipeline", "data scientist",
+            "data science", "data lead", "database architect", "data center architect",
+            "data centre architect", "snowflake", "databricks"
+        ])
+        matched_excluded = next((d.lower() for d in excluded_domains if d.lower() in title_lower), None)
+        if matched_excluded:
+            logger.warning(f"Data Domain Exclusion Gate: Rejecting '{job.title}' @ '{job.company}' (Excluded keyword: '{matched_excluded}')")
+            zero_score = JobScore(
+                job_id=job.job_id,
+                overall_score=0.0,
+                architecture_score=0.0,
+                cloud_score=0.0,
+                oci_score=0.0,
+                ai_score=0.0,
+                agentic_ai_score=0.0,
+                kubernetes_score=0.0,
+                security_score=0.0,
+                multicloud_score=0.0,
+                experience_alignment=0.0,
+                skill_alignment=0.0,
+                passed_threshold=False,
+                match_reasons=[],
+                strengths=[],
+                gaps=[f"Role title matches excluded domain keyword '{matched_excluded}'. Candidate target tracks are strictly Cloud/OCI and AI/GenAI Architecture, not Data Architecture."],
+                categories=[],
+            )
+            empty_evidence = JobEvidence(
+                job_id=job.job_id,
+                observed_facts=[],
+                inferred_signals=[],
+                generated_actions=[],
+            )
+            job.status = JobStatus.REJECTED
+            self.job_repo.save_job(job)
+            return zero_score, empty_evidence
 
         query = getattr(job, "discovered_via_query", "") or getattr(job, "source_query", "") or ""
         skills = getattr(job, "skills_found", []) or []

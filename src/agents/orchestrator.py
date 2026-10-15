@@ -128,6 +128,20 @@ def check_submission_gates(
         if not passed_li:
             return False, "LINKEDIN_VISA_RELOCATION_GATE", reason_li
 
+    # 7. Data Domain Exclusion Gate (Candidate is Cloud/OCI & AI Architect, NOT a Data Architect)
+    title_lower = (job.title or "").lower()
+    excluded_domains = config.get("safety", {}).get("excluded_job_titles", [
+        "data architect", "data architecture", "big data", "data engineer",
+        "data engineering", "data platform", "data warehouse", "data warehousing",
+        "data lake", "data lakehouse", "data analytics", "data modeler",
+        "data modeling", "data governance", "data pipeline", "data scientist",
+        "data science", "data lead", "database architect", "data center architect",
+        "data centre architect", "snowflake", "databricks"
+    ])
+    matched_excluded = next((d.lower() for d in excluded_domains if d.lower() in title_lower), None)
+    if matched_excluded:
+        return False, "EXCLUDED_DATA_DOMAIN", f"Role title '{job.title}' matches excluded domain keyword '{matched_excluded}' (Candidate is OCI/Cloud/AI Architect, not a Data Architect)."
+
     return True, "PASSED", None
 
 

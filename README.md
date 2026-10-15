@@ -4,6 +4,132 @@ An enterprise-grade, autonomous career operations platform that orchestrates mul
 
 ---
 
+## ☁️ Zero-Cost 24/7 Cloud Hosting: Procuring an OCI Always Free Linux Server
+
+To run CareerOps 24/7 autonomously without keeping your personal computer running or paying monthly AWS/GCP bills, host it on **Oracle Cloud Infrastructure (OCI) Always Free Tier** at **$0/month forever**.
+
+### Why OCI Always Free?
+- **Industry-Leading Compute Specs**:
+  - **Ampere A1 Compute (Arm)**: Up to **4 OCPUs** and **24 GB RAM** (can run as 1 large VM or split into up to 4 smaller VMs).
+  - **AMD Micro Compute (x86_64)**: Up to **2 instances** of `VM.Standard.E2.1.Micro` (1 OCPU, 1 GB RAM each).
+- **Free Persistent Storage & Bandwidth**: **200 GB Block Volume storage** (NVMe SSD) and **10 TB/month outbound data transfer**.
+- **Static Public IP**: Free dedicated public IPv4 address per compute instance.
+- **Permanent $0 Cost**: Always Free resources do not expire and never incur charges as long as usage remains within the free tier thresholds.
+
+---
+
+### Step-by-Step Procurement & Setup Walkthrough
+
+#### Step 1: Register for an OCI Always Free Account
+1. Visit the [Oracle Cloud Free Tier Registration](https://signup.cloud.oracle.com/).
+2. Provide your email, country/region, and account name.
+3. Select your **Home Region** carefully (e.g., *India West (Mumbai)*, *India South (Hyderabad)*, *US East (Ashburn)*, or *Europe (Frankfurt)*).  
+   > [!IMPORTANT]
+   > Always Free compute instances and storage volumes must reside in your selected **Home Region**.
+4. Complete the credit/debit card identity verification (a small temporary verification hold is placed and immediately released; you will **not** be billed).
+
+#### Step 2: Provision Your Always Free Linux Compute Instance
+1. Log in to the [Oracle Cloud Console](https://cloud.oracle.com/).
+2. In the navigation menu (top-left hamburger), go to **Compute** > **Instances**, then click **Create Instance**.
+3. Configure the VM specifications:
+   - **Name**: e.g., `careerops-prod`
+   - **Compartment**: Select your default root compartment.
+   - **Placement**: Keep the default Availability Domain.
+   - **Image and Shape**:
+     - Click **Change Image**: Choose **Oracle Linux 8 / 9** (recommended) or **Ubuntu 22.04 / 24.04 LTS**.
+     - Click **Change Shape**:
+       - *Option A (Recommended - Maximum Performance)*: Select **Ampere (Arm Processor)** > `VM.Standard.A1.Flex`. Allocate **2 to 4 OCPUs** and **12 to 24 GB RAM** (marked with the *Always Free Eligible* badge).
+       - *Option B (Standard x86 Architecture)*: Select **Specialty and Previous Generation** > **AMD** > `VM.Standard.E2.1.Micro` (1 OCPU, 1 GB RAM, *Always Free Eligible*).
+   - **Networking**:
+     - Choose **Create new virtual cloud network** (or use an existing VCN).
+     - Choose **Create new public subnet**.
+     - Ensure **Assign a public IPv4 address** is set to **Yes**.
+   - **Add SSH Keys**:
+     - Select **Generate a key pair for me** and click **Save Private Key** to download `ssh-key-*.key`, OR select **Upload public key files** to upload your existing `~/.ssh/id_rsa.pub` or `~/.ssh/id_ed25519.pub`.
+   - **Boot Volume**: Keep default (46.6 GB up to 200 GB Always Free).
+4. Click **Create**. The instance status will transition from `PROVISIONING` to `RUNNING` within ~30–60 seconds. Note down your **Public IP Address** from the Instance Details screen.
+
+#### Step 3: Connect to Your OCI Server via SSH
+Open your local terminal and connect using your downloaded SSH private key:
+
+```bash
+# Restrict private key permissions
+chmod 400 ~/Downloads/ssh-key-*.key
+
+# Connect via SSH:
+# For Oracle Linux (default user: opc)
+ssh -i ~/Downloads/ssh-key-*.key opc@<YOUR_INSTANCE_PUBLIC_IP>
+
+# For Ubuntu (default user: ubuntu)
+ssh -i ~/Downloads/ssh-key-*.key ubuntu@<YOUR_INSTANCE_PUBLIC_IP>
+```
+
+#### Step 4: Install System Dependencies & Virtual Framebuffer (Xvfb)
+Playwright Chromium requires standard X11 and rendering libraries to operate headlessly on cloud servers without a desktop environment:
+
+**For Oracle Linux / RHEL / Rocky Linux (user `opc`):**
+```bash
+sudo dnf update -y
+sudo dnf install -y python3.11 python3.11-pip git xorg-x11-server-Xvfb \
+    alsa-lib atk at-spi2-atk gtk3 libdrm libXcomposite libXdamage \
+    libXrandr libxkbcommon mesa-libgbm pango
+```
+
+**For Ubuntu / Debian (user `ubuntu`):**
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y python3.11 python3.11-venv python3-pip git xvfb \
+    libgbm-dev libnss3 libatk-bridge2.0-0 libgtk-3-0 libasound2
+```
+
+#### Step 5: Clone & Initialize CareerOps
+```bash
+# Clone the repository
+git clone https://github.com/Saket8/CareerOps.git
+cd CareerOps
+
+# Create and activate Python virtual environment
+python3.11 -m venv venv
+source venv/bin/activate
+
+# Install Python requirements and Chromium headless browser binaries
+pip install --upgrade pip
+pip install -r requirements.txt
+playwright install chromium
+playwright install-deps chromium
+```
+
+#### Step 6: Configure Environment & Candidate Facts
+```bash
+# Create and populate your production environment file
+cp .env.example .env
+nano .env
+
+# Customize your target tracks, skills, and screening preferences
+nano config/candidate_facts.yaml
+nano config/config.yaml
+```
+*(All salary fields in `.env.example` are generic placeholders; set your personal CTC and floor thresholds in `.env` securely on your private server).*
+
+#### Step 7: Configure 24/7 Automated Scheduling via System Cron
+To ensure robust, unattended execution immune to user crontab resets, configure a system cron job under `/etc/cron.d/careerops`:
+
+```bash
+sudo tee /etc/cron.d/careerops << 'EOF'
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+# CareerOps Weekday Morning Pipeline (08:53 IST / 03:23 UTC)
+# Automates CV re-upload, job discovery, visa/relocation gating, applications & daily reporting
+23 3 * * 1-5 opc cd /u01/CareerOps && /usr/bin/xvfb-run -a /u01/CareerOps/venv/bin/python main.py --all >> /u01/CareerOps/logs/cron.log 2>&1
+EOF
+
+sudo chmod 0644 /etc/cron.d/careerops
+```
+*(Note: If hosting on Ubuntu or a different directory, adjust `opc` to `ubuntu` and `/u01/CareerOps` to your clone directory).*
+
+---
+
 ## 🌟 Key Features
 
 ### 1. Dual-Platform Autonomous Discovery & Semantic Matching

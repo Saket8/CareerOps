@@ -6,7 +6,7 @@ Performs multi-dimensional scoring, gap analysis, and evidence extraction
 
 import re
 from typing import Tuple, List, Dict, Any, Set
-from src.models.job import JobListing, JobStatus
+from src.models.job import JobListing, JobStatus, ApplicationMethod
 from src.models.score import JobScore, JobEvidence
 from src.models.candidate import CandidateTruth
 from src.database.repositories.job_repo import JobRepository
@@ -139,6 +139,47 @@ class QualificationAgent:
             job.status = JobStatus.REJECTED
             self.job_repo.save_job(job)
             return zero_score, empty_evidence
+
+        # 0c. LinkedIn Visa Sponsorship & Relocation Pre-qualification Gate
+        is_linkedin = (
+            job.application_method == ApplicationMethod.LINKEDIN_EASY_APPLY
+            or "linkedin" in (job.source_platform or "").lower()
+            or "linkedin" in (job.url or "").lower()
+        )
+        li_cfg = self.config.get("linkedin", {})
+        if is_linkedin and (li_cfg.get("require_visa_sponsorship", True) or li_cfg.get("require_relocation", True)):
+            from src.utils.visa_relocation_gate import VisaRelocationGate
+            passed_li, reason_li = VisaRelocationGate.evaluate(job, li_cfg)
+            if not passed_li:
+                logger.info(f"LinkedIn Visa & Relocation Gate rejecting '{job.title}' @ '{job.company}': {reason_li}")
+                zero_score = JobScore(
+                    job_id=job.job_id,
+                    overall_score=0.0,
+                    architecture_score=0.0,
+                    cloud_score=0.0,
+                    oci_score=0.0,
+                    ai_score=0.0,
+                    agentic_ai_score=0.0,
+                    kubernetes_score=0.0,
+                    security_score=0.0,
+                    multicloud_score=0.0,
+                    experience_alignment=0.0,
+                    skill_alignment=0.0,
+                    passed_threshold=False,
+                    match_reasons=[],
+                    strengths=[],
+                    gaps=[reason_li],
+                    categories=[],
+                )
+                empty_evidence = JobEvidence(
+                    job_id=job.job_id,
+                    observed_facts=[],
+                    inferred_signals=[],
+                    generated_actions=[],
+                )
+                job.status = JobStatus.REJECTED
+                self.job_repo.save_job(job)
+                return zero_score, empty_evidence
 
         query = getattr(job, "discovered_via_query", "") or getattr(job, "source_query", "") or ""
         skills = getattr(job, "skills_found", []) or []

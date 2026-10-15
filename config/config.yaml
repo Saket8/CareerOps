@@ -116,15 +116,13 @@ linkedin:
   user_data_dir: "/u01/CareerOps/.li_profile"
   auth_state_path: "artifacts/linkedin_auth.json"
   email_alerts: true
+  require_visa_sponsorship: true  # Strictly require employer visa sponsorship for candidates from India
+  require_relocation: true         # Strictly require relocation assistance package
   work_modes:
     - "onsite"
     - "hybrid"
     - "remote"
   target_regions:
-    - name: "India"
-      location: "India"
-    - name: "Pan India"
-      location: "India"
     - name: "Europe"
       location: "Europe"
     - name: "Nordics"
@@ -135,14 +133,25 @@ linkedin:
       location: "United States"
     - name: "United Kingdom"
       location: "United Kingdom"
+    - name: "Canada"
+      location: "Canada"
+    - name: "Singapore"
+      location: "Singapore"
+    - name: "UAE"
+      location: "United Arab Emirates"
   queries:
+    - "OCI Architect visa sponsorship"
+    - "Oracle Cloud Infrastructure Architect visa sponsorship"
+    - "Cloud Architect relocation"
+    - "OCI Architect relocation"
+    - "AI Architect visa sponsorship"
+    - "GenAI Architect relocation"
+    - "Cloud Architect visa sponsorship"
     - "OCI Architect"
     - "Oracle Cloud Infrastructure Architect"
-    - "OCI Cloud Architect"
     - "Principal Cloud Architect"
     - "AI Architect"
     - "GenAI Architect"
-    - "Agentic AI Architect"
 
 telegram:
   enabled: true

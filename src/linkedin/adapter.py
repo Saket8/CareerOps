@@ -79,13 +79,13 @@ class LinkedInAdapter:
                     location="Copenhagen, Denmark (Nordics)",
                     work_mode="onsite",
                     url="https://www.linkedin.com/jobs/view/9990001/",
-                    source_query="Cloud Architect",
+                    source_query="Cloud Architect visa sponsorship",
                     source_platform="linkedin",
                     application_method=ApplicationMethod.LINKEDIN_EASY_APPLY,
                     status=JobStatus.DISCOVERED,
                     has_full_jd=True,
-                    jd_text="Seeking Lead Cloud Architect for Copenhagen, Denmark. Role requires deep expertise in Oracle Cloud Infrastructure (OCI), Enterprise Cloud Architecture, Terraform, Kubernetes, and hybrid cloud migrations.",
-                    skills_found=["Oracle Cloud Infrastructure", "OCI", "Cloud Architecture", "Terraform", "Kubernetes"],
+                    jd_text="Seeking Lead Cloud Architect for Copenhagen, Denmark. We provide full employer visa sponsorship from India and a comprehensive relocation assistance package for international candidates. Role requires deep expertise in Oracle Cloud Infrastructure (OCI), Enterprise Cloud Architecture, Terraform, Kubernetes, and hybrid cloud migrations.",
+                    skills_found=["Oracle Cloud Infrastructure", "OCI", "Cloud Architecture", "Terraform", "Kubernetes", "Visa Sponsorship", "Relocation Assistance"],
                 ),
                 JobListing(
                     job_id="li_mock_aus_1",
@@ -99,23 +99,23 @@ class LinkedInAdapter:
                     application_method=ApplicationMethod.LINKEDIN_EASY_APPLY,
                     status=JobStatus.DISCOVERED,
                     has_full_jd=True,
-                    jd_text="Principal Cloud Architect to design scalable global multi-cloud infrastructure. Deep experience in Cloud Architecture, OCI, AWS, containerization, microservices, and enterprise infrastructure.",
+                    jd_text="Principal Cloud Architect to design scalable global multi-cloud infrastructure in Sydney, Australia. Role requires current Australian work authorization. No visa sponsorship or relocation assistance available.",
                     skills_found=["Cloud Architecture", "OCI", "AWS", "Kubernetes", "Microservices"],
                 ),
                 JobListing(
-                    job_id="li_mock_us_1",
+                    job_id="li_mock_uk_1",
                     title="Enterprise AI & Cloud Architect",
-                    company="Datadog US",
-                    location="San Francisco, CA, United States",
+                    company="Datadog UK",
+                    location="London, United Kingdom",
                     work_mode="remote",
                     url="https://www.linkedin.com/jobs/view/9990003/",
-                    source_query="AI Architect",
+                    source_query="AI Architect visa sponsorship",
                     source_platform="linkedin",
                     application_method=ApplicationMethod.LINKEDIN_EASY_APPLY,
                     status=JobStatus.DISCOVERED,
                     has_full_jd=True,
-                    jd_text="Enterprise AI and Cloud Architect to build enterprise Generative AI platforms, LLM pipelines, Agentic AI architectures, and resilient cloud infrastructure.",
-                    skills_found=["Generative AI", "LLM", "Agentic AI", "Cloud Architecture", "Python", "AI Platform"],
+                    jd_text="Enterprise AI and Cloud Architect to build enterprise Generative AI platforms in London, UK. We offer full employer visa sponsorship and relocation support package to relocate to London. Deep experience in Cloud Architecture, GenAI, and resilient infrastructure.",
+                    skills_found=["Generative AI", "LLM", "Agentic AI", "Cloud Architecture", "Python", "Visa Sponsorship", "Relocation Support"],
                 ),
             ]
 
@@ -249,6 +249,14 @@ class LinkedInAdapter:
         )
 
         if self.offline_mode or self.config.get("application", {}).get("dry_run", False):
+            from src.utils.visa_relocation_gate import VisaRelocationGate
+            passed, gate_reason = VisaRelocationGate.evaluate(job, self.li_config)
+            if not passed:
+                logger.info(f"LinkedIn Visa & Relocation Gate rejected '{job.title}' in offline/dry-run mode: {gate_reason}")
+                record.status = JobStatus.REJECTED
+                record.failure_reason = gate_reason
+                return record
+
             record.status = JobStatus.APPLIED_CONFIRMED
             record.confirmation_reference = f"SIM_LI_{job.job_id}"
             record.confirmation_text = "Simulated LinkedIn application in offline/dry-run mode."
@@ -285,6 +293,28 @@ class LinkedInAdapter:
                     logger.info(f"Already applied to {job.title} on LinkedIn. Recording confirmation.")
                     record.status = JobStatus.APPLIED_CONFIRMED
                     record.confirmation_reference = "ALREADY_APPLIED"
+                    context.close()
+                    return record
+
+                # 1b. Live Page Visa Sponsorship & Relocation Gate Verification
+                live_jd_text = page.evaluate('''() => {
+                    const el = document.querySelector('#job-details') ||
+                               document.querySelector('.jobs-description') ||
+                               document.querySelector('.jobs-box__html-content') ||
+                               document.querySelector('.show-more-less-html__markup') ||
+                               document.querySelector('.jobs-description__content');
+                    return el ? (el.innerText || '') : '';
+                }''')
+                if live_jd_text and len(live_jd_text.strip()) > 50:
+                    job.jd_text = live_jd_text
+                    job.has_full_jd = True
+
+                from src.utils.visa_relocation_gate import VisaRelocationGate
+                passed, gate_reason = VisaRelocationGate.evaluate(job, self.li_config)
+                if not passed:
+                    logger.warning(f"LinkedIn Visa & Relocation Gate halted '{job.title}' @ '{job.company}': {gate_reason}")
+                    record.status = JobStatus.REJECTED
+                    record.failure_reason = f"Visa & Relocation Gate: {gate_reason}"
                     context.close()
                     return record
 

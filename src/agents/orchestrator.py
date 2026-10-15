@@ -115,6 +115,19 @@ def check_submission_gates(
     if not cand.name or not cand.email or not cand.phone:
         return False, "MISSING_CANDIDATE_FACT", "Essential identity facts (name/email/phone) missing from verified profile"
 
+    # 6. LinkedIn Visa Sponsorship & Relocation Gate
+    is_linkedin = (
+        job.application_method == ApplicationMethod.LINKEDIN_EASY_APPLY
+        or "linkedin" in (job.source_platform or "").lower()
+        or "linkedin" in (job.url or "").lower()
+    )
+    li_cfg = config.get("linkedin", {})
+    if is_linkedin and (li_cfg.get("require_visa_sponsorship", True) or li_cfg.get("require_relocation", True)):
+        from src.utils.visa_relocation_gate import VisaRelocationGate
+        passed_li, reason_li = VisaRelocationGate.evaluate(job, li_cfg)
+        if not passed_li:
+            return False, "LINKEDIN_VISA_RELOCATION_GATE", reason_li
+
     return True, "PASSED", None
 
 

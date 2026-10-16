@@ -124,6 +124,26 @@ class ApplicationRepository:
             or 0
         )
 
+    def count_applications_attempted_today(self) -> int:
+        """Count all applications submitted or attempted today to enforce daily limits across runs."""
+        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        return (
+            self.session.query(func.count(ApplicationModel.application_id))
+            .filter(
+                ApplicationModel.started_at >= today_start,
+                ApplicationModel.status.in_([
+                    JobStatus.APPLIED.value,
+                    JobStatus.APPLIED_CONFIRMED.value,
+                    JobStatus.APPLICATION_STARTED.value,
+                    JobStatus.APPLICATION_FAILED.value,
+                    JobStatus.EXTERNAL_APPLICATION_REQUIRED.value,
+                    JobStatus.NEEDS_MANUAL_INTERVENTION.value,
+                ]),
+            )
+            .scalar()
+            or 0
+        )
+
     def record_application(self, record: ApplicationRecord, commit: bool = False) -> ApplicationModel:
         """Create or update an application record with full audit trail."""
         existing = (

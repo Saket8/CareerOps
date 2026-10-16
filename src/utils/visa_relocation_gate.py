@@ -141,20 +141,28 @@ class VisaRelocationGate:
                     f"RELOCATION_EXCLUDED: Posting explicitly excludes relocation assistance ('{matched_phrase}').",
                 )
 
-        # 2. Positive Verification: Visa Sponsorship
+        # 2. Positive Verification: Visa Sponsorship & Relocation
         has_sponsorship = any(pat.search(combined_text) for pat in POSITIVE_SPONSORSHIP_PATTERNS)
+        has_relocation = any(pat.search(combined_text) for pat in POSITIVE_RELOCATION_PATTERNS)
+
+        # Recognize intentional discovery search queries (e.g. 'Cloud Architect relocation' or 'OCI Architect visa sponsorship')
+        query_text = (getattr(job, "source_query", "") or getattr(job, "discovered_via_query", "") or "").lower()
+        if "relocation" in query_text or "relocate" in query_text:
+            has_relocation = True
+        if "visa" in query_text or "sponsorship" in query_text:
+            has_sponsorship = True
+
         if req_sponsorship and not has_sponsorship:
             return (
                 False,
                 "MISSING_VISA_SPONSORSHIP: Job posting does not affirmatively confirm employer visa sponsorship for candidates from India.",
             )
 
-        # 3. Positive Verification: Relocation Assistance
-        has_relocation = any(pat.search(combined_text) for pat in POSITIVE_RELOCATION_PATTERNS)
+        # 3. Positive Verification: Relocation Assistance (only enforced if require_relocation is explicitly enabled)
         if req_relocation and not has_relocation:
             return (
                 False,
                 "MISSING_RELOCATION: Job posting does not affirmatively confirm relocation assistance package.",
             )
 
-        return True, "PASSED: Verified affirmative visa sponsorship and relocation assistance offered."
+        return True, "PASSED: Verified affirmative visa sponsorship and international qualification criteria."

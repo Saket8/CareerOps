@@ -1,5 +1,6 @@
 """Discovery Agent for executing multi-query job search and early salary filtering."""
 
+import os
 import re
 import time
 from pathlib import Path

@@ -23,7 +23,7 @@ application:
   # Salary floor is loaded dynamically from .env (MIN_ACCEPTABLE_SALARY_LPA or CURRENT_SALARY_LPA)
   min_salary_lpa: null  # Resolved from .env (Single Source of Truth)
   undisclosed_salary_allowed: true
-  max_applications_per_day: 25  # Hard cap for total applications per daily pipeline run
+  max_applications_per_day: 20  # Hard cap: strictly <= 20 total applications per day across all platforms
   max_run_duration_seconds: 3600  # 60 minute hard time limit per daily execution to prevent runaway jobs
   dry_run: false  # LIVE mode enabled per user preference
   retry_attempts: 3
@@ -136,12 +136,12 @@ search:
 linkedin:
   enabled: true
   auto_submit: true  # Fully unattended submission per user directive (no manual review)
-  max_applications_per_day: 25
+  max_applications_per_day: 10
   user_data_dir: "/u01/CareerOps/.li_profile"
   auth_state_path: "artifacts/linkedin_auth.json"
   email_alerts: true
   require_visa_sponsorship: true  # Strictly require employer visa sponsorship for candidates from India
-  require_relocation: true         # Strictly require relocation assistance package
+  require_relocation: false        # Relocation assistance optional/bonus (not an automatic blocker)
   work_modes:
     - "onsite"
     - "hybrid"

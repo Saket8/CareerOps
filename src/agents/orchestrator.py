@@ -333,21 +333,95 @@ class Orchestrator:
                         src_name = get_source_label(job, ats_filler)
                         source_counts[src_name]["qualified"] += 1
 
-                # Prioritize top-tier opportunities first
-                qualifying_jobs.sort(key=lambda item: item[1].overall_score, reverse=True)
-                qualified_jobs_count = len(qualifying_jobs)
-
-                # Read run limit guards from configuration
+                # Read run limit guards from configuration (Default strictly <= 20 applications/day)
                 app_cfg = self.config.get("application", {})
-                max_apps_per_day = int(app_cfg.get("max_applications_per_day", 25))
+                max_apps_per_day = int(app_cfg.get("max_applications_per_day", 20))
                 max_duration_sec = float(app_cfg.get("max_run_duration_seconds", 3600))  # Default 60 min ceiling
 
+                # Count applications already submitted or attempted today to enforce daily limits across runs
+                apps_already_today = app_repo.count_applications_attempted_today()
+                remaining_daily_cap = max(0, max_apps_per_day - apps_already_today)
+
+                if remaining_daily_cap <= 0:
+                    logger.info(
+                        f"Daily application cap strictly reached ({apps_already_today}/{max_apps_per_day} applications already attempted today). "
+                        "Halting further submissions for today."
+                    )
+                    qualifying_jobs = []
+                else:
+                    # Separate qualifying opportunities by platform to enable fair, balanced interleaving
+                    naukri_jobs = [
+                        item for item in qualifying_jobs
+                        if "naukri" in (item[0].source_platform or "").lower()
+                    ]
+                    linkedin_jobs = [
+                        item for item in qualifying_jobs
+                        if "linkedin" in (item[0].source_platform or "").lower()
+                        or item[0].application_method == ApplicationMethod.LINKEDIN_EASY_APPLY
+                    ]
+                    ats_jobs = [
+                        item for item in qualifying_jobs
+                        if item not in naukri_jobs and item not in linkedin_jobs
+                    ]
+
+                    naukri_jobs.sort(key=lambda item: item[1].overall_score, reverse=True)
+                    linkedin_jobs.sort(key=lambda item: item[1].overall_score, reverse=True)
+                    ats_jobs.sort(key=lambda item: item[1].overall_score, reverse=True)
+
+                    # Interleave platforms so that neither Naukri nor LinkedIn starves the other,
+                    # ensuring LinkedIn applications are executed early within the execution window.
+                    balanced_jobs = []
+                    nk_i, li_i, ats_i = 0, 0, 0
+                    max_per_platform = max(1, remaining_daily_cap // 2)
+                    nk_added, li_added = 0, 0
+
+                    while len(balanced_jobs) < remaining_daily_cap:
+                        added_any = False
+
+                        # 1. Take top LinkedIn opportunity
+                        if li_i < len(linkedin_jobs) and li_added < max_per_platform:
+                            balanced_jobs.append(linkedin_jobs[li_i])
+                            li_i += 1
+                            li_added += 1
+                            added_any = True
+
+                        # 2. Take top Naukri opportunity
+                        if len(balanced_jobs) < remaining_daily_cap and nk_i < len(naukri_jobs) and nk_added < max_per_platform:
+                            balanced_jobs.append(naukri_jobs[nk_i])
+                            nk_i += 1
+                            nk_added += 1
+                            added_any = True
+
+                        # 3. Take direct ATS portal opportunity
+                        if len(balanced_jobs) < remaining_daily_cap and ats_i < len(ats_jobs):
+                            balanced_jobs.append(ats_jobs[ats_i])
+                            ats_i += 1
+                            added_any = True
+
+                        if not added_any:
+                            # Backfill remaining slots from whichever platform has remaining candidates
+                            if li_i < len(linkedin_jobs) and len(balanced_jobs) < remaining_daily_cap:
+                                balanced_jobs.append(linkedin_jobs[li_i])
+                                li_i += 1
+                                added_any = True
+                            elif nk_i < len(naukri_jobs) and len(balanced_jobs) < remaining_daily_cap:
+                                balanced_jobs.append(naukri_jobs[nk_i])
+                                nk_i += 1
+                                added_any = True
+
+                            if not added_any:
+                                break
+
+                    qualifying_jobs = balanced_jobs
+
+                qualified_jobs_count = len(qualifying_jobs)
+
                 for job, score, evidence in qualifying_jobs:
-                    # Enforce daily application ceiling
-                    if applications_attempted >= max_apps_per_day:
+                    # Enforce daily application ceiling across runs and current run
+                    if (applications_attempted + apps_already_today) >= max_apps_per_day:
                         logger.info(
-                            f"Daily application cap reached ({applications_attempted}/{max_apps_per_day}). "
-                            "Halting further submissions for this run to prevent overload."
+                            f"Daily application cap strictly reached ({applications_attempted + apps_already_today}/{max_apps_per_day}). "
+                            "Halting further submissions for this run to prevent exceeding the 20 application daily limit."
                         )
                         break
 

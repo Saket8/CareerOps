@@ -400,13 +400,14 @@ CareerOps is built to be 100% modular and adaptable to any candidate, tech stack
 
 Depending on where you live and where you want to work, configure the LinkedIn gate in [`config/config.yaml`](config/config.yaml):
 
-#### Scenario A: You Want International Roles Offering Visa Sponsorship & Relocation (Current Default)
-If you are located in India (or elsewhere) and strictly want international roles that sponsor your work visa and pay for relocation:
+#### Scenario A: You Want International Roles Offering Visa Sponsorship (Current Default)
+If you are located in India (or elsewhere) and want international roles that sponsor your work visa:
 ```yaml
 # config/config.yaml
 linkedin:
+  max_applications_per_day: 10     # Cap for LinkedIn applications (part of the 20 total daily limit)
   require_visa_sponsorship: true   # Strictly requires affirmative visa sponsorship
-  require_relocation: true          # Strictly requires relocation assistance
+  require_relocation: false        # Optional/bonus (false avoids false-negative rejections from short search cards)
   target_regions:
     - name: "Europe"
       location: "Europe"
@@ -580,7 +581,7 @@ safety:
 application:
   match_threshold: 70.0          # Minimum semantic match score (%) required to apply
   high_match_threshold: 85.0     # Score threshold triggering executive recruiter cover letters & drafts
-  max_applications_per_day: 25   # Daily hard cap on submitted applications
+  max_applications_per_day: 20   # Daily hard cap across all platforms (strictly <= 20)
   max_run_duration_seconds: 3600 # 60-minute hard ceiling per run to prevent lingering processes
   dry_run: false                 # Set to 'true' for dry-run simulation
 ```

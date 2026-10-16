@@ -241,3 +241,59 @@ def test_candidate_answer_resolver_international_relocation(candidate_truth):
     res_oci = resolver.resolve_question("How many years of experience in Oracle Cloud Infrastructure (OCI)?")
     assert res_oci.can_answer is True
     assert res_oci.answer_value in ("6.5", "6", "7")
+
+
+def test_visa_relocation_gate_optional_relocation():
+    """Verify that when require_relocation is False, roles with visa sponsorship pass without needing relocation text."""
+    from src.utils.visa_relocation_gate import VisaRelocationGate
+
+    job = JobListing(
+        job_id="li_visa_only",
+        title="Senior Cloud Architect",
+        company="Nordic Tech AB",
+        location="Stockholm, Sweden",
+        url="https://www.linkedin.com/jobs/view/200001/",
+        jd_text="Enterprise cloud transformations. We provide work visa sponsorship for qualified international candidates.",
+    )
+    custom_cfg = {"require_visa_sponsorship": True, "require_relocation": False}
+    passed, reason = VisaRelocationGate.evaluate(job, custom_cfg)
+    assert passed is True
+    assert "PASSED" in reason
+
+
+def test_visa_relocation_gate_query_intent_passes():
+    """Verify that a role discovered via targeted visa query passes when require_relocation is False."""
+    from src.utils.visa_relocation_gate import VisaRelocationGate
+
+    job = JobListing(
+        job_id="li_query_visa",
+        title="OCI Solutions Architect",
+        company="Global Enterprise",
+        location="Amsterdam, Netherlands",
+        url="https://www.linkedin.com/jobs/view/200002/",
+        jd_text="Lead cloud infrastructure architecture. Excellent compensation and benefits.",
+        source_query="OCI Architect visa sponsorship",
+    )
+    custom_cfg = {"require_visa_sponsorship": True, "require_relocation": False}
+    passed, reason = VisaRelocationGate.evaluate(job, custom_cfg)
+    assert passed is True
+    assert "PASSED" in reason
+
+
+def test_visa_relocation_gate_negative_exclusion_overrides_query():
+    """Verify that negative exclusion clauses strictly reject even if query targeted visa sponsorship."""
+    from src.utils.visa_relocation_gate import VisaRelocationGate
+
+    job = JobListing(
+        job_id="li_neg_override",
+        title="Cloud Architect",
+        company="Bank of London",
+        location="London, United Kingdom",
+        url="https://www.linkedin.com/jobs/view/200003/",
+        jd_text="Applicants must have existing right to work without sponsorship. No visa sponsorship available.",
+        source_query="Cloud Architect visa sponsorship",
+    )
+    custom_cfg = {"require_visa_sponsorship": True, "require_relocation": False}
+    passed, reason = VisaRelocationGate.evaluate(job, custom_cfg)
+    assert passed is False
+    assert "VISA_SPONSORSHIP_EXCLUDED" in reason

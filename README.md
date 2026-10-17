@@ -243,7 +243,7 @@ flowchart TD
 ## 🤖 Agentic AI Framework & Zero-LLM-API-Key Orchestration
 
 ### 1. Built with an Autonomous Agentic AI Framework
-CareerOps was engineered from the ground up using **Google Antigravity's Advanced Agentic Coding Framework**, adopting autonomous multi-agent design patterns:
+CareerOps was engineered from the ground up using **Google Advanced Agentic Coding Framework**, adopting autonomous multi-agent design patterns:
 - **Specialized Autonomous Agents**: Work is decoupled into discrete, goal-driven agents with deterministic lifecycle state transitions:
   - `DiscoveryAgent`: Continuously indexes job postings across multi-channel queries and geographic boundaries.
   - `QualificationAgent`: Assesses role suitability, domain gating, and multi-pillar semantic competency alignment.

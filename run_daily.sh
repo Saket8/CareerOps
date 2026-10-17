@@ -29,23 +29,12 @@ if [ -f "$LOG_FILE" ]; then
     fi
 fi
 
-# Weekend Exclusion Guard: Skip Saturdays and Sundays (Asia/Kolkata timezone: 1=Mon ... 5=Fri, 6=Sat, 7=Sun)
-DOW=$(TZ="Asia/Kolkata" date +%u)
-if [ "$DOW" -gt 5 ]; then
-    echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] Weekend detected (day $DOW). Skipping execution per schedule policy (Mon-Fri only)." >> "$LOG_FILE"
-    exit 0
-fi
-
-echo "==============================================================================" >> "$LOG_FILE"
-echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] CareerOps Daily Run Started" >> "$LOG_FILE"
-echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] Initial Memory Status:" >> "$LOG_FILE"
-free -h >> "$LOG_FILE"
-
 cd "$PROJECT_DIR"
 
 # Export Environment
 export PYTHONPATH="$PROJECT_DIR"
 export PATH="$PROJECT_DIR/venv/bin:$PATH"
+export PYTHONUNBUFFERED=1
 
 # Manage lightweight Xvfb virtual framebuffer on :99 to bypass Akamai 403 Bot Detection
 if ! pgrep -x "Xvfb" > /dev/null 2>&1; then
@@ -56,7 +45,36 @@ fi
 export DISPLAY=:99
 export HEADLESS=false
 
-# Run Autonomous Career Agent Pipeline
+# Weekend Check: Saturday & Sunday (Asia/Kolkata timezone: 1=Mon ... 5=Fri, 6=Sat, 7=Sun)
+# Weekends execute ONLY Naukri master resume refresh to maintain Resdex rank (nothing else).
+DOW=$(TZ="Asia/Kolkata" date +%u)
+if [ "$DOW" -gt 5 ]; then
+    echo "==============================================================================" >> "$LOG_FILE"
+    echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] Weekend detected (day $DOW). Executing ONLY Naukri profile resume refresh..." >> "$LOG_FILE"
+    echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] Initial Memory Status:" >> "$LOG_FILE"
+    free -h >> "$LOG_FILE"
+
+    START_TIME=$(date +%s)
+    set +e
+    nice -n 10 "$PROJECT_DIR/venv/bin/python" "$PROJECT_DIR/main.py" --refresh-profile >> "$LOG_FILE" 2>&1
+    EXIT_CODE=$?
+    set -e
+    END_TIME=$(date +%s)
+    DURATION=$((END_TIME - START_TIME))
+
+    echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] Weekend Naukri Resume Refresh Completed in ${DURATION}s with exit code ${EXIT_CODE}" >> "$LOG_FILE"
+    echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] Post-Run Memory Status:" >> "$LOG_FILE"
+    free -h >> "$LOG_FILE"
+    echo "==============================================================================" >> "$LOG_FILE"
+    exit $EXIT_CODE
+fi
+
+echo "==============================================================================" >> "$LOG_FILE"
+echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] CareerOps Weekday Pipeline Started" >> "$LOG_FILE"
+echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] Initial Memory Status:" >> "$LOG_FILE"
+free -h >> "$LOG_FILE"
+
+# Run Autonomous Career Agent Pipeline (Mon-Fri)
 START_TIME=$(date +%s)
 set +e
 nice -n 10 "$PROJECT_DIR/venv/bin/python" "$PROJECT_DIR/main.py" "$@" >> "$LOG_FILE" 2>&1

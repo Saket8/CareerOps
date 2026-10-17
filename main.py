@@ -72,6 +72,22 @@ def main():
         current_day_name = datetime.datetime.now(tz).strftime("%A").lower()
         allowed_days = [d.lower().strip() for d in config.get("schedule", {}).get("days", ["monday", "tuesday", "wednesday", "thursday", "friday"])]
         if current_day_name not in allowed_days:
+            # Weekend Policy: On Saturdays and Sundays, execute ONLY Naukri profile resume refresh (nothing else)
+            reupload_weekends = config.get("resume", {}).get("reupload_weekends", True)
+            if reupload_weekends and current_day_name in ("saturday", "sunday"):
+                logger.info(
+                    f"SCHEDULE GATE: Today is {current_day_name.capitalize()} (Weekend). "
+                    f"Full operations (job discovery, applications, outreach) are paused per schedule policy, "
+                    f"but weekend resume refresh is enabled. Executing Naukri profile resume refresh only..."
+                )
+                print(f"\n[INFO] Today is {current_day_name.capitalize()} (Weekend). Running ONLY Naukri profile resume refresh to maintain Resdex rank...\n")
+                from src.naukri.playwright_adapter import PlaywrightBrowserAdapter
+                cv_path = config.get("resume", {}).get("source_path", "resumes/master/Saket_Saurav_OCI.docx")
+                client = PlaywrightBrowserAdapter(offline_mode=args.offline)
+                res = client.refresh_profile_resume(cv_path)
+                print(f"[RESULT] {res}\n")
+                sys.exit(0 if res.get("success") else 1)
+
             logger.info(
                 f"SCHEDULE GATE: Today is {current_day_name.capitalize()}, which is excluded from operations "
                 f"per schedule policy ({allowed_days}). Halting execution (no job discovery, applications, or alerts)."

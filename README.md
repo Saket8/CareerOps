@@ -119,9 +119,10 @@ sudo tee /etc/cron.d/careerops << 'EOF'
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
-# CareerOps Weekday Morning Pipeline (08:53 IST / 03:23 UTC)
-# Automates CV re-upload, job discovery, visa/relocation gating, applications & daily reporting
-23 3 * * 1-5 opc cd /u01/CareerOps && /usr/bin/xvfb-run -a /u01/CareerOps/venv/bin/python main.py --all >> /u01/CareerOps/logs/cron.log 2>&1
+# CareerOps Daily Morning Pipeline (08:53 IST / 03:23 UTC)
+# Mon-Fri: Automates CV re-upload, job discovery, visa/relocation gating, applications (<=20) & daily reporting
+# Sat-Sun: Re-uploads master CV to Naukri profile only to preserve Resdex search freshness (no applications)
+23 3 * * * opc /u01/CareerOps/run_daily.sh
 EOF
 
 sudo chmod 0644 /etc/cron.d/careerops

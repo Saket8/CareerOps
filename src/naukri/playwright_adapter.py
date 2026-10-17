@@ -274,8 +274,12 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                     return {"success": False, "error": "Authentication failed"}
 
                 # Step 2: Open Candidate Profile
-                page.goto(profile_url, timeout=40000, wait_until="domcontentloaded")
-                time.sleep(5)
+                try:
+                    page.goto(profile_url, timeout=35000, wait_until="commit")
+                except Exception as nav_err:
+                    logger.info(f"Profile goto commit note: {nav_err}. Retrying with domcontentloaded...")
+                    page.goto(profile_url, timeout=40000, wait_until="domcontentloaded")
+                time.sleep(4)
 
                 # Close any accidental popups or photo modals if open
                 try:
@@ -357,9 +361,9 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                     # Step 5: Save evidence screenshot
                     evidence_img = evidence_dir / f"profile_resume_refresh_{date_stamp}.png"
                     try:
-                        page.screenshot(path=str(evidence_img), timeout=5000)
-                    except Exception:
-                        pass
+                        page.screenshot(path=str(evidence_img), timeout=20000)
+                    except Exception as s_err:
+                        logger.warning(f"Could not capture profile refresh screenshot: {s_err}")
 
                     try:
                         context.storage_state(path=str(AUTH_STATE_FILE))

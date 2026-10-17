@@ -7,7 +7,7 @@ app:
   environment: "production"
 
 schedule:
-  cron_expression: "23 3 * * 1-5"  # Mon-Fri 08:53 IST (03:23 UTC) - Morning recruiter screening window
+  cron_expression: "23 3 * * *"  # Daily 08:53 IST (03:23 UTC) - Mon-Fri full pipeline, Sat-Sun resume refresh only
   timezone: "Asia/Kolkata"
   times_ist:
     - "08:53"  # Morning recruiter login & screening window (single daily run)
@@ -37,6 +37,7 @@ resume:
   generate_docx: true
   ats_validation: true
   reupload_daily: true  # Re-upload master CV to Naukri profile every weekday morning to refresh Resdex rank
+  reupload_weekends: true  # Re-upload master CV on Saturdays & Sundays (only resume refresh on Naukri, nothing else)
 
 database:
   db_url: "sqlite:///naukri_career_agent.sqlite"

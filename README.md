@@ -131,14 +131,6 @@ sudo chmod 0644 /etc/cron.d/careerops
 ---
 
 ## 🏗 Architecture
-
-<p align="center">
-  <img src="docs/architecture.svg" alt="CareerOps System Architecture and Execution Flow" width="100%" />
-</p>
-
-<details open>
-<summary><b>Live Interactive Diagram (Mermaid)</b></summary>
-
 ```mermaid
 flowchart TD
     %% Global Styling Classes
@@ -253,7 +245,6 @@ flowchart TD
     class HIGH_MATCH,OUTREACH,FIND_REC,GEN_PITCH outreach;
     class TELEGRAM_ALERT,DB_PERSIST,SQLITE,REPORT_AGENT,SMTP,JANITOR notify;
 ```
-</details>
 
 ---
 

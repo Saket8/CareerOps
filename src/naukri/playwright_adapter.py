@@ -1033,6 +1033,14 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             "we have received your application",
                             "profile has been shared",
                             "application completed",
+                            "response recorded",
+                            "responses recorded",
+                            "thank you for applying",
+                            "thanks for applying",
+                            "thanks for your response",
+                            "thank you for your response",
+                            "responses have been submitted",
+                            "your response is recorded",
                         ]):
                             logger.info("Confirmation text observed in chatbot drawer.")
                             chat_confirmed = True
@@ -1071,7 +1079,11 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
 
                         questions_detected.append({"turn": chat_turns, "question": latest_q})
 
-                        if any(c in latest_q.lower() for c in ["successfully applied", "application sent", "applied to"]):
+                        if any(c in latest_q.lower() for c in [
+                            "successfully applied", "application sent", "applied to",
+                            "application received", "response recorded", "thank you for applying",
+                            "thanks for applying", "profile has been shared"
+                        ]):
                             chat_confirmed = True
                             break
 
@@ -1091,17 +1103,15 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                     time.sleep(2)
                                     questions_answered[latest_q] = Path(upload_file).name
 
-                                    # Confirm file upload by clicking Save / Send / Submit / Continue
+                                    # Confirm file upload by clicking Send / Submit / Continue inside drawer only
                                     for btn_sel in [
-                                        "button:has-text('Save')", ".save-btn", "button[class*='save']",
+                                        "button:has-text('Send')",
                                         "button:has-text('Submit')",
                                         "button:has-text('Continue')",
-                                        "button:has-text('Send')",
+                                        "button:has-text('Save')", ".save-btn", "button[class*='save']",
                                         ".sendMsg", "div[id*='sendMsg']"
                                     ]:
                                         btn = drawer.locator(btn_sel).first
-                                        if not btn.is_visible():
-                                            btn = page.locator(btn_sel).first
                                         if btn.is_visible():
                                             try:
                                                 btn.click(force=True, timeout=5000)
@@ -1304,21 +1314,19 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             except Exception:
                                 pass
                             time.sleep(1)
-                            # Confirm or submit choice if a button is presented
+                            # Confirm or submit choice if a button is presented inside the drawer
                             for btn_sel in [
-                                "button:has-text('Save')", ".save-btn", "button[class*='save']",
+                                "button:has-text('Send')",
                                 "button:has-text('Submit')",
                                 "button:has-text('Continue')",
                                 "button:has-text('Next')",
-                                "button:has-text('Send')",
-                                ".sendMsg", "div[id*='sendMsg']"
+                                ".sendMsg", "div[id*='sendMsg']",
+                                "button:has-text('Save')", ".save-btn", "button[class*='save']"
                             ]:
                                 cb = drawer.locator(btn_sel).first
-                                if not cb.is_visible():
-                                    cb = page.locator(btn_sel).first
                                 if cb.is_visible():
                                     try:
-                                        cb.click(force=True, timeout=5000)
+                                        cb.click(force=True, timeout=3000)
                                     except Exception:
                                         try:
                                             page.evaluate("(el) => el.click()", cb.element_handle())
@@ -1341,19 +1349,6 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             "div[role='textbox'], "
                             "input:not([type='file']):not([type='radio']):not([type='checkbox'])"
                         ).first
-
-                        if not chat_input.is_visible():
-                            chat_input = page.locator(
-                                "input[placeholder*='Type message'], "
-                                "input[placeholder*='message'], "
-                                "input[type='text'], "
-                                "input[type='number'], "
-                                "textarea, "
-                                ".textArea[contenteditable='true'], "
-                                "[contenteditable='true'], "
-                                "div[role='textbox'], "
-                                "input:not([type='file']):not([type='radio']):not([type='checkbox'])"
-                            ).first
 
                         if not chat_input.is_visible():
                             if chat_turns % 3 == 0:
@@ -1397,11 +1392,10 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         questions_answered[latest_q] = ans_val_str
 
                         save_or_send = drawer.locator(
-                            "button:has-text('Save'), .save-btn, button[class*='save'], "
-                            ".sendMsg, div[id*='sendMsg'], button:has-text('Send'), button:has-text('Submit'), button:has-text('Continue')"
+                            "button:has-text('Send'), .sendMsg, div[id*='sendMsg'], "
+                            "button:has-text('Submit'), button:has-text('Continue'), "
+                            "button:has-text('Next'), button:has-text('Save'), .save-btn, button[class*='save']"
                         ).first
-                        if not save_or_send.is_visible():
-                            save_or_send = page.locator("button:has-text('Save'), .save-btn, button[class*='save'], .sendMsg, button:has-text('Send')").first
                         if save_or_send.is_visible():
                             try:
                                 save_or_send.click(force=True, timeout=5000)
@@ -1591,6 +1585,10 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         evidence_summary="Visible confirmation appeared after the attempt, but the canonical listing did not show an applied badge after reload. Verify the application manually before retrying.",
                     )
                 else:
+                    fail_summary = (
+                        f"Chatbot answered {len(questions_answered)} question(s), but application was not completed or confirmed on reload."
+                        if questions_answered else "Submission could not be confirmed on reload."
+                    )
                     evidence = VerificationEvidence(
                         confirmed=False,
                         status=JobStatus.APPLICATION_FAILED,
@@ -1598,7 +1596,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         confirmation_text=None,
                         confirmation_reference=None,
                         final_url=page.url,
-                        evidence_summary="Submission could not be confirmed on reload.",
+                        evidence_summary=fail_summary,
                     )
 
                 page.screenshot(path=evidence_path)

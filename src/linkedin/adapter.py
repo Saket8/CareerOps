@@ -367,6 +367,8 @@ class LinkedInAdapter:
                 max_steps = 10
                 submitted = False
                 is_domestic = "india" in (job.location or "").lower()
+                last_step_signature = ""
+                stagnation_count = 0
 
                 while step < max_steps and not submitted:
                     step += 1
@@ -481,9 +483,9 @@ class LinkedInAdapter:
 
                             let val = '12';
                             if (l.includes('cloud') || l.includes('oci') || l.includes('aws') || l.includes('azure')) {
-                                val = '6.5';
+                                val = inp.type === 'number' ? '7' : '7';
                             } else if (l.includes('ai') || l.includes('genai') || l.includes('python')) {
-                                val = '5.0';
+                                val = inp.type === 'number' ? '5' : '5';
                             } else if (l.includes('year') || l.includes('tenure') || l.includes('experience')) {
                                 val = '12';
                             } else if (inp.type === 'number') {
@@ -494,33 +496,126 @@ class LinkedInAdapter:
                             inp.value = val;
                             inp.dispatchEvent(new Event('input', { bubbles: true }));
                             inp.dispatchEvent(new Event('change', { bubbles: true }));
+                            inp.dispatchEvent(new Event('blur', { bubbles: true }));
                         }
-                    }''', {"total_exp": "12", "cloud_exp": "6.5", "ai_exp": "5.0"})
+                    }''', {"total_exp": "12", "cloud_exp": "7", "ai_exp": "5"})
 
-                    # E. Handle Radio Buttons & Checkboxes
+                    # E. Handle Dropdowns / Select tags
                     page.evaluate('''(isDom) => {
                         const d = document.querySelector('dialog') || document.querySelector('div[role="dialog"]');
                         if (!d) return;
-                        const fieldsets = Array.from(d.querySelectorAll('fieldset'));
+
+                        const selects = Array.from(d.querySelectorAll('select'));
+                        for (const sel of selects) {
+                            if (sel.value && sel.selectedIndex > 0) {
+                                const currentText = (sel.options[sel.selectedIndex]?.text || '').trim().toLowerCase();
+                                if (currentText && !currentText.includes('select') && !currentText.includes('choose')) {
+                                    continue;
+                                }
+                            }
+                            const id = sel.id;
+                            const lbl = (id ? d.querySelector('label[for="' + id + '"]')?.innerText : '') || sel.getAttribute('aria-label') || '';
+                            const l = lbl.toLowerCase();
+                            const options = Array.from(sel.options);
+                            if (options.length <= 1) continue;
+
+                            let targetIdx = -1;
+                            const yesIdx = options.findIndex(o => {
+                                const t = (o.text || o.value || '').trim().toLowerCase();
+                                return t === 'yes' || t === 'oui' || t === 'ja' || t === 'sí';
+                            });
+                            const noIdx = options.findIndex(o => {
+                                const t = (o.text || o.value || '').trim().toLowerCase();
+                                return t === 'no' || t === 'non' || t === 'nein';
+                            });
+
+                            if (yesIdx !== -1 && noIdx !== -1) {
+                                if (l.includes('sponsor')) {
+                                    targetIdx = isDom ? noIdx : yesIdx;
+                                } else if (l.includes('authorized') || l.includes('authorization') || l.includes('legal right') || l.includes('permit')) {
+                                    targetIdx = isDom ? yesIdx : noIdx;
+                                } else if (l.includes('relocate') || l.includes('onsite') || l.includes('hybrid') || l.includes('willing') || l.includes('commute')) {
+                                    targetIdx = yesIdx;
+                                } else {
+                                    targetIdx = yesIdx;
+                                }
+                            } else if (l.includes('english') || l.includes('language') || l.includes('proficiency')) {
+                                targetIdx = options.findIndex(o => {
+                                    const t = (o.text || '').toLowerCase();
+                                    return t.includes('professional') || t.includes('native') || t.includes('fluent') || t.includes('advanced') || t.includes('bilingual');
+                                });
+                            } else if (l.includes('notice') || l.includes('joining') || l.includes('available') || l.includes('start date')) {
+                                targetIdx = options.findIndex(o => {
+                                    const t = (o.text || '').toLowerCase();
+                                    return t.includes('immediate') || t.includes('15') || t.includes('30') || t.includes('1 month') || t.includes('now');
+                                });
+                            } else if (l.includes('education') || l.includes('degree')) {
+                                targetIdx = options.findIndex(o => {
+                                    const t = (o.text || '').toLowerCase();
+                                    return t.includes('bachelor') || t.includes('master') || t.includes('degree');
+                                });
+                            }
+
+                            if (targetIdx === -1 || (targetIdx === 0 && (options[0].text.toLowerCase().includes('select') || !options[0].value))) {
+                                for (let i = 1; i < options.length; i++) {
+                                    const t = (options[i].text || options[i].value || '').trim().toLowerCase();
+                                    if (t && !t.includes('select') && !t.includes('choose')) {
+                                        targetIdx = i;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (targetIdx > 0 && targetIdx < options.length) {
+                                sel.selectedIndex = targetIdx;
+                                sel.value = options[targetIdx].value;
+                                sel.dispatchEvent(new Event('input', { bubbles: true }));
+                                sel.dispatchEvent(new Event('change', { bubbles: true }));
+                                sel.dispatchEvent(new Event('blur', { bubbles: true }));
+                            }
+                        }
+                    }''', is_domestic)
+
+                    # F. Handle Radio Buttons & Checkboxes
+                    page.evaluate('''(isDom) => {
+                        const d = document.querySelector('dialog') || document.querySelector('div[role="dialog"]');
+                        if (!d) return;
+                        const fieldsets = Array.from(d.querySelectorAll('fieldset, [role="radiogroup"], div[data-test-form-builder-radio]'));
                         for (const fs of fieldsets) {
-                            const legend = (fs.querySelector('legend')?.innerText || '').toLowerCase();
-                            const yesRadio = fs.querySelector('input[value="Yes" i], input[value="yes" i], input[value="true" i]');
-                            const noRadio = fs.querySelector('input[value="No" i], input[value="no" i], input[value="false" i]');
+                            const legend = (fs.querySelector('legend, span.fb-dash-form-element__label, label')?.innerText || fs.getAttribute('aria-label') || '').toLowerCase();
+                            const radios = Array.from(fs.querySelectorAll('input[type="radio"]'));
+                            if (radios.length === 0) continue;
+
+                            const findRadio = (kw) => {
+                                return radios.find(r => {
+                                    const val = (r.value || '').trim().toLowerCase();
+                                    if (val === kw) return true;
+                                    const id = r.id;
+                                    const lbl = id ? d.querySelector('label[for="' + id + '"]') : null;
+                                    const lblText = (lbl ? lbl.innerText : '').trim().toLowerCase();
+                                    if (lblText.split(/\\s+/).includes(kw) || lblText === kw) return true;
+                                    const parent = r.closest('label, div.fb-radio, li, div') || r.parentElement;
+                                    const pText = (parent ? parent.innerText : '').trim().toLowerCase();
+                                    return pText.split(/\\s+/).includes(kw) || pText === kw;
+                                });
+                            };
+
+                            const yesRadio = findRadio('yes') || radios.find(r => (r.value || '').toLowerCase().includes('yes') || (r.value || '').toLowerCase().includes('true'));
+                            const noRadio = findRadio('no') || radios.find(r => (r.value || '').toLowerCase().includes('no') || (r.value || '').toLowerCase().includes('false'));
 
                             if (legend.includes('sponsor')) {
-                                // "Will you require visa sponsorship?"
-                                // Outside India -> Yes (sponsorship required); Inside India -> No
                                 const targetRadio = isDom ? noRadio : yesRadio;
                                 if (targetRadio && !targetRadio.checked) targetRadio.click();
-                            } else if (legend.includes('authorized') || legend.includes('authorization') || legend.includes('legal right')) {
-                                // "Are you legally authorized to work in this country?"
-                                // Outside India -> No (lacks work auth); Inside India -> Yes (Indian citizen)
+                            } else if (legend.includes('authorized') || legend.includes('authorization') || legend.includes('legal right') || legend.includes('permit')) {
                                 const targetRadio = isDom ? yesRadio : noRadio;
                                 if (targetRadio && !targetRadio.checked) targetRadio.click();
-                            } else if (legend.includes('relocate') || legend.includes('onsite') || legend.includes('hybrid') || legend.includes('willing')) {
+                            } else if (legend.includes('relocate') || legend.includes('onsite') || legend.includes('hybrid') || legend.includes('willing') || legend.includes('commute')) {
                                 if (yesRadio && !yesRadio.checked) yesRadio.click();
                             } else {
                                 if (yesRadio && !yesRadio.checked) yesRadio.click();
+                                else if (radios.length > 0 && !radios.some(r => r.checked)) {
+                                    radios[0].click();
+                                }
                             }
                         }
 
@@ -531,7 +626,36 @@ class LinkedInAdapter:
                         }
                     }''', is_domestic)
 
-                    # F. Action Button Handling (Evaluate click guarantees execution without synthetic mouse actionability hangs)
+                    # G. Error Detection and Stagnation Check
+                    detected_errors = page.evaluate('''() => {
+                        const d = document.querySelector('dialog') || document.querySelector('div[role="dialog"]');
+                        if (!d) return [];
+                        const errEls = Array.from(d.querySelectorAll('.artdeco-inline-feedback--error, [data-test-form-element-error-messages], .fb-form-element__error-field, div[alert-id]'));
+                        return errEls.map(e => (e.innerText || '').trim()).filter(Boolean);
+                    }''')
+                    if detected_errors:
+                        logger.warning(f"Step {step} validation errors detected: {detected_errors}")
+
+                    current_signature = page.evaluate('''() => {
+                        const d = document.querySelector('dialog') || document.querySelector('div[role="dialog"]');
+                        if (!d) return '';
+                        const title = d.querySelector('h2, h3, [data-test-modal-header]')?.innerText || '';
+                        const formElements = Array.from(d.querySelectorAll('input, select, textarea')).map(e => (e.id || '') + ':' + (e.value || '')).join('|');
+                        return title + '::' + formElements;
+                    }''')
+
+                    if current_signature and current_signature == last_step_signature:
+                        stagnation_count += 1
+                        if stagnation_count >= 2:
+                            err_msg = f"Modal stalled at step {step}: {', '.join(detected_errors) if detected_errors else 'Required screening field unanswered'}"
+                            logger.warning(err_msg)
+                            record.failure_reason = err_msg
+                            break
+                    else:
+                        stagnation_count = 0
+                        last_step_signature = current_signature
+
+                    # H. Action Button Handling (Evaluate click guarantees execution without synthetic mouse actionability hangs)
                     action = page.evaluate('''() => {
                         const d = document.querySelector('dialog') || document.querySelector('div[role="dialog"]');
                         if (!d) return 'NONE';
@@ -607,6 +731,13 @@ class LinkedInAdapter:
 
                 # Clean up / dismiss modal if not submitted
                 if not submitted and record.status != JobStatus.APPLIED_CONFIRMED:
+                    stalled_file = EVIDENCE_DIR / f"{job.job_id}_linkedin_stalled.png"
+                    try:
+                        page.screenshot(path=str(stalled_file), timeout=5000)
+                        record.evidence_path = str(stalled_file)
+                    except Exception:
+                        pass
+
                     dismiss = page.locator("dialog button[aria-label='Dismiss'], div[role='dialog'] button[aria-label='Dismiss'], button.artdeco-modal__dismiss").first
                     if dismiss.count() > 0:
                         dismiss.click()
@@ -615,7 +746,8 @@ class LinkedInAdapter:
                         if discard.count() > 0:
                             discard.click()
                     record.status = JobStatus.NEEDS_MANUAL_INTERVENTION
-                    record.failure_reason = "Unresolved screening fields or multi-page form pause."
+                    if not record.failure_reason:
+                        record.failure_reason = "Unresolved screening fields or multi-page form pause."
 
                 context.close()
         except Exception as e:

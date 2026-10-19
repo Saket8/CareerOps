@@ -202,3 +202,143 @@ def test_refresh_profile_resume_offline_contract(tmp_path):
     assert result["offline"] is True
     assert "Offline mode" in result["message"]
 
+
+FIXTURE_NAUKRI_PAGE_WITH_DRAWER = """
+<!DOCTYPE html>
+<html>
+<body>
+    <!-- Background page with Save button -->
+    <div class="top-nav">
+        <button class="styles_save-job-btn__xyz">Save</button>
+        <button class="apply-button">Apply</button>
+    </div>
+    <!-- Active Recruiter Chatbot Drawer -->
+    <div class="chatbot_wrapper active">
+        <div class="chat-container">
+            <div class="bot-msg-item">
+                <div class="question-header">Are you currently living in or ready to relocate to Bengaluru ?</div>
+                <div class="chips-container">
+                    <button class="chip">Yes</button>
+                    <button class="chip">No</button>
+                </div>
+            </div>
+            <div class="bot-send-section">
+                <button class="sendMsg">Send</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+
+def test_naukri_chatbot_drawer_containment_contract():
+    """Verify that drawer button queries do not match background page buttons."""
+    soup = BeautifulSoup(FIXTURE_NAUKRI_PAGE_WITH_DRAWER, "html.parser")
+    drawer = soup.select_one(".chatbot_wrapper.active")
+    assert drawer is not None
+
+    # Inside drawer: 'Send' button is present, but page 'Save' is NOT inside drawer
+    drawer_save = [b for b in drawer.find_all("button") if "Save" in b.get_text()]
+    assert len(drawer_save) == 0
+
+    drawer_send = drawer.select("button.sendMsg, .sendMsg, div[id*='sendMsg']")
+    assert len(drawer_send) == 1
+
+    # The background page has the 'Save' button, proving why page-level fallback was dangerous
+    page_save = [b for b in soup.find_all("button") if "Save" in b.get_text()]
+    assert len(page_save) == 1
+    assert page_save[0].get_text() == "Save"
+
+
+FIXTURE_LINKEDIN_SDUI_MODAL = """
+<!DOCTYPE html>
+<html>
+<body>
+    <div role="dialog" class="jobs-easy-apply-modal">
+        <h2>Screening Questions</h2>
+        <!-- 1. Dropdown Select -->
+        <div class="fb-dropdown">
+            <label for="select-work-auth">Are you legally authorized to work in the UK?</label>
+            <select id="select-work-auth" required>
+                <option value="">Select an option</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+            </select>
+        </div>
+        <!-- 2. Dropdown English Proficiency -->
+        <div class="fb-dropdown">
+            <label for="select-english">Select your proficiency level in English</label>
+            <select id="select-english" required>
+                <option value="">Select an option</option>
+                <option value="Elementary">Elementary proficiency</option>
+                <option value="Professional">Professional working proficiency</option>
+                <option value="Native">Native or bilingual proficiency</option>
+            </select>
+        </div>
+        <!-- 3. Radio Buttons where value is URN or numeric index, text is in label -->
+        <fieldset data-test-form-builder-radio>
+            <legend>Will you now or in the future require visa sponsorship?</legend>
+            <div class="fb-radio">
+                <input type="radio" id="radio-spon-0" name="sponsorship" value="0" />
+                <label for="radio-spon-0">Yes</label>
+            </div>
+            <div class="fb-radio">
+                <input type="radio" id="radio-spon-1" name="sponsorship" value="1" />
+                <label for="radio-spon-1">No</label>
+            </div>
+        </fieldset>
+        <!-- 4. Number Input -->
+        <div class="fb-input">
+            <label for="exp-cloud">How many years of work experience do you have with Oracle Cloud Infrastructure (OCI)?</label>
+            <input type="number" id="exp-cloud" step="1" min="0" max="40" />
+        </div>
+        <!-- 5. Inline feedback error -->
+        <div class="artdeco-inline-feedback--error">
+            <span class="artdeco-inline-feedback__message">Please enter a valid answer</span>
+        </div>
+        <!-- 6. Advance button -->
+        <button class="artdeco-button--primary" aria-label="Continue to next step">Next</button>
+    </div>
+</body>
+</html>
+"""
+
+
+def test_linkedin_easy_apply_sdui_modal_contract():
+    """Verify LinkedIn Easy Apply modal elements: select dropdowns, radio URN labels, and error tags."""
+    soup = BeautifulSoup(FIXTURE_LINKEDIN_SDUI_MODAL, "html.parser")
+    modal = soup.select_one("div[role='dialog']")
+    assert modal is not None
+
+    # 1. Dropdown selects
+    selects = modal.select("select")
+    assert len(selects) == 2
+    # Verify options in select
+    opts_auth = [o.get("value") for o in selects[0].find_all("option")]
+    assert "Yes" in opts_auth and "No" in opts_auth
+
+    # 2. Radios with URN/numeric values matched via label text
+    radios = modal.select("input[type='radio']")
+    assert len(radios) == 2
+    # The value is '0' and '1', but the label text is 'Yes' and 'No'
+    assert radios[0].get("value") == "0"
+    label_for_0 = modal.select_one(f"label[for='{radios[0].get('id')}']")
+    assert label_for_0 is not None
+    assert label_for_0.get_text().strip() == "Yes"
+
+    # 3. Number input has integer step
+    num_input = modal.select_one("input[type='number']")
+    assert num_input is not None
+    assert num_input.get("step") == "1"
+
+    # 4. Error detection
+    errors = modal.select(".artdeco-inline-feedback--error")
+    assert len(errors) == 1
+    assert "Please enter a valid answer" in errors[0].get_text()
+
+    # 5. Next button
+    next_btn = modal.select("button[aria-label*='next' i], button.artdeco-button--primary")
+    assert len(next_btn) >= 1
+
+

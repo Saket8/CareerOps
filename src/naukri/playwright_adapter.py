@@ -1014,6 +1014,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                 if drawer.is_visible():
                     logger.info("Chatbot recruiter drawer detected. Answering screening questions...")
                     chat_turns = 0
+                    consecutive_already_answered = 0
                     while chat_turns < 15:
                         chat_turns += 1
                         if not drawer.is_visible():
@@ -1089,9 +1090,16 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
 
                         # If this question was already answered on a previous turn, wait for bot response
                         if latest_q in questions_answered:
-                            logger.info(f"Question '{latest_q}' was already answered. Waiting for bot reply...")
-                            time.sleep(3)
+                            consecutive_already_answered += 1
+                            if consecutive_already_answered >= 3:
+                                logger.warning(f"Question '{latest_q}' was already answered and bot did not advance after 3 checks. Stopping chatbot drawer.")
+                                chat_interaction_blocked = True
+                                break
+                            logger.info(f"Question '{latest_q}' was already answered. Waiting for bot reply (check {consecutive_already_answered}/3)...")
+                            time.sleep(2)
                             continue
+                        else:
+                            consecutive_already_answered = 0
 
                         # Check if recruiter specifically asks for resume / CV / document upload
                         if any(w in latest_q.lower() for w in ["resume", "cv", "upload", "attach"]):
@@ -1334,7 +1342,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                             pass
                                     break
                             questions_answered[latest_q] = ans_val_str
-                            time.sleep(4)
+                            time.sleep(1.5)
                             continue
 
                         # Text input inside chatbot drawer
@@ -1406,7 +1414,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                     pass
                         else:
                             chat_input.press("Enter")
-                        time.sleep(4)
+                        time.sleep(1.5)
 
                     if drawer.is_visible() and not chat_confirmed:
                         logger.warning("Recruiter screening drawer is still open without an explicit completion message; stopping before page-level Apply.")

@@ -338,18 +338,18 @@ class Orchestrator:
                 max_apps_per_day = int(app_cfg.get("max_applications_per_day", 20))
                 max_duration_sec = float(app_cfg.get("max_run_duration_seconds", 3600))  # Default 60 min ceiling
 
-                # Count applications already submitted or attempted today to enforce daily limits across runs
-                apps_already_today = app_repo.count_applications_attempted_today()
-                remaining_daily_cap = max(0, max_apps_per_day - apps_already_today)
+                # Count applications already confirmed today to enforce daily limits across runs
+                apps_confirmed_today = app_repo.count_applications_today()
+                remaining_daily_cap = max(0, max_apps_per_day - apps_confirmed_today)
 
                 if remaining_daily_cap <= 0:
                     logger.info(
-                        f"Daily application cap strictly reached ({apps_already_today}/{max_apps_per_day} applications already attempted today). "
+                        f"Daily confirmed application cap strictly reached ({apps_confirmed_today}/{max_apps_per_day} confirmed applications today). "
                         "Halting further submissions for today."
                     )
                     qualifying_jobs = []
                 else:
-                    # Separate qualifying opportunities by platform to enable fair, balanced interleaving
+                    # Separate qualifying opportunities by platform
                     naukri_jobs = [
                         item for item in qualifying_jobs
                         if "naukri" in (item[0].source_platform or "").lower()
@@ -368,60 +368,27 @@ class Orchestrator:
                     linkedin_jobs.sort(key=lambda item: item[1].overall_score, reverse=True)
                     ats_jobs.sort(key=lambda item: item[1].overall_score, reverse=True)
 
-                    # Interleave platforms so that neither Naukri nor LinkedIn starves the other,
-                    # ensuring LinkedIn applications are executed early within the execution window.
-                    balanced_jobs = []
-                    nk_i, li_i, ats_i = 0, 0, 0
-                    max_per_platform = max(1, remaining_daily_cap // 2)
-                    nk_added, li_added = 0, 0
-
-                    while len(balanced_jobs) < remaining_daily_cap:
-                        added_any = False
-
-                        # 1. Take top LinkedIn opportunity
-                        if li_i < len(linkedin_jobs) and li_added < max_per_platform:
-                            balanced_jobs.append(linkedin_jobs[li_i])
-                            li_i += 1
-                            li_added += 1
-                            added_any = True
-
-                        # 2. Take top Naukri opportunity
-                        if len(balanced_jobs) < remaining_daily_cap and nk_i < len(naukri_jobs) and nk_added < max_per_platform:
-                            balanced_jobs.append(naukri_jobs[nk_i])
-                            nk_i += 1
-                            nk_added += 1
-                            added_any = True
-
-                        # 3. Take direct ATS portal opportunity
-                        if len(balanced_jobs) < remaining_daily_cap and ats_i < len(ats_jobs):
-                            balanced_jobs.append(ats_jobs[ats_i])
-                            ats_i += 1
-                            added_any = True
-
-                        if not added_any:
-                            # Backfill remaining slots from whichever platform has remaining candidates
-                            if li_i < len(linkedin_jobs) and len(balanced_jobs) < remaining_daily_cap:
-                                balanced_jobs.append(linkedin_jobs[li_i])
-                                li_i += 1
-                                added_any = True
-                            elif nk_i < len(naukri_jobs) and len(balanced_jobs) < remaining_daily_cap:
-                                balanced_jobs.append(naukri_jobs[nk_i])
-                                nk_i += 1
-                                added_any = True
-
-                            if not added_any:
-                                break
-
-                    qualifying_jobs = balanced_jobs
+                    # Prioritize high-velocity, reliable platform (Naukri) first to guarantee daily application volume,
+                    # followed by LinkedIn Easy Apply and direct ATS opportunities within remaining quota and time.
+                    qualifying_jobs = naukri_jobs + linkedin_jobs + ats_jobs
 
                 qualified_jobs_count = len(qualifying_jobs)
 
                 for job, score, evidence in qualifying_jobs:
-                    # Enforce daily application ceiling across runs and current run
-                    if (applications_attempted + apps_already_today) >= max_apps_per_day:
+                    # Enforce daily confirmed application ceiling across runs and current run
+                    if (confirmed_count + apps_confirmed_today) >= max_apps_per_day:
                         logger.info(
-                            f"Daily application cap strictly reached ({applications_attempted + apps_already_today}/{max_apps_per_day}). "
-                            "Halting further submissions for this run to prevent exceeding the 20 application daily limit."
+                            f"Daily confirmed application cap strictly reached ({confirmed_count + apps_confirmed_today}/{max_apps_per_day}). "
+                            "Halting further submissions for this run."
+                        )
+                        break
+
+                    # Guard against runaway attempts in case of repeated third-party errors
+                    max_attempts_ceiling = int(app_cfg.get("max_attempts_per_run", 35))
+                    if applications_attempted >= max_attempts_ceiling:
+                        logger.info(
+                            f"Run attempt ceiling reached ({applications_attempted}/{max_attempts_ceiling}). "
+                            "Wrapping up run to protect credentials and resources."
                         )
                         break
 
@@ -468,9 +435,13 @@ class Orchestrator:
                             cl_pdf_path = cl_pdf if cl_pdf.exists() else cl_docx
                             cover_letter_doc = str(cl_pdf_path)
 
-                            # Strategy 1: Discover specific recruiter/hiring lead on LinkedIn
+                            # Strategy 1: Discover specific recruiter/hiring lead on LinkedIn (only for roles high enough for outreach)
                             recruiter_lead = None
-                            if linkedin_adapter:
+                            tg_cfg = self.config.get("telegram", {})
+                            min_draft_score = float(tg_cfg.get("min_match_score_for_draft", 85.0))
+                            max_draft_alerts = int(tg_cfg.get("max_draft_alerts_per_run", 5))
+
+                            if linkedin_adapter and score.overall_score >= min_draft_score and drafts_dispatched_telegram < max_draft_alerts:
                                 try:
                                     recruiter_lead = linkedin_adapter.find_recruiter_lead(job.company, job.title)
                                 except Exception as rl_err:
@@ -479,10 +450,6 @@ class Orchestrator:
                             outreach_draft = outreach_agent.draft_outreach(job, score, recruiter_lead=recruiter_lead)
                             if outreach_draft:
                                 # Dispatch draft to Telegram channel ONLY for high-value recruiter one-to-one message drafts with direct link
-                                tg_cfg = self.config.get("telegram", {})
-                                min_draft_score = float(tg_cfg.get("min_match_score_for_draft", 85.0))
-                                max_draft_alerts = int(tg_cfg.get("max_draft_alerts_per_run", 5))
-
                                 if score.overall_score >= min_draft_score and drafts_dispatched_telegram < max_draft_alerts:
                                     try:
                                         sent_tg = telegram_notifier.notify_recruiter_draft(

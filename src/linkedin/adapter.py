@@ -362,20 +362,30 @@ class LinkedInAdapter:
                     context.close()
                     return record
 
-                # 4. Step-by-Step Form Resolution (up to 10 steps)
+                # 4. Step-by-Step Form Resolution (up to 5 steps, max 90s per job)
+                easy_apply_start = time.time()
+                max_easy_apply_duration = 90
                 step = 0
-                max_steps = 10
+                max_steps = 5
                 submitted = False
                 is_domestic = "india" in (job.location or "").lower()
                 last_step_signature = ""
                 stagnation_count = 0
+                review_count = 0
 
                 while step < max_steps and not submitted:
                     step += 1
                     logger.info(f"Processing Easy Apply step {step} for {job.title}...")
 
+                    # Enforce per-job execution timeout to avoid starving overall run
+                    if (time.time() - easy_apply_start) > max_easy_apply_duration:
+                        logger.warning(f"LinkedIn Easy Apply for '{job.title}' exceeded {max_easy_apply_duration}s time limit. Pausing for manual intervention.")
+                        record.status = JobStatus.NEEDS_MANUAL_INTERVENTION
+                        record.failure_reason = f"Application timed out after {max_easy_apply_duration}s (complex multi-page form)."
+                        break
+
                     # A. CRITICAL: Wait for Server-Driven UI (SDUI) loader to finish loading form content
-                    for _ in range(15):
+                    for _ in range(5):
                         has_loader = page.evaluate('''() => {
                             const d = document.querySelector('dialog') || document.querySelector('div[role="dialog"]');
                             if (!d) return false;
@@ -388,9 +398,9 @@ class LinkedInAdapter:
                         }''')
                         if not has_loader and has_elements:
                             break
-                        page.wait_for_timeout(1000)
+                        page.wait_for_timeout(500)
 
-                    page.wait_for_timeout(1500)
+                    page.wait_for_timeout(400)
 
                     # B. Resume & Cover Letter selection
                     # CRITICAL DIRECTIVE: Always use master CV that is already saved in LinkedIn profile for all applications
@@ -659,16 +669,20 @@ class LinkedInAdapter:
                     action = page.evaluate('''() => {
                         const d = document.querySelector('dialog') || document.querySelector('div[role="dialog"]');
                         if (!d) return 'NONE';
+                        // Scroll dialog to bottom to ensure footer actions and submit button are rendered and active
+                        d.scrollTop = d.scrollHeight;
                         const buttons = Array.from(d.querySelectorAll('button'));
 
-                        // Priority 1: Submit Application
+                        // Priority 1: Submit Application (strictly verify button is enabled)
                         const submitBtn = buttons.find(b => {
                             const t = (b.innerText || '').toLowerCase();
                             const a = (b.getAttribute('aria-label') || '').toLowerCase();
-                            return t.includes('submit application') || t.includes('submit') || a.includes('submit') ||
-                                   t.includes('envoyer') || t.includes('enviar') || t.includes('absenden');
+                            const isSubmit = t.includes('submit application') || t.includes('submit') || a.includes('submit') ||
+                                             t.includes('envoyer') || t.includes('enviar') || t.includes('absenden');
+                            return isSubmit && !b.disabled && b.getAttribute('aria-disabled') !== 'true';
                         });
                         if (submitBtn) {
+                            if (submitBtn.scrollIntoViewIfNeeded) submitBtn.scrollIntoViewIfNeeded();
                             submitBtn.click();
                             return 'SUBMIT';
                         }
@@ -677,7 +691,8 @@ class LinkedInAdapter:
                         const reviewBtn = buttons.find(b => {
                             const t = (b.innerText || '').toLowerCase();
                             const a = (b.getAttribute('aria-label') || '').toLowerCase();
-                            return t.includes('review') || a.includes('review') || t.includes('vérifier') || t.includes('revisar');
+                            const isReview = t.includes('review') || a.includes('review') || t.includes('vérifier') || t.includes('revisar');
+                            return isReview && !b.disabled && b.getAttribute('aria-disabled') !== 'true';
                         });
                         if (reviewBtn) {
                             reviewBtn.click();
@@ -688,8 +703,9 @@ class LinkedInAdapter:
                         const nextBtn = buttons.find(b => {
                             const t = (b.innerText || '').toLowerCase();
                             const a = (b.getAttribute('aria-label') || '').toLowerCase();
-                            return t.includes('next') || a.includes('next') || a.includes('continue') ||
-                                   t.includes('suivant') || t.includes('siguiente') || t.includes('weiter');
+                            const isNext = t.includes('next') || a.includes('next') || a.includes('continue') ||
+                                           t.includes('suivant') || t.includes('siguiente') || t.includes('weiter');
+                            return isNext && !b.disabled && b.getAttribute('aria-disabled') !== 'true';
                         });
                         if (nextBtn) {
                             nextBtn.click();
@@ -704,7 +720,7 @@ class LinkedInAdapter:
                     if action == 'SUBMIT':
                         if self.auto_submit:
                             logger.info(f"Submitting LinkedIn application for '{job.title}' @ {job.company}...")
-                            page.wait_for_timeout(4000)
+                            page.wait_for_timeout(3000)
 
                             # Take evidence screenshot
                             evidence_file = EVIDENCE_DIR / f"{job.job_id}_linkedin_applied.png"
@@ -723,8 +739,16 @@ class LinkedInAdapter:
                             logger.info("Auto-submit disabled. Application left at review step.")
                             record.status = JobStatus.FORM_COMPLETED
                             break
-                    elif action in ('NEXT', 'REVIEW'):
-                        page.wait_for_timeout(2000)
+                    elif action == 'REVIEW':
+                        review_count += 1
+                        if review_count >= 2:
+                            logger.warning(f"Repeated Review action on '{job.title}' without advancing to submit. Unresolved form fields.")
+                            record.status = JobStatus.NEEDS_MANUAL_INTERVENTION
+                            record.failure_reason = "Submit application button unavailable or disabled on Review screen."
+                            break
+                        page.wait_for_timeout(1000)
+                    elif action == 'NEXT':
+                        page.wait_for_timeout(1000)
                     else:
                         logger.warning(f"No advance button found at step {step}. Exiting form loop.")
                         break

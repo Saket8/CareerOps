@@ -1212,29 +1212,64 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         # Percentage, Range, or Threshold Matching for numeric/percentage values
                         is_numeric_val = False
                         numeric_val = 0.0
-                        try:
-                            numeric_val = float(ans_val_str.replace('%', '').strip())
-                            is_numeric_val = True
-                        except ValueError:
-                            pass
+                        clean_num_str = re.sub(r"[^\d.]", "", ans_val_str)
+                        if clean_num_str:
+                            try:
+                                numeric_val = float(clean_num_str)
+                                is_numeric_val = True
+                            except ValueError:
+                                pass
+
+                        # Notice Period specific chip matching
+                        is_notice_q = any(w in latest_q.lower() for w in ["notice period", "notice", "serving notice", "lwd", "last working day", "last working date"])
+                        if not matching_chip and is_notice_q:
+                            try:
+                                notice_days = getattr(candidate_truth.candidate, "notice_period_days", 90) or 90
+                                cand_locators = drawer.locator("button, [class*='chip'], [class*='option'], [class*='pill'], [class*='radio'], label, [role='button'], [role='radio']").all()
+                                for cand in cand_locators:
+                                    if not cand.is_visible():
+                                        continue
+                                    c_text = (cand.text_content(timeout=500) or "").strip().lower()
+                                    if not c_text or len(c_text) > 40 or c_text in ["save", "submit", "continue", "next", "send", "apply"]:
+                                        continue
+                                    if notice_days >= 75 and any(k in c_text for k in ["3 month", "3-month", "90 day", "90-day", "2 to 3 month", "2-3 month", "more than 2 month", "60 to 90", "60-90"]):
+                                        matching_chip = cand
+                                        break
+                                    elif 45 <= notice_days < 75 and any(k in c_text for k in ["2 month", "2-month", "60 day", "1 to 2 month", "30 to 60"]):
+                                        matching_chip = cand
+                                        break
+                                    elif 20 <= notice_days < 45 and any(k in c_text for k in ["1 month", "1-month", "30 day", "15 to 30"]):
+                                        matching_chip = cand
+                                        break
+                                    elif notice_days < 20 and any(k in c_text for k in ["immediate", "15 day", "less than 15"]):
+                                        matching_chip = cand
+                                        break
+                                    elif "not serving" in ans_val_lower and any(k in c_text for k in ["not serving", "no", "official notice"]):
+                                        matching_chip = cand
+                                        break
+                            except Exception:
+                                pass
 
                         if not matching_chip and is_numeric_val:
                             try:
                                 cand_locators = drawer.locator(
-                                    "label, button, a, [role='button'], [role='radio'], "
-                                    "[class*='chip'], [class*='option'], [class*='radio'], [class*='pill'], "
-                                    "[class*='choice'], [class*='reply'], [class*='answer'], [class*='bubble'], "
-                                    "[class*='item'], li, span, div"
+                                    "button, [class*='chip'], [class*='option'], [class*='pill'], [class*='radio'], label, [role='button'], [role='radio']"
                                 ).all()
                                 for cand in cand_locators:
                                     if not cand.is_visible():
                                         continue
                                     cand_text = (cand.text_content(timeout=500) or "").strip().lower()
-                                    if not cand_text or cand_text in ["save", "submit", "continue", "next", "send", "apply"]:
+                                    if not cand_text or len(cand_text) > 40 or cand_text in ["save", "submit", "continue", "next", "send", "apply"]:
                                         continue
 
-                                    # Check for range: e.g. "60-70%", "70 - 80%", "10-15 years"
-                                    range_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:%|\s)*(?:-|to)\s*(\d+(?:\.\d+)?)\s*%?", cand_text)
+                                    # Exact number match in chip text (e.g. "5", "5 years", "5 yrs", "5 yr")
+                                    exact_num_match = re.search(r"\b(\d+(?:\.\d+)?)\s*(?:years?|yrs?|yr|%)?\b", cand_text)
+                                    if exact_num_match and float(exact_num_match.group(1)) == numeric_val:
+                                        matching_chip = cand
+                                        break
+
+                                    # Check for range: e.g. "60-70%", "70 - 80%", "3-5 years", "3 to 5 yrs", "2 - 5"
+                                    range_match = re.search(r"(\d+(?:\.\d+)?)\s*(?:%|\s)*(?:-|to)\s*(\d+(?:\.\d+)?)\s*(?:years?|yrs?|yr|%)?", cand_text)
                                     if range_match:
                                         low = float(range_match.group(1))
                                         high = float(range_match.group(2))
@@ -1248,7 +1283,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                         matching_chip = cand
                                         break
 
-                                    # Lower-bound options such as ">10 years" or "10+ years".
+                                    # Lower-bound options such as ">10 years" or "10+ years" or "5+".
                                     lower_match = re.search(r"(?:>|at\s+least|more\s+than)\s*(\d+(?:\.\d+)?)|(?<!\d)(\d+(?:\.\d+)?)\s*\+", cand_text)
                                     if lower_match:
                                         threshold = float(lower_match.group(1) or lower_match.group(2))
@@ -1359,6 +1394,32 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         ).first
 
                         if not chat_input.is_visible():
+                            # Non-halting fallback: check if any visible option chips exist in drawer
+                            try:
+                                fallback_chips = [
+                                    c for c in drawer.locator("button, [class*='chip'], [class*='option'], [class*='pill'], [class*='radio'], label").all()
+                                    if c.is_visible() and (c.text_content() or "").strip().lower() not in ["save", "submit", "continue", "next", "send", "apply", "cancel", "close", "skip this question", "skip"]
+                                ]
+                                if fallback_chips:
+                                    chosen_chip = fallback_chips[-1] if is_numeric_val and numeric_val >= 5 else fallback_chips[0]
+                                    chip_label = (chosen_chip.text_content(timeout=500) or "").strip()
+                                    logger.info(f"Chatbot Turn {chat_turns}: Auto-selected best available option '{chip_label}' for '{latest_q}'")
+                                    try:
+                                        chosen_chip.click(force=True, timeout=3000)
+                                    except Exception:
+                                        page.evaluate("(el) => el.click()", chosen_chip.element_handle())
+                                    time.sleep(1)
+                                    for btn_sel in ["button:has-text('Send')", "button:has-text('Submit')", "button:has-text('Continue')", "button:has-text('Next')", ".sendMsg", "div[id*='sendMsg']"]:
+                                        cb = drawer.locator(btn_sel).first
+                                        if cb.is_visible():
+                                            cb.click(force=True, timeout=2000)
+                                            break
+                                    questions_answered[latest_q] = chip_label or ans_val_str
+                                    time.sleep(1.5)
+                                    continue
+                            except Exception as fb_err:
+                                logger.debug(f"Chatbot fallback chip error: {fb_err}")
+
                             if chat_turns % 3 == 0:
                                 try:
                                     vis_opts = [c.text_content().strip() for c in drawer.locator("button, [class*='chip'], [class*='option'], label, li, span").all()[:8] if (c.text_content() or '').strip()]

@@ -368,9 +368,17 @@ class Orchestrator:
                     linkedin_jobs.sort(key=lambda item: item[1].overall_score, reverse=True)
                     ats_jobs.sort(key=lambda item: item[1].overall_score, reverse=True)
 
-                    # Prioritize high-velocity, reliable platform (Naukri) first to guarantee daily application volume,
-                    # followed by LinkedIn Easy Apply and direct ATS opportunities within remaining quota and time.
-                    qualifying_jobs = naukri_jobs + linkedin_jobs + ats_jobs
+                    # Interleave opportunities across platforms to ensure balanced, diversified daily submissions
+                    interleaved = []
+                    max_len = max(len(naukri_jobs), len(linkedin_jobs), len(ats_jobs)) if (naukri_jobs or linkedin_jobs or ats_jobs) else 0
+                    for i in range(max_len):
+                        if i < len(naukri_jobs):
+                            interleaved.append(naukri_jobs[i])
+                        if i < len(linkedin_jobs):
+                            interleaved.append(linkedin_jobs[i])
+                        if i < len(ats_jobs):
+                            interleaved.append(ats_jobs[i])
+                    qualifying_jobs = interleaved
 
                 qualified_jobs_count = len(qualifying_jobs)
 
@@ -599,8 +607,8 @@ class Orchestrator:
                         )
                     )
 
-                    # 4. INTERVIEW PREPARATION (For High Matches or Applied Roles)
-                    if score.overall_score >= qualification_agent.high_match_threshold or score.architecture_score >= 85.0:
+                    # 4. INTERVIEW PREPARATION (Optimized: generate for confirmed applications or dry run to preserve throughput)
+                    if (status == JobStatus.APPLIED_CONFIRMED or self.dry_run) and (score.overall_score >= qualification_agent.high_match_threshold or score.architecture_score >= 85.0):
                         interview_agent.generate_interview_pack(job, score, evidence)
                         interview_packs_generated += 1
 

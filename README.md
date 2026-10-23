@@ -87,9 +87,16 @@ SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
 # CareerOps Daily Morning Pipeline (08:53 IST / 03:23 UTC)
-# Mon-Fri: Automates CV re-upload, job discovery, visa/relocation gating, applications (<=20) & daily reporting
+# Mon-Fri: Automates CV re-upload, job discovery, visa/relocation gating, applications (<=20) + post-run healing
 # Sat-Sun: Re-uploads master CV to Naukri profile only to preserve Resdex search freshness (no applications)
 23 3 * * * opc /u01/CareerOps/run_daily.sh
+
+# Autonomous Post-Run Health Checkup & Stabilization Healer Crons (Mon-Fri)
+# Morning Catch-Up: 10:30 IST (05:00 UTC) Mon-Fri
+00 5 * * 1-5 opc /u01/CareerOps/run_healer.sh
+
+# Afternoon Stabilization: 16:30 IST (11:00 UTC) Mon-Fri
+00 11 * * 1-5 opc /u01/CareerOps/run_healer.sh
 EOF
 
 sudo chmod 0644 /etc/cron.d/careerops
@@ -128,6 +135,12 @@ sudo chmod 0644 /etc/cron.d/careerops
 - Generates a consolidated, responsive HTML and Markdown daily report delivered via SMTP.
 - Features side-by-side application breakdown across Naukri, LinkedIn, and direct ATS boards with direct live verification links.
 
+### 7. Autonomous Post-Run Health Checkup, Persistent Self-Healing & Quota Stabilization
+- **Post-Run Telemetry & Log Auditing**: Inspects `cron_run.log` and `career_agent.log` for execution errors, Playwright pointer interceptions, and timeout signatures immediately after the morning pipeline finishes.
+- **Shared Screening Knowledge Base**: Dynamically auto-learns screening answers, notice period formats, and location synonyms into `data/learned_screening_answers.json` and `data/learned_location_synonyms.json`, shared across both Naukri and LinkedIn.
+- **Autonomous Stabilization Catch-Up Runner**: If confirmed applications fall below the target daily quota (e.g., 20), the agent automatically launches a focused catch-up batch targeting high-match retryable and starved qualified roles, submitting via patched adapters and verifying official 'Applied' confirmation badges.
+- **VPS Resource Sanitization**: Reclaims memory, terminates lingering zombie browser processes, and clears stale locks to maintain single-process safety on low-resource cloud servers.
+
 ---
 
 ## 🏗 Architecture
@@ -142,6 +155,7 @@ flowchart TD
     classDef apply fill:#fdf4ff,stroke:#c026d3,stroke-width:2px,color:#86198f;
     classDef outreach fill:#ffedd5,stroke:#ea580c,stroke-width:2px,color:#c2410c;
     classDef notify fill:#f1f5f9,stroke:#475569,stroke-width:2px,color:#334155;
+    classDef healer fill:#f0fdf4,stroke:#16a34a,stroke-width:2px,color:#15803d;
 
     subgraph T1 ["Tier 1: Automated Scheduling and Runtime Wrapper"]
         CRON["Linux Cron: /etc/cron.d/careerops (08:53 IST / 03:23 UTC)"]
@@ -236,6 +250,19 @@ flowchart TD
         SMTP --> JANITOR["RetentionManager: Cleanup Scratch Artifacts and VACUUM DB"]
     end
 
+    subgraph T8 ["Tier 8: Autonomous Post-Run Health Checkup & Self-Healing"]
+        MAIN --> HEALER["PostRunHealerAgent (run_daily.sh hook + cron at 10:30 & 16:30 IST)"]
+        HEALER --> SANITIZE["Resource Sanitization (Reclaim RAM, Kill Zombies & Stale Locks)"]
+        HEALER --> LOG_AUDIT["Audit Telemetry (cron_run.log & career_agent.log)"]
+        LOG_AUDIT --> FA_AGENT["FailureAnalysisAgent (Diagnose Popovers, Chips & Dropouts)"]
+        FA_AGENT --> KB_LEARN["ScreeningKnowledgeBase (learned_screening_answers.json)"]
+        KB_LEARN --> STABILIZE{"Quota Shortfall (< 20 Confirmed)?"}
+        STABILIZE -->|"Yes"| CATCHUP["Autonomous Catch-Up Loop (Interleave Naukri & LinkedIn)"]
+        CATCHUP --> SUBMIT_CATCHUP["Submit via Patched Adapters & Verify Badges"]
+        SUBMIT_CATCHUP --> HEALTH_REPORT["Health Report: reports/health/YYYY-MM-DD_healer.md"]
+        STABILIZE -->|"No (Quota Met)"| HEALTH_REPORT
+    end
+
     class CRON,WRAPPER,MAIN,ENV,YAML trigger;
     class BOOSTER,UPLOAD,TIMESTAMP,TOP_RANK booster;
     class DISCOVERY,NK_DISC,LI_DISC,ATS_DISC,DEDUP,ELIGIBLE_POOL discovery;
@@ -244,6 +271,7 @@ flowchart TD
     class APP_AGENT,TAILOR,ROUTE_METHOD,NK_APPLY,CHATBOT,SOLVER,SUBMIT_NK,LI_APPLY,SDUI_NAV,Q_SOLVER,SUBMIT_LI,EXT_APPLY,VERIFY_BADGE,DB_CONFIRMED,DB_REVIEW apply;
     class HIGH_MATCH,OUTREACH,FIND_REC,GEN_PITCH outreach;
     class TELEGRAM_ALERT,DB_PERSIST,SQLITE,REPORT_AGENT,SMTP,JANITOR notify;
+    class HEALER,SANITIZE,LOG_AUDIT,FA_AGENT,KB_LEARN,STABILIZE,CATCHUP,SUBMIT_CATCHUP,HEALTH_REPORT healer;
 ```
 
 ---
@@ -258,6 +286,9 @@ CareerOps was engineered from the ground up using **Google Advanced Agentic Codi
   - `VisaRelocationGate`: Enforces strict visa sponsorship and employer relocation verification for international roles.
   - `ApplicationAgent` & `PlaywrightAdapter`: Navigates complex Server-Driven UI (SDUI) modals, handles anti-bot traps, and completes multi-step application flows.
   - `CandidateAnswerResolver`: Autonomously resolves dynamic screening questionnaires and live conversational chatbot prompts.
+  - `FailureAnalysisAgent`: Diagnoses root causes of unverified/failed submissions, classifies failure vectors (popovers, invalid inputs, notice chips), and marks recoverable jobs for retry.
+  - `PostRunHealerAgent`: Audits execution logs, sanitizes VPS memory/locks, updates shared screening knowledge bases, and executes stabilization catchup loops to satisfy daily application quotas.
+  - `ScreeningKnowledgeBase`: Persistent shared knowledge base dynamically syncing learned screening answers, notice periods, and location synonyms across both platforms.
   - `OutreachAgent`: Drafts personalized 1-to-1 executive recruiter outreach pitches for top-tier matching roles (≥85%).
   - `ReportingAgent`: Aggregates cross-platform application telemetry into structured morning briefings.
 - **Grounded Single Source of Truth**: All agents operate strictly against verified candidate data defined in [`candidate_facts.yaml`](candidate/candidate_facts.yaml) and configuration policies in [`config.yaml`](config/config.yaml)—guaranteeing **100% factual accuracy with zero hallucination**.
@@ -361,6 +392,12 @@ python main.py --run-applications
 
 # Dispatch daily summary email report
 python main.py --send-report
+
+# Run autonomous post-run health checkup, failure diagnosis, and stabilization catchup
+python main.py --auto-heal
+
+# Standalone execution of the Post-Run Healer
+python -m src.agents.post_run_healer
 
 # Run LinkedIn Easy Apply discovery & application specifically
 python -m src.cli.linkedin_cli --discover --apply

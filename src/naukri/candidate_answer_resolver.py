@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, Tuple, List
 from src.models.candidate import CandidateTruth
 from src.utils.logger import get_logger
+from src.utils.screening_knowledge import get_screening_knowledge_base
 
 logger = get_logger("candidate_answer_resolver")
 
@@ -39,6 +40,7 @@ class CandidateAnswerResolver:
         self.truth = candidate_truth
         self.cand = candidate_truth.candidate
         self.strict_truth_only = strict_truth_only
+        self.kb = get_screening_knowledge_base()
 
         # Explicit verified dictionary
         self.verified_facts = {
@@ -98,14 +100,18 @@ class CandidateAnswerResolver:
         pref_opts = []
         pref_locations = [p.lower() for p in getattr(self.cand, "preferred_locations", [])]
 
+        # 1. Primary region match (Noida / NCR and learned synonyms)
+        canonical_terms = set(NCR_CANONICAL_LOCATIONS)
+        if hasattr(self, "kb") and self.kb:
+            canonical_terms.update(self.kb.get_compatible_location_terms("noida"))
+
         for opt in available_options:
             opt_clean = opt.strip()
             opt_lower = opt_clean.lower()
             if not opt_lower or opt_lower in ["skip this question", "skip", "none of the above"]:
                 continue
 
-            # 1. Primary region match (Noida / NCR)
-            if any(term in opt_lower for term in NCR_CANONICAL_LOCATIONS):
+            if any(term in opt_lower for term in canonical_terms):
                 ncr_opts.append(opt_clean)
             elif any(pref in opt_lower for pref in pref_locations if pref not in ["pan india", "remote", "hybrid", "wfh"]):
                 pref_opts.append(opt_clean)
@@ -810,6 +816,18 @@ class CandidateAnswerResolver:
                 answer_value="Yes",
                 field_type=field_type,
             )
+
+        # 9b. Consult Autonomous Screening Knowledge Base before falling back
+        if hasattr(self, "kb") and self.kb:
+            kb_ans = self.kb.get_answer(question_text, field_type=field_type)
+            if kb_ans is not None:
+                logger.info(f"Resolved question via learned knowledge base: '{question_text}' -> '{kb_ans}'")
+                return FormQuestionAnswerResult(
+                    can_answer=True,
+                    answer_value=kb_ans,
+                    field_type=field_type,
+                    confidence=0.98,
+                )
 
         # 10. Universal Non-Halting Intelligent Fallback
         # When strict_truth_only is False (default), resolve unknown/unique questions logically rather than halting

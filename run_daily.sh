@@ -84,6 +84,15 @@ END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 
 echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] CareerOps Run Completed in ${DURATION}s with exit code ${EXIT_CODE}" >> "$LOG_FILE"
+
+# Post-Run Health Checkup, Failure Diagnosis & Autonomous Stabilization Healer
+echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] Starting Autonomous Post-Run Healer & Verification..." >> "$LOG_FILE"
+set +e
+nice -n 10 "$PROJECT_DIR/venv/bin/python" -m src.agents.post_run_healer --post-run >> "$LOG_FILE" 2>&1
+HEALER_EXIT=$?
+set -e
+echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] Post-Run Healer Completed with exit code ${HEALER_EXIT}" >> "$LOG_FILE"
+
 echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] Post-Run Memory Status:" >> "$LOG_FILE"
 free -h >> "$LOG_FILE"
 echo "==============================================================================" >> "$LOG_FILE"

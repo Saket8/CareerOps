@@ -29,6 +29,7 @@ def main():
     parser.add_argument("--interview-briefing", "--force-interview", dest="force_interview", action="store_true", help="Force generation and email dispatch of consolidated daily interview briefing")
     parser.add_argument("--refresh-profile", "--upload-cv", dest="refresh_profile", action="store_true", help="Re-upload master CV to Naukri profile to refresh Resdex rank")
     parser.add_argument("--optimize-linkedin", "--optimize-profile", dest="optimize_linkedin", action="store_true", help="Optimize LinkedIn Profile headline, about section, and SEO keywords")
+    parser.add_argument("--auto-heal", "--post-run-check", dest="auto_heal", action="store_true", help="Run autonomous post-run health checkup, failure diagnosis, and stabilization catchup")
     parser.add_argument("--force-run", action="store_true", help="Bypass day-of-week schedule check")
 
     args = parser.parse_args()
@@ -53,6 +54,23 @@ def main():
         res = client.refresh_profile_resume(cv_path)
         print(f"[RESULT] {res}\n")
         sys.exit(0 if res.get("success") else 1)
+
+    if args.auto_heal:
+        from src.agents.post_run_healer import PostRunHealerAgent
+        print("\n[INFO] Executing Autonomous Post-Run Health Checkup & Self-Healing Agent...")
+        healer = PostRunHealerAgent(config=config, offline_mode=args.offline)
+        res = healer.run_post_run_checkup(dry_run=args.dry_run)
+        print("\n" + "=" * 60)
+        print("  AUTONOMOUS HEALTH CHECKUP & HEALING COMPLETE")
+        print("=" * 60)
+        print(f"  Target Quota:           {res.get('target_quota')}")
+        print(f"  Final Confirmed Today:  {res.get('final_confirmed')}")
+        print(f"  Failures Diagnosed:     {res.get('diagnostics_count')}")
+        print(f"  Catch-Up Retries:       {res.get('catchup_attempts')}")
+        print(f"  Newly Confirmed:        {res.get('newly_confirmed')}")
+        print(f"  Health Report:          {res.get('health_report_path')}")
+        print("=" * 60 + "\n")
+        sys.exit(0)
 
     if args.validate_phase:
         from src.cli.phase_validator import validate_application_phase

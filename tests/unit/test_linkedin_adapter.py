@@ -157,7 +157,7 @@ def test_visa_relocation_gate_rejects_missing_sponsorship_or_relocation():
     assert "MISSING_RELOCATION" in reason
 
 
-def test_visa_relocation_gate_rejects_domestic_india():
+def test_visa_relocation_gate_allows_domestic_india():
     from src.utils.visa_relocation_gate import VisaRelocationGate
 
     job_india = JobListing(
@@ -169,8 +169,8 @@ def test_visa_relocation_gate_rejects_domestic_india():
         jd_text="Seeking Cloud Architect for Bengaluru office. Competitive salary and benefits.",
     )
     passed, reason = VisaRelocationGate.evaluate(job_india)
-    assert passed is False
-    assert "DOMESTIC_INDIA_ROLE" in reason
+    assert passed is True
+    assert "Domestic India" in reason or "PASSED" in reason
 
 
 def test_linkedin_apply_easy_apply_rejects_unqualified(mock_config, candidate_truth, tmp_path):

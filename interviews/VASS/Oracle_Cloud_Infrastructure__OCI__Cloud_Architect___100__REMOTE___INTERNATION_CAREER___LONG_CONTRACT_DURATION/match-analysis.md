@@ -19,5 +19,4 @@
 - **Verified OCI Deep Expertise (6+ years, 6 Professional certifications, DBSS telecom architecture)**
 
 ### Observed Market Signals
-- Observed keyword 'OCI' explicitly mentioned in job description.
-- Compensation undisclosed by recruiter; accepted under compensation policy.
+

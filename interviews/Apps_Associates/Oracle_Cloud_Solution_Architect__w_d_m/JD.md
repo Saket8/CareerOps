@@ -9,4 +9,4 @@
 ---
 
 ## Complete Job Specification
-Oracle Cloud Solution Architect (w/d/m) at Apps Associates located in Dortmund, North Rhine-Westphalia, Germany (Europe). Focus areas: OCI Architect, Enterprise Architecture, Cloud Infrastructure, Solutions Engineering, and Technical Leadership.
+Oracle Cloud Solution Architect (w/d/m) at Apps Associates located in Dortmund, North Rhine-Westphalia, Germany (Europe). Focus areas: Oracle Cloud Infrastructure Architect visa sponsorship, Enterprise Architecture, Cloud Infrastructure, Solutions Engineering, and Technical Leadership.

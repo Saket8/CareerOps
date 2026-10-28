@@ -65,7 +65,7 @@ class JobModel(Base):
 
     def to_listing(self):
         """Convert ORM model to JobListing domain model."""
-        from src.models.job import JobListing, JobSalary, SalaryEligibility, JobStatus
+        from src.models.job import JobListing, JobSalary, SalaryEligibility, JobStatus, ApplicationMethod
         try:
             eligibility = SalaryEligibility(self.salary_eligibility)
         except Exception:
@@ -103,7 +103,7 @@ class JobModel(Base):
             has_full_jd=bool(self.jd_text and len(self.jd_text.strip()) >= 50),
             source_query=self.source_query or "",
             source_platform=self.source_platform or "naukri",
-            application_method=self.application_method or "standard",
+            application_method=ApplicationMethod.LINKEDIN_EASY_APPLY if ("linkedin" in (self.source_platform or "").lower() or (self.application_method and "linkedin" in self.application_method.lower())) else ApplicationMethod.NAUKRI_DIRECT,
             status=status,
         )
 

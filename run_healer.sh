@@ -10,7 +10,7 @@ PROJECT_DIR="/u01/CareerOps"
 LOG_DIR="$PROJECT_DIR/logs"
 LOG_FILE="$LOG_DIR/healer_run.log"
 LOCK_FILE="/tmp/careerops.lock"
-HEALER_LOCK_FILE="/tmp/careerops_healer.lock"
+HEALER_LOCK_FILE="/tmp/careerops_healer_wrapper.lock"
 MAX_LOG_SIZE=10485760 # 10 MB
 
 mkdir -p "$LOG_DIR"
@@ -62,7 +62,7 @@ echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] CareerOps Autonomous Healer Cron Inv
 
 START_TIME=$(date +%s)
 set +e
-nice -n 10 "$PROJECT_DIR/venv/bin/python" -m src.agents.post_run_healer "$@" >> "$LOG_FILE" 2>&1
+timeout 90m nice -n 10 "$PROJECT_DIR/venv/bin/python" -m src.agents.post_run_healer "$@" >> "$LOG_FILE" 2>&1
 EXIT_CODE=$?
 set -e
 END_TIME=$(date +%s)

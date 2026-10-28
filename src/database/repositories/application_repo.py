@@ -163,8 +163,10 @@ class ApplicationRepository:
             existing.application_url = record.application_url
             existing.external_application_url = record.external_application_url
             existing.external_portal = record.external_portal
-            existing.started_at = record.started_at
-            existing.submitted_at = record.submitted_at
+            existing.started_at = record.started_at or existing.started_at
+            if status_val == JobStatus.APPLIED_CONFIRMED.value and not record.submitted_at:
+                record.submitted_at = datetime.now(timezone.utc)
+            existing.submitted_at = record.submitted_at or (datetime.now(timezone.utc) if status_val == JobStatus.APPLIED_CONFIRMED.value else existing.submitted_at)
             existing.resume_version = record.resume_version
             existing.resume_version_id = record.resume_version_id
             existing.questions_detected = record.questions_detected
@@ -197,7 +199,7 @@ class ApplicationRepository:
             external_application_url=record.external_application_url,
             external_portal=record.external_portal,
             started_at=record.started_at,
-            submitted_at=record.submitted_at,
+            submitted_at=record.submitted_at or (datetime.now(timezone.utc) if status_val == JobStatus.APPLIED_CONFIRMED.value else None),
             status=status_val,
             questions_detected=record.questions_detected,
             questions_answered=record.questions_answered,

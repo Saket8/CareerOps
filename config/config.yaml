@@ -23,8 +23,12 @@ application:
   # Salary floor is loaded dynamically from .env (MIN_ACCEPTABLE_SALARY_LPA or CURRENT_SALARY_LPA)
   min_salary_lpa: null  # Resolved from .env (Single Source of Truth)
   undisclosed_salary_allowed: true
-  max_applications_per_day: 20  # Hard cap: strictly <= 20 total applications per day across all platforms
-  max_run_duration_seconds: 3600  # 60 minute hard time limit per daily execution to prevent runaway jobs
+  max_applications_per_day: 35  # Cap allowing at least 15+ Naukri and 15+ LinkedIn confirmed per day
+  target_naukri_per_day: 15
+  target_linkedin_per_day: 15
+  max_attempts_per_run: 60  # Allows pipeline to reach target confirmed applies across platforms
+  max_run_duration_seconds: 7200  # 120 minute ceiling to allow multi-step applies on VPS
+  max_catchup_duration_seconds: 7200  # 120 minute ceiling to allow catchup to reach full 15 confirmed applies
   dry_run: false  # LIVE mode enabled per user preference
   retry_attempts: 3
   retry_backoff_seconds: 5
@@ -137,17 +141,21 @@ search:
 linkedin:
   enabled: true
   auto_submit: true  # Fully unattended submission per user directive (no manual review)
-  max_applications_per_day: 10
+  max_applications_per_day: 15
   user_data_dir: "/u01/CareerOps/.li_profile"
   auth_state_path: "artifacts/linkedin_auth.json"
   email_alerts: true
-  require_visa_sponsorship: true  # Strictly require employer visa sponsorship for candidates from India
-  require_relocation: false        # Relocation assistance optional/bonus (not an automatic blocker)
+  require_visa_sponsorship: false  # Allow both international and domestic roles (negative exclusions still enforced)
+  require_relocation: false        # Relocation optional/bonus
   work_modes:
     - "onsite"
     - "hybrid"
     - "remote"
   target_regions:
+    - name: "India"
+      location: "India"
+    - name: "Pan India"
+      location: "India"
     - name: "Europe"
       location: "Europe"
     - name: "Nordics"

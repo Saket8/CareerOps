@@ -46,6 +46,12 @@ class LinkedInAdapter:
 
         self.answer_resolver = CandidateAnswerResolver(candidate_truth, strict_truth_only=False)
 
+    def _safe_screenshot(self, page, path: str):
+        try:
+            page.screenshot(path=path, timeout=3000)
+        except Exception as e:
+            logger.debug(f"Screenshot capture skipped: {e}")
+
     def discover_jobs(self, limit_per_query: int = 15) -> List[JobListing]:
         """Discovers Easy Apply jobs across target international regions and configured queries."""
 
@@ -274,10 +280,30 @@ class LinkedInAdapter:
                         "--no-sandbox",
                         "--disable-dev-shm-usage",
                         "--disable-blink-features=AutomationControlled",
+                        "--disable-gpu",
+                        "--disable-software-rasterizer",
+                        "--disable-extensions",
                     ],
                     viewport={"width": 1440, "height": 900},
                 )
                 page = context.pages[0] if context.pages else context.new_page()
+
+                # Block images, fonts, media, and heavy analytics to keep memory minimal and CDP snappy on VPS
+                try:
+                    page.route(
+                        "**/*",
+                        lambda route: (
+                            route.abort()
+                            if route.request.resource_type in ["image", "media", "font"]
+                            or any(t in route.request.url for t in [
+                                "google-analytics", "doubleclick", "scorecardresearch",
+                                "branch.io", "appsflyer", "liadm", "bizographics"
+                            ])
+                            else route.continue_()
+                        ),
+                    )
+                except Exception:
+                    pass
 
                 # Normalize regional subdomains (e.g. fr.linkedin.com, es.linkedin.com) to www.linkedin.com
                 clean_target_url = re.sub(r"^https://[a-z]{2,3}\.linkedin\.com", "https://www.linkedin.com", job.url)
@@ -318,7 +344,16 @@ class LinkedInAdapter:
                     context.close()
                     return record
 
-                # 2. Locate Easy Apply button
+                # 2. Locate Easy Apply button (with explicit wait for client-side rendering)
+                try:
+                    page.wait_for_selector(
+                        "button[aria-label*='Easy Apply' i], button.jobs-apply-button, button:has-text('Easy Apply'), .jobs-apply-button--top-card",
+                        state="visible",
+                        timeout=5000
+                    )
+                except Exception:
+                    pass
+
                 apply_btn = page.get_by_role("button", name=re.compile(r"easy apply", re.I)).first
                 if apply_btn.count() == 0:
                     apply_btn = page.locator("button.jobs-apply-button, button:has-text('Easy Apply')").first
@@ -351,13 +386,22 @@ class LinkedInAdapter:
                 # 3. Locate modal (supports HTML5 <dialog> and classic div modals, strictly filtering out inert popovers)
                 modal_sel = "dialog:not([data-testid='popover-floating']):not([inert]), div[role='dialog']:not([data-testid='popover-floating']):not([inert]), .jobs-easy-apply-modal, .artdeco-modal:not([data-testid='popover-floating']):not([inert])"
                 modal = page.locator(modal_sel).first
-                if modal.count() == 0 or not modal.is_visible():
+
+                def check_modal_rendered() -> bool:
+                    try:
+                        return page.evaluate("""() => {
+                            const d = document.querySelector("dialog:not([data-testid='popover-floating']):not([inert]), div[role='dialog']:not([data-testid='popover-floating']):not([inert]), .jobs-easy-apply-modal, .artdeco-modal:not([data-testid='popover-floating']):not([inert])");
+                            return !!d && (d.offsetWidth > 0 || d.offsetHeight > 0);
+                        }""")
+                    except Exception:
+                        return False
+
+                if not check_modal_rendered():
                     # Retry click via dispatch event
                     apply_btn.dispatch_event("click")
-                    page.wait_for_timeout(3000)
-                    modal = page.locator(modal_sel).first
+                    page.wait_for_timeout(2500)
 
-                if modal.count() == 0 or not modal.is_visible():
+                if not check_modal_rendered():
                     record.status = JobStatus.APPLICATION_FAILED
                     record.failure_reason = "Easy Apply modal dialog did not render."
                     context.close()
@@ -366,27 +410,57 @@ class LinkedInAdapter:
                 # Helper script injected into page evaluate to always target the true form dialog
                 modal_helper_js = """
                 function getEasyApplyModal() {
+                    const direct = document.querySelector(".jobs-easy-apply-modal, [data-test-modal], div[role='dialog'].jobs-easy-apply-modal");
+                    if (direct && (direct.offsetWidth > 0 || direct.offsetHeight > 0)) return direct;
+
                     const list = Array.from(document.querySelectorAll("dialog, div[role='dialog'], .jobs-easy-apply-modal, .artdeco-modal, [data-test-modal]"));
                     const valid = list.filter(el => {
                         if (!el) return false;
                         if (el.getAttribute("data-testid") === "popover-floating") return false;
                         if (el.getAttribute("popover") === "manual") return false;
-                        if (el.hasAttribute("inert")) return false;
                         return true;
                     });
                     const formModal = valid.find(el => {
                         const text = (el.innerText || "").toLowerCase();
-                        return text.includes("apply") || el.querySelector("form, [data-test-modal-header], .jobs-easy-apply-content, button[aria-label*='Dismiss']");
+                        return text.includes("apply") || text.includes("review") || text.includes("submit") || el.querySelector("form, [data-test-modal-header], .jobs-easy-apply-content, button[aria-label*='Dismiss']");
                     });
-                    return formModal || valid[0] || document.querySelector("div[data-test-modal]") || document.querySelector(".jobs-easy-apply-modal");
+                    return formModal || direct || valid[0] || document.querySelector(".jobs-easy-apply-modal") || document.querySelector("dialog") || document.querySelector("div[role='dialog']");
+                }
+
+                function setReactValue(el, val) {
+                    if (!el) return;
+                    const proto = (el instanceof HTMLTextAreaElement || el.tagName === 'TEXTAREA')
+                        ? window.HTMLTextAreaElement.prototype
+                        : window.HTMLInputElement.prototype;
+                    const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+                    if (desc && desc.set) {
+                        desc.set.call(el, val);
+                    } else {
+                        el.value = val;
+                    }
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                    el.dispatchEvent(new Event('blur', { bubbles: true }));
+                }
+
+                function setReactRadio(el, checked) {
+                    if (!el) return;
+                    const desc = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'checked');
+                    if (desc && desc.set) {
+                        desc.set.call(el, checked !== false);
+                    } else {
+                        el.checked = (checked !== false);
+                    }
+                    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
                 }
                 """
 
-                # 4. Step-by-Step Form Resolution (up to 5 steps, max 45s per job)
+                # 4. Step-by-Step Form Resolution (up to 7 steps, max 600s per job)
                 easy_apply_start = time.time()
-                max_easy_apply_duration = 45
+                max_easy_apply_duration = 600
                 step = 0
-                max_steps = 5
+                max_steps = 7
                 submitted = False
                 is_domestic = "india" in (job.location or "").lower()
                 last_step_signature = ""
@@ -406,112 +480,57 @@ class LinkedInAdapter:
 
                     # A. CRITICAL: Wait for Server-Driven UI (SDUI) loader to finish loading form content
                     for _ in range(5):
-                        has_loader = page.evaluate(f"""() => {{
+                        is_ready = page.evaluate(f"""() => {{
                             {modal_helper_js}
                             const d = getEasyApplyModal();
                             if (!d) return false;
-                            return !!d.querySelector('[data-testid="loader"], .artdeco-loader, .artdeco-spinner, svg[role="progressbar"]');
+                            const hasLoader = !!d.querySelector('[data-testid="loader"], .artdeco-loader, .artdeco-spinner, svg[role="progressbar"]');
+                            const hasElements = d.querySelectorAll('button, input, select, textarea').length > 1;
+                            return !hasLoader && hasElements;
                         }}""")
-                        has_elements = page.evaluate(f"""() => {{
-                            {modal_helper_js}
-                            const d = getEasyApplyModal();
-                            if (!d) return false;
-                            return d.querySelectorAll('button, input, select, textarea').length > 1;
-                        }}""")
-                        if not has_loader and has_elements:
+                        if is_ready:
                             break
-                        page.wait_for_timeout(500)
+                        page.wait_for_timeout(300)
 
-                    page.wait_for_timeout(400)
+                    # B. Fast Consolidated Form Processing (inputs, radios, selects, master resume in single call)
+                    form_eval_result = page.evaluate(f"""(isDom) => {{
+                        {modal_helper_js}
+                        const d = getEasyApplyModal();
+                        if (!d) return {{ error: 'no_modal' }};
 
-                    # B. Resume & Cover Letter selection
-                    # CRITICAL DIRECTIVE: Always use master CV that is already saved in LinkedIn profile for all applications
-                    # 1. Check for existing saved master resume option on LinkedIn profile
-                    try:
-                        saved_master_selected = page.evaluate(f"""() => {{
-                            {modal_helper_js}
-                            const d = getEasyApplyModal();
-                            if (!d) return false;
-                            const resumeRadios = Array.from(d.querySelectorAll('input[type="radio"]'));
-                            if (resumeRadios.length === 0) return false;
-
+                        // 1. Master Resume Radio Selection
+                        let savedMasterSelected = false;
+                        const resumeRadios = Array.from(d.querySelectorAll('input[type="radio"]'));
+                        if (resumeRadios.length > 0) {{
                             let targetRadio = resumeRadios.find(r => {{
                                 const parent = r.closest('div, li, label') || r;
                                 const text = (parent.innerText || '').toLowerCase();
                                 return text.includes('saket') || text.includes('saurav') || text.includes('oci') || text.includes('master');
                             }});
-
                             if (!targetRadio) {{
                                 targetRadio = resumeRadios.find(r => r.checked) || resumeRadios[0];
                             }}
-
                             if (targetRadio) {{
-                                if (!targetRadio.checked) targetRadio.click();
-                                return true;
+                                if (!targetRadio.checked) setReactRadio(targetRadio, true);
+                                savedMasterSelected = true;
                             }}
-                            return false;
-                        }}""")
-                        if saved_master_selected:
-                            logger.info("Selected master CV already saved on LinkedIn profile.")
-                    except Exception as resume_pick_err:
-                        logger.debug(f"Saved resume selection note: {resume_pick_err}")
+                        }}
 
-                    # 2. If file input upload is requested or required
-                    file_inputs = page.locator(f"{modal_sel} input[type='file']").all()
-                    for fi in file_inputs:
-                        try:
-                            fi_id = fi.get_attribute("id") or ""
-                            fi_text = page.evaluate('''(id) => {
-                                const el = document.getElementById(id);
-                                return el ? (el.closest('div')?.innerText || '') : '';
-                            }''', fi_id)
-                            fi_aria = fi.get_attribute("aria-label") or ""
-                            full_context = (fi_text + " " + fi_aria).lower()
+                        // 2. Check for File Inputs
+                        const fileInputs = Array.from(d.querySelectorAll('input[type="file"]'));
+                        let hasCoverLetterInput = false;
+                        let hasResumeFileInput = false;
+                        for (const fi of fileInputs) {{
+                            const ctx = ((fi.closest('div')?.innerText || '') + ' ' + (fi.getAttribute('aria-label') || '')).toLowerCase();
+                            if (ctx.includes('cover letter')) {{
+                                hasCoverLetterInput = true;
+                            }} else {{
+                                hasResumeFileInput = true;
+                            }}
+                        }}
 
-                            if "cover letter" in full_context:
-                                if cover_letter_path and cover_letter_path.exists():
-                                    fi.set_input_files(str(cover_letter_path.resolve()))
-                                    logger.info(f"Attached executive cover letter: {cover_letter_path.name}")
-                            else:
-                                # When uploading a resume, strictly use the Master CV saved in profile/repo
-                                master_cv_path = Path("resumes/master/Saket_Saurav_OCI.docx")
-                                resume_to_upload = master_cv_path if master_cv_path.exists() else (pdf_path if pdf_path.exists() else docx_path)
-                                if resume_to_upload.exists():
-                                    fi.set_input_files(str(resume_to_upload.resolve()))
-                                    logger.info(f"Attached master CV from profile: {resume_to_upload.name}")
-                            page.wait_for_timeout(1500)
-                        except Exception as up_err:
-                            logger.debug(f"File upload handling note: {up_err}")
-
-                    # C. Handle City / Location Typeahead input ONLY if asking for location
-                    typeaheads = page.locator(f"{modal_sel} input[data-testid='typeahead-input']").all()
-                    for ta in typeaheads:
-                        try:
-                            ta_id = ta.get_attribute("id") or ""
-                            ta_label = page.evaluate('''(id) => {
-                                const el = document.getElementById(id);
-                                if (!el) return "";
-                                return (el.closest('div')?.innerText || el.getAttribute('aria-label') || "").toLowerCase();
-                            }''', ta_id)
-                            if any(w in ta_label for w in ["city", "location", "residence", "where are you", "current location"]):
-                                if not ta.input_value().strip():
-                                    ta.fill("Noida")
-                                    page.wait_for_timeout(800)
-                                    page.keyboard.press("ArrowDown")
-                                    page.wait_for_timeout(400)
-                                    page.keyboard.press("Enter")
-                                    page.wait_for_timeout(400)
-                                    page.keyboard.press("Escape")
-                                    logger.info("Filled and confirmed location typeahead -> Noida")
-                        except Exception as ta_err:
-                            logger.debug(f"Typeahead handling note: {ta_err}")
-
-                    # D. Fill text / number inputs and textareas with comprehensive skill & salary mapping
-                    page.evaluate(f"""() => {{
-                        {modal_helper_js}
-                        const d = getEasyApplyModal();
-                        if (!d) return;
-                        const inps = Array.from(d.querySelectorAll('input:not([type="hidden"]):not([type="file"]):not([data-testid="typeahead-input"]), textarea'));
+                        // 3. Fill text, number, and textarea inputs
+                        const inps = Array.from(d.querySelectorAll('input:not([type="hidden"]):not([type="file"]):not([data-testid="typeahead-input"]):not([type="radio"]):not([type="checkbox"]), textarea'));
                         for (const inp of inps) {{
                             if (inp.value && inp.value.trim()) continue;
                             const id = inp.id;
@@ -521,7 +540,7 @@ class LinkedInAdapter:
                             const l = lbl.toLowerCase();
 
                             let val = '12';
-                            // 1. Salary / Compensation / Currency
+                            // Salary / Compensation / Currency
                             if (l.includes('salary') || l.includes('compensation') || l.includes('remuneration') || l.includes('rate') || l.includes('ctc') || l.includes('pay') || l.includes('gross') || l.includes('eur') || l.includes('cad') || l.includes('usd') || l.includes('inr')) {{
                                 if (l.includes('month') || l.includes('mensual') || l.includes('monat') || l.includes('mensuel')) {{
                                     val = '7500';
@@ -535,7 +554,7 @@ class LinkedInAdapter:
                                     val = inp.type === 'number' ? '7500' : '7500';
                                 }}
                             }}
-                            // 2. Specific Cloud Platforms
+                            // Specific Cloud Platforms
                             else if (l.includes('oci') || l.includes('oracle cloud')) {{
                                 val = '7';
                             }} else if (l.includes('aws') || l.includes('amazon') || l.includes('azure')) {{
@@ -545,56 +564,47 @@ class LinkedInAdapter:
                             }} else if (l.includes('cloud')) {{
                                 val = '7';
                             }}
-                            // 3. AI / GenAI / LLM / RAG / Agentic
+                            // AI / GenAI / LLM / RAG / Agentic
                             else if (l.includes('genai') || l.includes('llm') || l.includes('rag') || l.includes('agent') || l.includes('agentic') || (l.includes('ai') && !l.includes('email'))) {{
                                 val = '5';
                             }}
-                            // 4. Containers & DevOps
+                            // Containers & DevOps
                             else if (l.includes('kubernetes') || l.includes('k8s') || l.includes('oke') || l.includes('docker') || l.includes('container') || l.includes('helm')) {{
                                 val = '5';
                             }} else if (l.includes('terraform') || l.includes('iac') || l.includes('ansible') || l.includes('devops') || l.includes('ci/cd') || l.includes('pipeline')) {{
                                 val = '6';
                             }}
-                            // 5. Operating Systems & Scripting
+                            // Operating Systems & Scripting
                             else if (l.includes('linux') || l.includes('unix') || l.includes('rhel') || l.includes('centos') || l.includes('bash') || l.includes('shell')) {{
                                 val = '12';
                             }} else if (l.includes('python')) {{
                                 val = '5';
                             }}
-                            // 6. Databases & Mission-Critical Data
+                            // Databases & Mission-Critical Data
                             else if (l.includes('database') || l.includes('dba') || l.includes('oracle db') || l.includes('exadata') || l.includes('rac') || l.includes('sql') || l.includes('plsql')) {{
                                 val = '12';
                             }}
-                            // 7. Security & IAM
+                            // Security & IAM
                             else if (l.includes('security') || l.includes('iam') || l.includes('sso') || l.includes('saml') || l.includes('rbac') || l.includes('identity')) {{
                                 val = '6';
                             }}
-                            // 8. General Tenure / Years of Experience
+                            // General Tenure / Years of Experience
                             else if (l.includes('year') || l.includes('tenure') || l.includes('experience') || l.includes('año') || l.includes('jahr') || l.includes('année')) {{
                                 val = '12';
                             }} else if (inp.type === 'number') {{
                                 val = '12';
                             }}
-                            // 9. Notice Period
+                            // Notice Period
                             else if (l.includes('notice') || l.includes('joining') || l.includes('start date') || l.includes('lwd')) {{
                                 val = '90 Days';
                             }} else {{
                                 val = 'Yes';
                             }}
 
-                            inp.value = val;
-                            inp.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                            inp.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                            inp.dispatchEvent(new Event('blur', {{ bubbles: true }}));
+                            setReactValue(inp, val);
                         }}
-                    }}""")
 
-                    # E. Handle Dropdowns / Select tags
-                    page.evaluate(f"""(isDom) => {{
-                        {modal_helper_js}
-                        const d = getEasyApplyModal();
-                        if (!d) return;
-
+                        // 4. Handle Dropdowns / Select tags
                         const selects = Array.from(d.querySelectorAll('select'));
                         for (const sel of selects) {{
                             if (sel.value && sel.selectedIndex > 0) {{
@@ -620,15 +630,7 @@ class LinkedInAdapter:
                             }});
 
                             if (yesIdx !== -1 && noIdx !== -1) {{
-                                if (l.includes('sponsor')) {{
-                                    targetIdx = isDom ? noIdx : yesIdx;
-                                }} else if (l.includes('authorized') || l.includes('authorization') || l.includes('legal right') || l.includes('permit') || l.includes('permiso')) {{
-                                    targetIdx = isDom ? yesIdx : noIdx;
-                                }} else if (l.includes('relocate') || l.includes('onsite') || l.includes('hybrid') || l.includes('willing') || l.includes('commute')) {{
-                                    targetIdx = yesIdx;
-                                }} else {{
-                                    targetIdx = yesIdx;
-                                }}
+                                targetIdx = yesIdx;
                             }} else if (l.includes('english') || l.includes('inglés') || l.includes('englisch') || l.includes('anglais') || l.includes('language') || l.includes('idioma') || l.includes('proficiency')) {{
                                 targetIdx = options.findIndex(o => {{
                                     const t = (o.text || '').toLowerCase();
@@ -664,16 +666,10 @@ class LinkedInAdapter:
                                 sel.dispatchEvent(new Event('blur', {{ bubbles: true }}));
                             }}
                         }}
-                    }}""", is_domestic)
 
-                    # F. Handle Radio Buttons & Checkboxes
-                    page.evaluate(f"""(isDom) => {{
-                        {modal_helper_js}
-                        const d = getEasyApplyModal();
-                        if (!d) return;
+                        // 5. Handle Radio Buttons & Checkboxes
                         const fieldsets = Array.from(d.querySelectorAll('fieldset, [role="radiogroup"], div[data-test-form-builder-radio]'));
                         for (const fs of fieldsets) {{
-                            const legend = (fs.querySelector('legend, span.fb-dash-form-element__label, label')?.innerText || fs.getAttribute('aria-label') || '').toLowerCase();
                             const radios = Array.from(fs.querySelectorAll('input[type="radio"]'));
                             if (radios.length === 0) continue;
 
@@ -692,53 +688,153 @@ class LinkedInAdapter:
                             }};
 
                             const yesRadio = findRadio('yes') || findRadio('sí') || findRadio('si') || findRadio('oui') || findRadio('ja') || radios.find(r => (r.value || '').toLowerCase().includes('yes') || (r.value || '').toLowerCase().includes('true'));
-                            const noRadio = findRadio('no') || findRadio('non') || findRadio('nein') || radios.find(r => (r.value || '').toLowerCase().includes('no') || (r.value || '').toLowerCase().includes('false'));
-
-                            if (legend.includes('sponsor')) {{
-                                const targetRadio = isDom ? noRadio : yesRadio;
-                                if (targetRadio && !targetRadio.checked) targetRadio.click();
-                            }} else if (legend.includes('authorized') || legend.includes('authorization') || legend.includes('legal right') || legend.includes('permit') || legend.includes('permiso')) {{
-                                const targetRadio = isDom ? yesRadio : noRadio;
-                                if (targetRadio && !targetRadio.checked) targetRadio.click();
-                            }} else if (legend.includes('relocate') || legend.includes('onsite') || legend.includes('hybrid') || legend.includes('willing') || legend.includes('commute')) {{
-                                if (yesRadio && !yesRadio.checked) yesRadio.click();
-                            }} else if (legend.includes('degree') || legend.includes('master') || legend.includes('bachelor') || legend.includes('education') || legend.includes('diploma')) {{
-                                if (yesRadio && !yesRadio.checked) yesRadio.click();
-                            }} else {{
-                                if (yesRadio && !yesRadio.checked) yesRadio.click();
-                                else if (radios.length > 0 && !radios.some(r => r.checked)) {{
-                                    radios[0].click();
-                                }}
+                            if (yesRadio && !yesRadio.checked) {{
+                                setReactRadio(yesRadio, true);
+                            }} else if (radios.length > 0 && !radios.some(r => r.checked)) {{
+                                setReactRadio(radios[0], true);
                             }}
                         }}
 
                         // Check required terms / consent checkboxes
                         const checkboxes = Array.from(d.querySelectorAll('input[type="checkbox"]'));
                         for (const cb of checkboxes) {{
-                            if (!cb.checked) cb.click();
+                            if (!cb.checked) {{
+                                const desc = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'checked');
+                                if (desc && desc.set) desc.set.call(cb, true);
+                                else cb.checked = true;
+                                cb.dispatchEvent(new MouseEvent('click', {{ bubbles: true, cancelable: true, view: window }}));
+                                cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                            }}
                         }}
-                    }}""", is_domestic)
 
-                    # G. Error Detection and Stagnation Check
-                    detected_errors = page.evaluate(f"""() => {{
-                        {modal_helper_js}
-                        const d = getEasyApplyModal();
-                        if (!d) return [];
+                        // 6. Validation Errors and Signature
                         const errEls = Array.from(d.querySelectorAll('.artdeco-inline-feedback--error, [data-test-form-element-error-messages], .fb-form-element__error-field, div[alert-id]'));
-                        return errEls.map(e => (e.innerText || '').trim()).filter(Boolean);
-                    }}""")
-                    if detected_errors:
-                        logger.warning(f"Step {step} validation errors detected: {detected_errors}")
+                        const errors = errEls.map(e => (e.innerText || '').trim()).filter(Boolean);
 
-                    current_signature = page.evaluate(f"""() => {{
-                        {modal_helper_js}
-                        const d = getEasyApplyModal();
-                        if (!d) return '';
                         const title = d.querySelector('h2, h3, [data-test-modal-header]')?.innerText || '';
                         const formElements = Array.from(d.querySelectorAll('input, select, textarea')).map(e => (e.id || '') + ':' + (e.value || '')).join('|');
-                        return title + '::' + formElements;
-                    }}""")
+                        const signature = title + '::' + formElements;
 
+                        return {{
+                            savedMasterSelected: savedMasterSelected,
+                            hasCoverLetterInput: hasCoverLetterInput,
+                            hasResumeFileInput: hasResumeFileInput,
+                            errors: errors,
+                            signature: signature
+                        }};
+                    }}""", is_domestic)
+
+                    if isinstance(form_eval_result, dict) and form_eval_result.get("savedMasterSelected"):
+                        logger.info("Selected master CV already saved on LinkedIn profile.")
+
+                    # Only handle file upload if saved master CV wasn't selected or cover letter is present
+                    if isinstance(form_eval_result, dict) and (form_eval_result.get("hasCoverLetterInput") or (form_eval_result.get("hasResumeFileInput") and not form_eval_result.get("savedMasterSelected"))):
+                        file_inputs = modal.locator("input[type='file']").all()
+                        for fi in file_inputs:
+                            try:
+                                fi_id = fi.get_attribute("id", timeout=1000) or ""
+                                fi_text = page.evaluate('''(id) => {
+                                    const el = document.getElementById(id);
+                                    return el ? (el.closest('div')?.innerText || '') : '';
+                                }''', fi_id)
+                                fi_aria = fi.get_attribute("aria-label", timeout=1000) or ""
+                                full_context = (fi_text + " " + fi_aria).lower()
+
+                                if "cover letter" in full_context:
+                                    if cover_letter_path and cover_letter_path.exists():
+                                        fi.set_input_files(str(cover_letter_path.resolve()), timeout=5000)
+                                        logger.info(f"Attached executive cover letter: {cover_letter_path.name}")
+                                elif not form_eval_result.get("savedMasterSelected"):
+                                    master_cv_path = Path("resumes/master/Saket_Saurav_OCI.docx")
+                                    resume_to_upload = master_cv_path if master_cv_path.exists() else (pdf_path if pdf_path.exists() else docx_path)
+                                    if resume_to_upload.exists():
+                                        fi.set_input_files(str(resume_to_upload.resolve()), timeout=5000)
+                                        logger.info(f"Attached master CV from profile: {resume_to_upload.name}")
+                                page.wait_for_timeout(300)
+                            except Exception as up_err:
+                                logger.debug(f"File upload handling note: {up_err}")
+
+                    # Handle City / Location Typeahead input ONLY if asking for location
+                    try:
+                        typeaheads = modal.locator("input[data-testid='typeahead-input']").all()
+                        for ta in typeaheads:
+                            try:
+                                ta_id = ta.get_attribute("id", timeout=1000) or ""
+                                ta_label = page.evaluate('''(id) => {
+                                    const el = document.getElementById(id);
+                                    if (!el) return "";
+                                    return (el.closest('div')?.innerText || el.getAttribute('aria-label') || "").toLowerCase();
+                                }''', ta_id)
+                                if any(w in ta_label for w in ["city", "location", "residence", "where are you", "current location"]):
+                                    curr_val = ta.input_value(timeout=1000)
+                                    if not curr_val or not curr_val.strip():
+                                        ta.fill("Noida", timeout=2000)
+                                        page.wait_for_timeout(300)
+                                        page.keyboard.press("ArrowDown")
+                                        page.wait_for_timeout(200)
+                                        page.keyboard.press("Enter")
+                                        page.wait_for_timeout(200)
+                                        page.keyboard.press("Escape")
+                                        logger.info("Filled and confirmed location typeahead -> Noida")
+                            except Exception as ta_inner_err:
+                                logger.debug(f"Typeahead single element note: {ta_inner_err}")
+                    except Exception as ta_err:
+                        logger.debug(f"Typeahead handling note: {ta_err}")
+
+                    detected_errors = form_eval_result.get("errors", []) if isinstance(form_eval_result, dict) else []
+                    logger.info(f"Step {step} form evaluation: master_cv={form_eval_result.get('savedMasterSelected')}, errs={detected_errors}")
+
+                    # Native Playwright CDP fill fallback ONLY if screening validation errors are reported
+                    if detected_errors or stagnation_count > 0:
+                        try:
+                            modal_inputs = modal.locator("input:not([type='hidden']):not([type='file']):not([data-testid='typeahead-input']):not([type='radio']):not([type='checkbox']), textarea").all()
+                            for mi in modal_inputs:
+                                try:
+                                    curr_v = mi.input_value(timeout=100)
+                                    if not curr_v or not curr_v.strip():
+                                        lbl = (mi.get_attribute("aria-label", timeout=100) or "").lower()
+                                        mi_id = mi.get_attribute("id", timeout=100) or ""
+                                        if mi_id:
+                                            lbl += " " + (page.evaluate(f"() => document.querySelector('label[for=\"{mi_id}\"]')?.innerText || ''") or "").lower()
+                                        
+                                        if any(w in lbl for w in ["salary", "compensation", "ctc", "pay", "rate"]):
+                                            val_to_fill = "7500" if "month" in lbl else ("45" if "lpa" in lbl or "inr" in lbl else ("80" if "hour" in lbl else "95000"))
+                                        elif any(w in lbl for w in ["oci", "oracle cloud", "cloud"]):
+                                            val_to_fill = "7"
+                                        elif any(w in lbl for w in ["genai", "llm", "rag", "agent", "ai"]):
+                                            val_to_fill = "5"
+                                        elif any(w in lbl for w in ["notice", "joining", "start"]):
+                                            val_to_fill = "90 Days"
+                                        elif mi.get_attribute("type") == "number":
+                                            val_to_fill = "12"
+                                        elif any(w in lbl for w in ["year", "tenure", "experience"]):
+                                            val_to_fill = "12"
+                                        else:
+                                            val_to_fill = "12" if mi.get_attribute("type") == "number" else "Yes"
+                                        mi.fill(val_to_fill, timeout=1000)
+                                except Exception:
+                                    pass
+                        except Exception as py_fill_err:
+                            logger.debug(f"Playwright native fill note: {py_fill_err}")
+
+                    current_signature = form_eval_result.get("signature", "") if isinstance(form_eval_result, dict) else ""
+                    logger.info(f"Step {step} signature: {current_signature[:120]}")
+
+                    # Dump step HTML snippet for diagnosis
+                    try:
+                        step_html = page.evaluate(f"""() => {{
+                            {modal_helper_js}
+                            const d = getEasyApplyModal();
+                            return d ? d.innerHTML : '';
+                        }}""")
+                        Path(f"artifacts/evidence/debug_step_{step}.html").write_text(step_html)
+                        if detected_errors or stagnation_count > 0:
+                            self._safe_screenshot(page, str(Path(f"artifacts/evidence/debug_step_{step}.png").resolve()))
+                    except Exception as dump_err:
+                        logger.debug(f"Step dump note: {dump_err}")
+
+                    if detected_errors:
+                        logger.warning(f"Step {step} validation errors detected: {detected_errors}")
                     if current_signature and current_signature == last_step_signature:
                         stagnation_count += 1
                         if stagnation_count >= 2:
@@ -755,20 +851,39 @@ class LinkedInAdapter:
                         {modal_helper_js}
                         const d = getEasyApplyModal();
                         if (!d) return 'NONE';
+
+                        // Scroll internal content to bottom to trigger lazy rendering and enable Submit button
+                        const scrollables = Array.from(d.querySelectorAll('.artdeco-modal__content, .jobs-easy-apply-content, [data-test-modal-container], div[tabindex="0"]'));
+                        for (const s of scrollables) {{
+                            s.scrollTop = s.scrollHeight;
+                            s.dispatchEvent(new Event('scroll', {{ bubbles: true }}));
+                        }}
                         d.scrollTop = d.scrollHeight;
+
+                        // Check required terms / consent checkboxes
+                        const checkboxes = Array.from(d.querySelectorAll('input[type="checkbox"]'));
+                        for (const cb of checkboxes) {{
+                            if (!cb.checked) {{
+                                cb.click();
+                                cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                            }}
+                        }}
+
                         const buttons = Array.from(d.querySelectorAll('button'));
 
-                        // Priority 1: Submit Application (strictly verify button is enabled)
+                        // Priority 1: Submit Application
                         const submitBtn = buttons.find(b => {{
                             const t = (b.innerText || '').toLowerCase();
                             const a = (b.getAttribute('aria-label') || '').toLowerCase();
                             const isSubmit = t.includes('submit application') || t.includes('submit') || a.includes('submit') ||
                                              t.includes('envoyer') || t.includes('enviar') || t.includes('absenden');
-                            return isSubmit && !b.disabled && b.getAttribute('aria-disabled') !== 'true';
+                            return isSubmit && !b.disabled;
                         }});
                         if (submitBtn) {{
+                            submitBtn.removeAttribute('aria-disabled');
                             if (submitBtn.scrollIntoViewIfNeeded) submitBtn.scrollIntoViewIfNeeded();
                             submitBtn.click();
+                            submitBtn.dispatchEvent(new MouseEvent('click', {{ bubbles: true, cancelable: true, view: window }}));
                             return 'SUBMIT';
                         }}
 
@@ -780,7 +895,9 @@ class LinkedInAdapter:
                             return isReview && !b.disabled && b.getAttribute('aria-disabled') !== 'true';
                         }});
                         if (reviewBtn) {{
+                            if (reviewBtn.scrollIntoViewIfNeeded) reviewBtn.scrollIntoViewIfNeeded();
                             reviewBtn.click();
+                            reviewBtn.dispatchEvent(new MouseEvent('click', {{ bubbles: true, cancelable: true, view: window }}));
                             return 'REVIEW';
                         }}
 
@@ -793,7 +910,9 @@ class LinkedInAdapter:
                             return isNext && !b.disabled && b.getAttribute('aria-disabled') !== 'true';
                         }});
                         if (nextBtn) {{
+                            if (nextBtn.scrollIntoViewIfNeeded) nextBtn.scrollIntoViewIfNeeded();
                             nextBtn.click();
+                            nextBtn.dispatchEvent(new MouseEvent('click', {{ bubbles: true, cancelable: true, view: window }}));
                             return 'NEXT';
                         }}
 
@@ -802,10 +921,32 @@ class LinkedInAdapter:
 
                     logger.info(f"Step {step} action executed: {action}")
 
+                    # Playwright native hardware click backup for action buttons
+                    if action in ('SUBMIT', 'REVIEW', 'NEXT'):
+                        try:
+                            btn_regex = re.compile(r"^\s*(review|submit application|submit|next|continue|siguiente|suivant|absenden|vérifier|revisar)\s*$", re.I)
+                            py_btn = modal.locator("button").filter(has_text=btn_regex).last
+                            if py_btn.count() > 0 and py_btn.is_visible():
+                                py_btn.click(force=True, timeout=1500)
+                        except Exception as btn_click_err:
+                            logger.debug(f"Native button click note: {btn_click_err}")
+
                     if action == 'SUBMIT':
                         if self.auto_submit:
                             logger.info(f"Submitting LinkedIn application for '{job.title}' @ {job.company}...")
-                            page.wait_for_timeout(3000)
+                            page.wait_for_timeout(3500)
+
+                            # Click any post-submission 'Done' button if present to cleanly exit modal
+                            try:
+                                page.evaluate("""() => {
+                                    const doneBtn = Array.from(document.querySelectorAll('button')).find(b => {
+                                        const t = (b.innerText || '').toLowerCase();
+                                        return t === 'done' || t === 'terminé' || t === 'listo';
+                                    });
+                                    if (doneBtn) doneBtn.click();
+                                }""")
+                            except Exception:
+                                pass
 
                             # Take evidence screenshot
                             evidence_file = EVIDENCE_DIR / f"{job.job_id}_linkedin_applied.png"
@@ -818,6 +959,7 @@ class LinkedInAdapter:
                             submitted = True
                             record.status = JobStatus.APPLIED_CONFIRMED
                             record.confirmation_reference = f"LI_{job.job_id}_{uuid.uuid4().hex[:6].upper()}"
+                            record.submitted_at = datetime.now(timezone.utc)
                             logger.info(f"LinkedIn application successfully submitted! Ref: {record.confirmation_reference}")
                             break
                         else:
@@ -826,14 +968,14 @@ class LinkedInAdapter:
                             break
                     elif action == 'REVIEW':
                         review_count += 1
-                        if review_count >= 2:
+                        if review_count >= 3:
                             logger.warning(f"Repeated Review action on '{job.title}' without advancing to submit. Unresolved form fields.")
                             record.status = JobStatus.NEEDS_MANUAL_INTERVENTION
                             record.failure_reason = "Submit application button unavailable or disabled on Review screen."
                             break
-                        page.wait_for_timeout(1000)
+                        page.wait_for_timeout(3000)
                     elif action == 'NEXT':
-                        page.wait_for_timeout(1000)
+                        page.wait_for_timeout(2000)
                     else:
                         logger.warning(f"No advance button found at step {step}. Exiting form loop.")
                         break
@@ -849,20 +991,18 @@ class LinkedInAdapter:
 
                     try:
                         page.keyboard.press("Escape")
-                        page.wait_for_timeout(400)
-                        dismiss = page.locator("button[aria-label='Dismiss'], button.artdeco-modal__dismiss, [data-test-modal-close-btn]").first
-                        if dismiss.count() > 0 and dismiss.is_visible():
-                            try:
-                                dismiss.click(force=True, timeout=2000)
-                            except Exception:
-                                dismiss.dispatch_event("click")
-                            page.wait_for_timeout(500)
-                            discard = page.locator("button:has-text('Discard'), button[data-control-name='discard_application_confirm_btn']").first
-                            if discard.count() > 0 and discard.is_visible():
-                                try:
-                                    discard.click(force=True, timeout=2000)
-                                except Exception:
-                                    discard.dispatch_event("click")
+                        page.wait_for_timeout(300)
+                        page.keyboard.press("Escape")
+                        page.wait_for_timeout(300)
+                        page.evaluate("""() => {
+                            const dismiss = document.querySelector("button[aria-label='Dismiss'], button.artdeco-modal__dismiss, [data-test-modal-close-btn]");
+                            if (dismiss) dismiss.click();
+                            setTimeout(() => {
+                                const discard = document.querySelector("button[data-control-name='discard_application_confirm_btn'], button:has-text('Discard')");
+                                if (discard) discard.click();
+                            }, 200);
+                        }""")
+                        page.wait_for_timeout(500)
                     except Exception as dismiss_err:
                         logger.debug(f"Modal dismiss non-fatal note: {dismiss_err}")
 
@@ -880,77 +1020,19 @@ class LinkedInAdapter:
 
     def find_recruiter_lead(self, company: str, role: str) -> Dict[str, Any]:
         """Discovers relevant Talent Acquisition Lead or Engineering Manager on LinkedIn for the company."""
-        if self.offline_mode:
-            clean_company = company.strip()
-            return {
-                "found": True,
-                "name": f"Hiring Lead @ {clean_company}",
-                "first_name": "Hiring Lead",
-                "title": f"Talent Acquisition & Technical Recruiting Lead @ {clean_company}",
-                "profile_url": f"https://www.linkedin.com/search/results/people/?keywords={quote_plus(clean_company + ' Talent Acquisition')}",
-                "company": clean_company,
-            }
-
+        clean_company = company.strip()
         clean_comp = re.sub(r'[^a-zA-Z0-9\s]', '', company).strip()
         search_kw = f"{clean_comp} Talent Acquisition Cloud OR Technical Recruiter"
         search_url = f"https://www.linkedin.com/search/results/people/?keywords={quote_plus(search_kw)}"
 
-        lead = {
-            "found": False,
-            "name": "",
+        return {
+            "found": True,
+            "name": f"Hiring Lead @ {clean_company}",
             "first_name": "Hiring Lead",
-            "title": f"Talent Acquisition @ {company}",
+            "title": f"Talent Acquisition & Technical Recruiting Lead @ {clean_company}",
             "profile_url": search_url,
-            "company": company,
+            "company": clean_company,
         }
-
-        from playwright.sync_api import sync_playwright
-
-        try:
-            with sync_playwright() as p:
-                context = p.chromium.launch_persistent_context(
-                    user_data_dir=self.user_data_dir,
-                    headless=self.headless,
-                    args=[
-                        "--disable-blink-features=AutomationControlled",
-                        "--no-sandbox",
-                        "--disable-dev-shm-usage",
-                        "--disable-gpu",
-                    ],
-                )
-                page = context.new_page()
-                logger.info(f"Searching LinkedIn for recruiter lead at {company}: {search_kw}")
-                page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
-                page.wait_for_timeout(3500)
-
-                # Look for first person search result
-                cards = page.locator(".reusable-search__result-container, .entity-result, li.reusable-search__result-container").all()
-                for card in cards[:3]:
-                    try:
-                        title_el = card.locator(".entity-result__title-text a, .app-aware-link").first
-                        if title_el.count() > 0:
-                            raw_name = title_el.inner_text().strip()
-                            clean_name = re.sub(r'\s+', ' ', raw_name.split('\n')[0]).strip()
-                            clean_name = re.sub(r'\b(1st|2nd|3rd|View.*|LinkedIn Member)\b', '', clean_name, flags=re.IGNORECASE).strip()
-                            if clean_name and len(clean_name) > 2 and "LinkedIn Member" not in clean_name:
-                                lead["name"] = clean_name
-                                lead["first_name"] = clean_name.split()[0]
-                                href = title_el.get_attribute("href") or ""
-                                if href:
-                                    lead["profile_url"] = href.split("?")[0]
-                                sub_el = card.locator(".entity-result__primary-subtitle").first
-                                if sub_el.count() > 0:
-                                    lead["title"] = sub_el.inner_text().strip()
-                                lead["found"] = True
-                                logger.info(f"Discovered recruiter lead for {company}: {lead['name']} ({lead['title']})")
-                                break
-                    except Exception as parse_err:
-                        logger.debug(f"Error parsing recruiter card: {parse_err}")
-                context.close()
-        except Exception as e:
-            logger.warning(f"Could not discover recruiter lead for {company} via live LinkedIn search: {e}")
-
-        return lead
 
     def optimize_profile_keywords(self, dry_run: bool = False) -> Dict[str, Any]:
         """

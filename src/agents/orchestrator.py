@@ -99,8 +99,8 @@ def check_submission_gates(
     if not is_remote and candidate_truth.candidate.willing_to_relocate:
         allowed_keywords = [
             "india", "noida", "gurgaon", "delhi", "bengaluru", "bangalore", "pune", "hyderabad",
-            "mumbai", "chennai", "europe", "uk", "germany", "netherlands", "switzerland",
-            "ireland", "sweden", "denmark", "norway", "finland", "australia", "zealand",
+            "mumbai", "chennai", "europe", "uk", "united kingdom", "london", "germany", "netherlands", "switzerland",
+            "ireland", "sweden", "denmark", "norway", "finland", "nordics", "malmo", "malmö", "australia", "zealand",
             "united states", "usa", "us", "canada", "singapore", "uae", "dubai"
         ]
         if not any(k in job_loc for k in allowed_keywords):
@@ -320,7 +320,21 @@ class Orchestrator:
                     logger.warning(f"ATS portal discovery note: {ats_err}")
 
                 # 2. QUALIFICATION & SCORING
-                eligible_jobs_pool = list(disc_result.eligible_jobs) + li_discovered_jobs + ats_discovered_jobs
+                # Include existing qualified and ready-for-retry opportunities from database to prevent opportunity starvation
+                db_unapplied = []
+                for status_candidate in [JobStatus.QUALIFIED, JobStatus.READY_FOR_RETRY, JobStatus.HIGH_MATCH]:
+                    for jm in job_repo.get_jobs_by_status(status_candidate):
+                        jl = jm.to_listing()
+                        if not app_repo.has_applied_to_job(jl.job_id) and not job_repo.is_already_applied(jl.job_id):
+                            db_unapplied.append(jl)
+
+                seen_pool_ids = set()
+                eligible_jobs_pool = []
+                for j in (list(disc_result.eligible_jobs) + li_discovered_jobs + ats_discovered_jobs + db_unapplied):
+                    if j.job_id not in seen_pool_ids:
+                        seen_pool_ids.add(j.job_id)
+                        eligible_jobs_pool.append(j)
+
                 qualifying_jobs = []
                 for job in eligible_jobs_pool:
                     score, evidence = qualification_agent.evaluate_job(job)
@@ -368,17 +382,11 @@ class Orchestrator:
                     linkedin_jobs.sort(key=lambda item: item[1].overall_score, reverse=True)
                     ats_jobs.sort(key=lambda item: item[1].overall_score, reverse=True)
 
-                    # Interleave opportunities across platforms to ensure balanced, diversified daily submissions
-                    interleaved = []
-                    max_len = max(len(naukri_jobs), len(linkedin_jobs), len(ats_jobs)) if (naukri_jobs or linkedin_jobs or ats_jobs) else 0
-                    for i in range(max_len):
-                        if i < len(naukri_jobs):
-                            interleaved.append(naukri_jobs[i])
-                        if i < len(linkedin_jobs):
-                            interleaved.append(linkedin_jobs[i])
-                        if i < len(ats_jobs):
-                            interleaved.append(ats_jobs[i])
-                    qualifying_jobs = interleaved
+                    # Strictly sequential pipeline per user directive:
+                    # Phase 1: Naukri direct applications run to full completion first.
+                    # Phase 2: LinkedIn Easy Apply applications run only after Naukri completes.
+                    # Phase 3: External ATS portals (Greenhouse/Lever) run last.
+                    qualifying_jobs = naukri_jobs + linkedin_jobs + ats_jobs
 
                 qualified_jobs_count = len(qualifying_jobs)
 
@@ -392,13 +400,31 @@ class Orchestrator:
                         break
 
                     # Guard against runaway attempts in case of repeated third-party errors
-                    max_attempts_ceiling = int(app_cfg.get("max_attempts_per_run", 35))
+                    max_attempts_ceiling = int(app_cfg.get("max_attempts_per_run", 60))
                     if applications_attempted >= max_attempts_ceiling:
                         logger.info(
                             f"Run attempt ceiling reached ({applications_attempted}/{max_attempts_ceiling}). "
                             "Wrapping up run to protect credentials and resources."
                         )
                         break
+
+                    # Check per-platform targets so neither platform is starved or hogs the quota
+                    is_li_job = (job.application_method == ApplicationMethod.LINKEDIN_EASY_APPLY or "linkedin" in (job.source_platform or "").lower())
+                    is_nk_job = ("naukri" in (job.source_platform or "").lower() and not is_li_job)
+
+                    max_nk_per_day = int(app_cfg.get("max_naukri_per_day", 15))
+                    max_li_per_day = int(self.config.get("linkedin", {}).get("max_applications_per_day", 15))
+                    target_nk = int(app_cfg.get("target_naukri_per_day", 10))
+                    target_li = int(app_cfg.get("target_linkedin_per_day", 10))
+
+                    if source_counts["Naukri"]["confirmed"] >= target_nk and source_counts["LinkedIn"]["confirmed"] >= target_li:
+                        logger.info(f"Target applications attained for all platforms (Naukri: {source_counts['Naukri']['confirmed']}, LinkedIn: {source_counts['LinkedIn']['confirmed']}). Run successfully completed.")
+                        break
+
+                    if is_nk_job and source_counts["Naukri"]["confirmed"] >= max_nk_per_day:
+                        continue
+                    if is_li_job and source_counts["LinkedIn"]["confirmed"] >= max_li_per_day:
+                        continue
 
                     # Enforce pipeline duration ceiling (time limit guard)
                     elapsed_now = (datetime.now(timezone.utc) - start_time).total_seconds()
@@ -496,7 +522,11 @@ class Orchestrator:
                         app_repo.record_application(rec)
                         job_repo.update_status(job.job_id, status)
                         session.commit()
-                    elif job.application_method == ApplicationMethod.LINKEDIN_EASY_APPLY and linkedin_adapter:
+                    elif (
+                        job.application_method in (ApplicationMethod.LINKEDIN_EASY_APPLY, "LINKEDIN_EASY_APPLY", "linkedin_easy_apply")
+                        or "linkedin" in (job.source_platform or "").lower()
+                        or "linkedin" in (job.url or "").lower()
+                    ) and linkedin_adapter:
                         rec = linkedin_adapter.apply_easy_apply(job, score, docx_path, pdf_path, cover_letter_path=cl_pdf_path)
                         status = rec.status
                         outcome_reason = rec.failure_reason

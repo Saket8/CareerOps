@@ -77,7 +77,7 @@ free -h >> "$LOG_FILE"
 # Run Autonomous Career Agent Pipeline (Mon-Fri)
 START_TIME=$(date +%s)
 set +e
-nice -n 10 "$PROJECT_DIR/venv/bin/python" "$PROJECT_DIR/main.py" "$@" >> "$LOG_FILE" 2>&1
+timeout 75m nice -n 10 "$PROJECT_DIR/venv/bin/python" "$PROJECT_DIR/main.py" "$@" >> "$LOG_FILE" 2>&1
 EXIT_CODE=$?
 set -e
 END_TIME=$(date +%s)
@@ -88,7 +88,7 @@ echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] CareerOps Run Completed in ${DURATIO
 # Post-Run Health Checkup, Failure Diagnosis & Autonomous Stabilization Healer
 echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] Starting Autonomous Post-Run Healer & Verification..." >> "$LOG_FILE"
 set +e
-nice -n 10 "$PROJECT_DIR/venv/bin/python" -m src.agents.post_run_healer --post-run >> "$LOG_FILE" 2>&1
+timeout 35m nice -n 10 "$PROJECT_DIR/venv/bin/python" -m src.agents.post_run_healer --post-run >> "$LOG_FILE" 2>&1
 HEALER_EXIT=$?
 set -e
 echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] Post-Run Healer Completed with exit code ${HEALER_EXIT}" >> "$LOG_FILE"

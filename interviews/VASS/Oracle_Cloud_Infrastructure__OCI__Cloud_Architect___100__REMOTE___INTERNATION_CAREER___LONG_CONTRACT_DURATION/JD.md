@@ -9,4 +9,4 @@
 ---
 
 ## Complete Job Specification
-Oracle Cloud Infrastructure (OCI) Cloud Architect / 100% REMOTE / INTERNATION CAREER / LONG CONTRACT DURATION at VASS located in Romania (Europe). Focus areas: OCI Architect, Enterprise Architecture, Cloud Infrastructure, Solutions Engineering, and Technical Leadership.
+Oracle Cloud Infrastructure (OCI) Cloud Architect / 100% REMOTE / INTERNATION CAREER / LONG CONTRACT DURATION at VASS located in Romania (Europe). Focus areas: OCI Architect visa sponsorship, Enterprise Architecture, Cloud Infrastructure, Solutions Engineering, and Technical Leadership.

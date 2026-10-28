@@ -20,5 +20,4 @@
 - **Verified GenAI CloudOps Dashboard, air-gapped ChatOps CLI & MCP server modernizations**
 
 ### Observed Market Signals
-- Observed keyword 'GENAI' explicitly mentioned in job description.
-- Compensation undisclosed by recruiter; accepted under compensation policy.
+

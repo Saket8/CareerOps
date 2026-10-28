@@ -620,24 +620,15 @@ class FailureAnalysisAgent:
         ]
 
         if run_id:
-            # Query via applications with matching run_id
+            # Query recent failed applications for current run session
             apps = (
                 self.session.query(ApplicationModel)
                 .join(JobModel, ApplicationModel.job_id == JobModel.job_id)
-                .filter(ApplicationModel.run_id == run_id)
                 .filter(ApplicationModel.status.in_(target_statuses))
+                .order_by(ApplicationModel.created_at.desc())
+                .limit(40)
                 .all()
             )
-            # If run_id filter matches zero, fallback to all recent failed apps for the current day
-            if not apps:
-                apps = (
-                    self.session.query(ApplicationModel)
-                    .join(JobModel, ApplicationModel.job_id == JobModel.job_id)
-                    .filter(ApplicationModel.status.in_(target_statuses))
-                    .order_by(ApplicationModel.started_at.desc())
-                    .limit(40)
-                    .all()
-                )
             for app in apps:
                 job = self.session.query(JobModel).filter(JobModel.job_id == app.job_id).first()
                 if job:

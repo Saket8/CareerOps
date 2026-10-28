@@ -98,20 +98,8 @@ class VisaRelocationGate:
         # Check if domestic India role
         loc = (job.location or "").lower()
         is_domestic = any(d in loc for d in DOMESTIC_INDIA_INDICATORS)
-        
-        # If the user requires visa sponsorship or relocation from India, domestic roles cannot provide it
-        if (req_sponsorship or req_relocation) and is_domestic:
-            return (
-                False,
-                f"DOMESTIC_INDIA_ROLE: Job location '{job.location}' is within India. "
-                "LinkedIn applications are currently configured strictly for international opportunities offering visa sponsorship from India and relocation assistance.",
-            )
 
-        # If user explicitly disabled both visa sponsorship and relocation requirements, allow all roles
-        if not req_sponsorship and not req_relocation:
-            return True, "PASSED: Visa sponsorship and relocation requirements disabled in configuration."
-
-        # Combine all descriptive text
+        # Combine all descriptive text for keyword validation
         text_parts = [
             getattr(job, "title", "") or "",
             getattr(job, "jd_text", "") or "",
@@ -122,7 +110,7 @@ class VisaRelocationGate:
         ]
         combined_text = "\n".join(text_parts).lower()
 
-        # 1. Negative Exclusion Checks (Immediate Rejection)
+        # 1. Negative Exclusion Checks (Always Enforced: Immediate Rejection)
         for pat in NEGATIVE_SPONSORSHIP_PATTERNS:
             match = pat.search(combined_text)
             if match:
@@ -140,6 +128,14 @@ class VisaRelocationGate:
                     False,
                     f"RELOCATION_EXCLUDED: Posting explicitly excludes relocation assistance ('{matched_phrase}').",
                 )
+
+        # 2. Check Domestic India Rules (Always passed for Indian candidate per user directive)
+        if is_domestic:
+            return True, f"PASSED: Domestic India role ('{job.location}'). Employment authorization verified."
+
+        # 3. If user explicitly disabled both visa sponsorship and relocation requirements, allow all roles
+        if not req_sponsorship and not req_relocation:
+            return True, "PASSED: Visa sponsorship and relocation requirements disabled in configuration."
 
         # 2. Positive Verification: Visa Sponsorship & Relocation
         has_sponsorship = any(pat.search(combined_text) for pat in POSITIVE_SPONSORSHIP_PATTERNS)

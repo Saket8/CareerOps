@@ -7,11 +7,11 @@ from src.utils.config_loader import load_config
 def test_load_default_config():
     config = load_config()
     assert config["application"]["match_threshold"] == 70.0
-    assert config["application"]["max_applications_per_day"] == 20
+    assert config["application"]["max_applications_per_day"] == 35
     assert config["application"]["min_salary_lpa"] == 30.0
     assert isinstance(config["application"]["dry_run"], bool)
-    assert config["linkedin"]["max_applications_per_day"] == 10
-    assert config["linkedin"]["require_visa_sponsorship"] is True
+    assert config["linkedin"]["max_applications_per_day"] == 15
+    assert config["linkedin"]["require_visa_sponsorship"] is False
     assert config["linkedin"]["require_relocation"] is False
     assert config["resume"]["reupload_daily"] is True
     assert config["resume"]["reupload_weekends"] is True

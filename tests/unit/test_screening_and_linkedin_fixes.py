@@ -102,3 +102,46 @@ def test_linkedin_modal_helper_filtering():
 
     assert len(valid) == 1
     assert "Apply to VASS" in valid[0]["text"]
+
+
+def test_naukri_chatbot_container_exclusion_and_city_chip_selection():
+    """Verify that chatbot option filtering excludes wrapper containers and selects leaf chip."""
+    # Scenario: Outer container contains the question text and all options
+    outer_container = {
+        "text": "Please select the city you are currently residing or willing to relocate to\nBengaluru\nPune\nDelhi / NCR\nSkip this question\nSave",
+        "is_leaf": False,
+    }
+    chip_bengaluru = {"text": "Bengaluru", "is_leaf": True}
+    chip_pune = {"text": "Pune", "is_leaf": True}
+    chip_delhi_ncr = {"text": "Delhi / NCR", "is_leaf": True}
+    chip_skip = {"text": "Skip this question", "is_leaf": True}
+    button_save = {"text": "Save", "is_leaf": True}
+
+    candidates = [outer_container, chip_bengaluru, chip_pune, chip_delhi_ncr, chip_skip, button_save]
+    primary_ncr_terms = ["delhi / ncr", "delhi/ncr", "delhi ncr", "delhi", "noida", "gurugram", "gurgaon", "greater noida", "ncr"]
+
+    matching_chip = None
+    for cand in candidates:
+        cand_raw = cand["text"]
+        # Strict leaf guard
+        if not cand_raw or len(cand_raw.strip()) > 35 or "\n" in cand_raw:
+            continue
+        cand_clean = " ".join(cand_raw.strip().lower().split())
+        if cand_clean in ["save", "submit", "continue", "next", "send", "apply", "skip this question", "skip", "cancel", "close"]:
+            continue
+        if any(term == cand_clean or term in cand_clean for term in primary_ncr_terms):
+            matching_chip = cand
+            break
+
+    assert matching_chip is not None, "Failed to match Delhi / NCR chip"
+    assert matching_chip["text"] == "Delhi / NCR"
+    assert matching_chip["is_leaf"] is True
+
+
+def test_linkedin_timeout_and_step_config():
+    """Verify LinkedIn adapter configuration settings are tuned for reliable multi-step execution."""
+    from src.linkedin.adapter import LinkedInAdapter
+    import inspect
+    source = inspect.getsource(LinkedInAdapter.apply_easy_apply)
+    assert any(f"max_easy_apply_duration = {val}" in source for val in (600, 300, 180, 150, 120))
+    assert "max_steps = 7" in source or "max_steps = 6" in source

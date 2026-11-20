@@ -12,7 +12,8 @@ artifacts/dispatched_emails.json
 resumes/generated/
 cover_letters/
 reports/
-data/
+data/*
+!data/gcc_hyperscalers_top100.yaml
 
 # SQLite databases & runtime storage
 *.sqlite*

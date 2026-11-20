@@ -105,6 +105,8 @@ class JobModel(Base):
             source_platform=self.source_platform or "naukri",
             application_method=ApplicationMethod.LINKEDIN_EASY_APPLY if ("linkedin" in (self.source_platform or "").lower() or (self.application_method and "linkedin" in self.application_method.lower())) else ApplicationMethod.NAUKRI_DIRECT,
             status=status,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
         )
 
 

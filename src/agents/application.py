@@ -55,6 +55,7 @@ class ApplicationAgent:
         score: JobScore,
         docx_path: Path,
         pdf_path: Path,
+        allow_unverified_retry: bool = False,
     ) -> ApplicationOutcome:
         """Processes and submits a single application with complete guardrails."""
         job_id = job.job_id
@@ -71,7 +72,7 @@ class ApplicationAgent:
             return ApplicationOutcome(job_id, False, JobStatus.REJECTED, f"Blocked current employer: {job.company}")
 
         # 0b. Idempotency Check: prevent duplicate application
-        if self.app_repo.has_applied_to_job(job_id):
+        if self.app_repo.has_applied_to_job(job_id, allow_unverified_retry=allow_unverified_retry):
             logger.info(f"Idempotency Guard: Application already exists for job {job_id}. Skipping.")
             return ApplicationOutcome(job_id, False, JobStatus.APPLIED, "Duplicate application skipped")
 

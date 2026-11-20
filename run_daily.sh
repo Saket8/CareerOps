@@ -77,7 +77,7 @@ free -h >> "$LOG_FILE"
 # Run Autonomous Career Agent Pipeline (Mon-Fri)
 START_TIME=$(date +%s)
 set +e
-timeout 75m nice -n 10 "$PROJECT_DIR/venv/bin/python" "$PROJECT_DIR/main.py" "$@" >> "$LOG_FILE" 2>&1
+timeout 90m nice -n 10 "$PROJECT_DIR/venv/bin/python" "$PROJECT_DIR/main.py" "$@" >> "$LOG_FILE" 2>&1
 EXIT_CODE=$?
 set -e
 END_TIME=$(date +%s)
@@ -88,10 +88,18 @@ echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] CareerOps Run Completed in ${DURATIO
 # Post-Run Health Checkup, Failure Diagnosis & Autonomous Stabilization Healer
 echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] Starting Autonomous Post-Run Healer & Verification..." >> "$LOG_FILE"
 set +e
-timeout 35m nice -n 10 "$PROJECT_DIR/venv/bin/python" -m src.agents.post_run_healer --post-run >> "$LOG_FILE" 2>&1
+timeout 30m nice -n 10 "$PROJECT_DIR/venv/bin/python" -m src.agents.post_run_healer --post-run >> "$LOG_FILE" 2>&1
 HEALER_EXIT=$?
 set -e
 echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] Post-Run Healer Completed with exit code ${HEALER_EXIT}" >> "$LOG_FILE"
+
+# Guaranteed Email Dispatch Fallback (ensures report is delivered even if prior commands exited early)
+echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] Verifying Guaranteed Daily Report Email Delivery..." >> "$LOG_FILE"
+set +e
+"$PROJECT_DIR/venv/bin/python" "$PROJECT_DIR/scripts/guaranteed_email_dispatch.py" >> "$LOG_FILE" 2>&1
+DISPATCH_EXIT=$?
+set -e
+echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] Guaranteed Email Dispatch finished with exit code ${DISPATCH_EXIT}" >> "$LOG_FILE"
 
 echo "[$(date -u +'%Y-%m-%d %H:%M:%S UTC')] Post-Run Memory Status:" >> "$LOG_FILE"
 free -h >> "$LOG_FILE"

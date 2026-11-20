@@ -11,6 +11,7 @@ from src.models.score import JobScore, JobEvidence
 from src.models.candidate import CandidateTruth
 from src.database.repositories.job_repo import JobRepository
 from src.utils.logger import get_logger
+from src.utils.tier1_detector import is_tier_1_company, get_tier_1_matched_name
 
 logger = get_logger("qualification_agent")
 
@@ -72,6 +73,7 @@ class QualificationAgent:
         self.blocked_companies = [
             c.lower().strip() for c in config.get("safety", {}).get("blocked_companies", ["cognizant", "cts"])
         ]
+        self.tier_1_companies = config.get("search", {}).get("tier_1_priority_companies")
 
     def evaluate_job(self, job: JobListing) -> Tuple[JobScore, JobEvidence]:
         """Evaluates a single job listing against candidate truth."""
@@ -301,6 +303,16 @@ class QualificationAgent:
             target_boosted = (primary_cloud * 0.65) + (arch_score * 0.25) + (exp_score * 0.10)
             overall_score = max(overall_score, target_boosted)
 
+        # Tier-1 GCC & Cloud Hyperscaler Priority Boost (+10.0 score boost)
+        is_tier_1 = is_tier_1_company(job.company, self.tier_1_companies)
+        matched_tier_1 = get_tier_1_matched_name(job.company, self.tier_1_companies) if is_tier_1 else None
+        if is_tier_1:
+            overall_score = min(100.0, overall_score + 10.0)
+            logger.info(
+                f"Tier-1 GCC/Hyperscaler Booster: Applied +10.0 score boost to '{job.title}' @ '{job.company}' "
+                f"(Matched: {matched_tier_1}) -> New Score: {overall_score:.1f}%"
+            )
+
         overall_score = round(min(100.0, max(0.0, overall_score)), 1)
 
         # Full-JD Scoring Calibration & Confidence Gating:
@@ -323,9 +335,14 @@ class QualificationAgent:
 
         # Determine Role Categories
         categories = self._determine_categories(text)
+        if is_tier_1 and "TIER_1_GCC_HYPERSCALER" not in categories:
+            categories.insert(0, "TIER_1_GCC_HYPERSCALER")
 
         # Identify Strengths and Gaps
         strengths, gaps, match_reasons = self._identify_strengths_and_gaps(text, oci_score, k8s_score, ai_score, sec_score)
+        if is_tier_1:
+            strengths.insert(0, f"Tier-1 GCC / Hyperscaler Priority Target: High-value enterprise compensation tier ({matched_tier_1 or job.company})")
+            match_reasons.insert(0, f"Tier-1 GCC / Hyperscaler Priority Boost: Candidate profile prioritized for top-tier employer {matched_tier_1 or job.company}.")
         if not has_full_jd:
             gaps.append("Full JD text unavailable; scored tentatively on card snippet only.")
             match_reasons.append("Preliminary card metadata score (full JD retrieval pending).")
@@ -495,6 +512,12 @@ class QualificationAgent:
         patterns = []
 
         # 1. Observed facts
+        if is_tier_1_company(job.company, self.tier_1_companies):
+            matched_name = get_tier_1_matched_name(job.company, self.tier_1_companies) or job.company
+            observed.append(f"Target Employer: '{job.company}' verified as Tier-1 GCC / Hyperscaler priority employer ({matched_name}).")
+            inferred.append(f"Compensation Band Alignment: '{job.company}' commands Tier-1 compensation bands (₹42-75 LPA+ Base + Bonus/RSUs).")
+            generated.append(f"Prioritize rapid application dispatch for Tier-1 employer '{job.company}'.")
+
         for kw in ["oci", "kubernetes", "oke", "genai", "terraform", "rag", "mcp", "saml", "sso", "prometheus"]:
             if kw in text:
                 skills_found.append(kw.upper())

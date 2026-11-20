@@ -1,0 +1,826 @@
+metadata:
+  title: Top 100 GCCs and Hyperscalers 2026
+  compiled_date: '2026-11-20'
+  source: NASSCOM-Zinnov India GCC Landscape, Company Filings & Industry Trackers
+  total_entities: 100
+  cloud_hyperscalers_count: 40
+  india_gccs_count: 60
+delhi_ncr_local_targets:
+- Barclays
+- Adobe
+- Microsoft
+- Nokia
+- Samsung R&D
+- Siemens
+- Sony
+- LG Electronics
+- Walmart Global Tech
+- American Express
+- Mastercard
+- Macquarie
+- SAP Labs
+- Honeywell
+- Ericsson
+- Standard Chartered
+- Bank of America
+entities:
+- rank: 1
+  name: Amazon Web Services
+  set: Cloud
+  category: Tier 1 hyperscaler
+  india_hubs: Global
+  is_delhi_ncr_local: false
+  career_portal: amazon.jobs
+  ats_type: Proprietary
+- rank: 2
+  name: Microsoft Azure
+  set: Cloud
+  category: Tier 1 hyperscaler
+  india_hubs: Global
+  is_delhi_ncr_local: false
+  career_portal: careers.microsoft.com
+  ats_type: Proprietary
+- rank: 3
+  name: Google Cloud
+  set: Cloud
+  category: Tier 1 hyperscaler
+  india_hubs: Global
+  is_delhi_ncr_local: false
+  career_portal: careers.google.com
+  ats_type: Proprietary
+- rank: 4
+  name: Alibaba Cloud
+  set: Cloud
+  category: Tier 2 challenger
+  india_hubs: Global
+  is_delhi_ncr_local: false
+  career_portal: careers.alibaba.com
+  ats_type: Proprietary
+- rank: 5
+  name: Oracle Cloud Infrastructure
+  set: Cloud
+  category: Tier 2 challenger
+  india_hubs: Global, India (Bengaluru, Hyderabad, Noida, Pune)
+  is_delhi_ncr_local: true
+  career_portal: careers.oracle.com
+  ats_type: Oracle HCM
+- rank: 6
+  name: IBM Cloud
+  set: Cloud
+  category: Tier 2 challenger
+  india_hubs: Global, India (Bengaluru, Hyderabad, Kochi, Pune)
+  is_delhi_ncr_local: false
+  career_portal: ibm.com/careers
+  ats_type: Kenexa/Workday
+- rank: 7
+  name: Tencent Cloud
+  set: Cloud
+  category: Tier 2 challenger
+  india_hubs: Global
+  is_delhi_ncr_local: false
+  career_portal: careers.tencent.com
+  ats_type: Proprietary
+- rank: 8
+  name: Huawei Cloud
+  set: Cloud
+  category: Tier 2 challenger
+  india_hubs: Global
+  is_delhi_ncr_local: false
+  career_portal: career.huawei.com
+  ats_type: Proprietary
+- rank: 9
+  name: ByteDance Volcano Engine
+  set: Cloud
+  category: Tier 3 regional
+  india_hubs: China, Asia
+  is_delhi_ncr_local: false
+  career_portal: jobs.bytedance.com
+  ats_type: Proprietary
+- rank: 10
+  name: China Telecom (Tianyi Cloud)
+  set: Cloud
+  category: Tier 3 regional
+  india_hubs: China
+  is_delhi_ncr_local: false
+  career_portal: chinatelecom.com.cn
+  ats_type: Proprietary
+- rank: 11
+  name: China Unicom (Wocloud)
+  set: Cloud
+  category: Tier 3 regional
+  india_hubs: China
+  is_delhi_ncr_local: false
+  career_portal: chinaunicom.com
+  ats_type: Proprietary
+- rank: 12
+  name: Baidu AI Cloud
+  set: Cloud
+  category: Tier 3 regional
+  india_hubs: China
+  is_delhi_ncr_local: false
+  career_portal: talent.baidu.com
+  ats_type: Proprietary
+- rank: 13
+  name: Meta
+  set: Cloud
+  category: Hyperscale self-builder
+  india_hubs: Global
+  is_delhi_ncr_local: false
+  career_portal: metacareers.com
+  ats_type: Proprietary
+- rank: 14
+  name: Apple
+  set: Cloud
+  category: Hyperscale self-builder
+  india_hubs: Global, India (Bengaluru, Hyderabad)
+  is_delhi_ncr_local: false
+  career_portal: apple.com/careers
+  ats_type: Proprietary
+- rank: 15
+  name: xAI
+  set: Cloud
+  category: Hyperscale self-builder
+  india_hubs: US
+  is_delhi_ncr_local: false
+  career_portal: x.ai/careers
+  ats_type: Proprietary
+- rank: 16
+  name: Naver Cloud
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: Korea
+  is_delhi_ncr_local: false
+  career_portal: recruit.navercorp.com
+  ats_type: Proprietary
+- rank: 17
+  name: Samsung SDS
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: Korea, India (Bengaluru, Noida)
+  is_delhi_ncr_local: true
+  career_portal: samsungsds.com
+  ats_type: Proprietary
+- rank: 18
+  name: LG CNS
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: Korea
+  is_delhi_ncr_local: false
+  career_portal: lgcns.com
+  ats_type: Proprietary
+- rank: 19
+  name: NTT
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: Global, India (Bengaluru, Mumbai, Noida)
+  is_delhi_ncr_local: true
+  career_portal: services.global.ntt
+  ats_type: Workday
+- rank: 20
+  name: Fujitsu
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: Japan, India (Bengaluru, Pune, Noida)
+  is_delhi_ncr_local: true
+  career_portal: fujitsu.com/careers
+  ats_type: Taleo/Workday
+- rank: 21
+  name: SK Telecom
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: Korea
+  is_delhi_ncr_local: false
+  career_portal: sktelecom.com
+  ats_type: Proprietary
+- rank: 22
+  name: Yandex Cloud
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: Russia
+  is_delhi_ncr_local: false
+  career_portal: yandex.com/jobs
+  ats_type: Proprietary
+- rank: 23
+  name: OVHcloud
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: Europe
+  is_delhi_ncr_local: false
+  career_portal: careers.ovhcloud.com
+  ats_type: SmartRecruiters
+- rank: 24
+  name: Deutsche Telekom (T-Systems)
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: Europe, India (Pune, Bengaluru)
+  is_delhi_ncr_local: false
+  career_portal: t-systems.com/careers
+  ats_type: SuccessFactors
+- rank: 25
+  name: Orange Business
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: Europe, India (Gurugram, Mumbai)
+  is_delhi_ncr_local: true
+  career_portal: orange.jobs
+  ats_type: SuccessFactors
+- rank: 26
+  name: Telefonica Tech
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: Europe, LatAm
+  is_delhi_ncr_local: false
+  career_portal: telefonicatech.com
+  ats_type: SuccessFactors
+- rank: 27
+  name: CoreWeave
+  set: Cloud
+  category: Neocloud
+  india_hubs: US, Europe
+  is_delhi_ncr_local: false
+  career_portal: coreweave.com/careers
+  ats_type: Greenhouse
+- rank: 28
+  name: Crusoe
+  set: Cloud
+  category: Neocloud
+  india_hubs: US
+  is_delhi_ncr_local: false
+  career_portal: crusoe.ai/careers
+  ats_type: Greenhouse
+- rank: 29
+  name: Nebius
+  set: Cloud
+  category: Neocloud
+  india_hubs: Europe, US
+  is_delhi_ncr_local: false
+  career_portal: nebius.com/careers
+  ats_type: Greenhouse
+- rank: 30
+  name: Lambda
+  set: Cloud
+  category: Neocloud
+  india_hubs: US
+  is_delhi_ncr_local: false
+  career_portal: lambdalabs.com/careers
+  ats_type: Lever
+- rank: 31
+  name: IREN
+  set: Cloud
+  category: Neocloud
+  india_hubs: Australia, US
+  is_delhi_ncr_local: false
+  career_portal: iren.com
+  ats_type: Proprietary
+- rank: 32
+  name: Together AI
+  set: Cloud
+  category: Neocloud
+  india_hubs: US
+  is_delhi_ncr_local: false
+  career_portal: together.ai/careers
+  ats_type: Greenhouse
+- rank: 33
+  name: Viettel
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: Vietnam
+  is_delhi_ncr_local: false
+  career_portal: viettel.com.vn
+  ats_type: Proprietary
+- rank: 34
+  name: Telkom Indonesia
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: Indonesia
+  is_delhi_ncr_local: false
+  career_portal: telkom.co.id
+  ats_type: Proprietary
+- rank: 35
+  name: KT Cloud
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: Korea
+  is_delhi_ncr_local: false
+  career_portal: ktcloud.com
+  ats_type: Proprietary
+- rank: 36
+  name: VK Cloud
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: Russia
+  is_delhi_ncr_local: false
+  career_portal: vk.company
+  ats_type: Proprietary
+- rank: 37
+  name: Scaleway
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: France, EU
+  is_delhi_ncr_local: false
+  career_portal: scaleway.com/careers
+  ats_type: Lever
+- rank: 38
+  name: SoftBank Corp
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: Japan
+  is_delhi_ncr_local: false
+  career_portal: softbank.jp
+  ats_type: Proprietary
+- rank: 39
+  name: KDDI
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: Japan
+  is_delhi_ncr_local: false
+  career_portal: kddi.com
+  ats_type: Proprietary
+- rank: 40
+  name: Saudi Telecom (STC)
+  set: Cloud
+  category: Tier 3 sovereign
+  india_hubs: Saudi Arabia
+  is_delhi_ncr_local: false
+  career_portal: stc.com.sa
+  ats_type: Proprietary
+- rank: 41
+  name: JPMorgan Chase
+  set: GCC
+  category: Banking
+  india_hubs: Mumbai, Bengaluru, Hyderabad
+  is_delhi_ncr_local: false
+  career_portal: jpmc.fa.oraclecloud.com
+  ats_type: Oracle HCM
+- rank: 42
+  name: Wells Fargo
+  set: GCC
+  category: Banking
+  india_hubs: Bengaluru, Hyderabad, Chennai
+  is_delhi_ncr_local: false
+  career_portal: wellsfargo.wd1.myworkdayjobs.com
+  ats_type: Workday
+- rank: 43
+  name: HSBC
+  set: GCC
+  category: Banking
+  india_hubs: Hyderabad, Pune, Bengaluru
+  is_delhi_ncr_local: false
+  career_portal: hsbc.com/careers
+  ats_type: SuccessFactors/Taleo
+- rank: 44
+  name: Bank of America
+  set: GCC
+  category: Banking
+  india_hubs: Hyderabad, Mumbai, Gurugram, Chennai, Bengaluru
+  is_delhi_ncr_local: true
+  career_portal: careers.bankofamerica.com
+  ats_type: Workday
+- rank: 45
+  name: Bosch
+  set: GCC
+  category: Engineering and automotive
+  india_hubs: Bengaluru, Hyderabad, Pune, Coimbatore
+  is_delhi_ncr_local: false
+  career_portal: smartrecruiters.com/BoschGroup
+  ats_type: SmartRecruiters
+- rank: 46
+  name: Citi
+  set: GCC
+  category: Banking
+  india_hubs: Pune, Mumbai, Chennai, Bengaluru
+  is_delhi_ncr_local: false
+  career_portal: jobs.citi.com
+  ats_type: Workday
+- rank: 47
+  name: UBS
+  set: GCC
+  category: Banking
+  india_hubs: Pune, Mumbai, Hyderabad
+  is_delhi_ncr_local: false
+  career_portal: ubs.com/careers
+  ats_type: Workday
+- rank: 48
+  name: Barclays
+  set: GCC
+  category: Banking
+  india_hubs: Pune, Chennai, Noida
+  is_delhi_ncr_local: true
+  career_portal: barclays.wd3.myworkdayjobs.com
+  ats_type: Workday
+- rank: 49
+  name: Amazon
+  set: GCC
+  category: Technology and retail
+  india_hubs: Hyderabad, Bengaluru, Chennai
+  is_delhi_ncr_local: false
+  career_portal: amazon.jobs
+  ats_type: Proprietary
+- rank: 50
+  name: Standard Chartered
+  set: GCC
+  category: Banking
+  india_hubs: Chennai, Bengaluru, Noida
+  is_delhi_ncr_local: true
+  career_portal: sc.com/careers
+  ats_type: Taleo/Workday
+- rank: 51
+  name: Deutsche Bank
+  set: GCC
+  category: Banking
+  india_hubs: Pune, Mumbai, Bengaluru
+  is_delhi_ncr_local: false
+  career_portal: careers.db.com
+  ats_type: SuccessFactors
+- rank: 52
+  name: Walmart Global Tech
+  set: GCC
+  category: Retail
+  india_hubs: Bengaluru, Chennai, Gurugram
+  is_delhi_ncr_local: true
+  career_portal: walmart.wd5.myworkdayjobs.com
+  ats_type: Workday
+- rank: 53
+  name: Microsoft
+  set: GCC
+  category: Technology
+  india_hubs: Hyderabad, Bengaluru, Noida
+  is_delhi_ncr_local: true
+  career_portal: careers.microsoft.com
+  ats_type: Proprietary
+- rank: 54
+  name: Siemens
+  set: GCC
+  category: Engineering
+  india_hubs: Bengaluru, Pune, Chennai, Noida
+  is_delhi_ncr_local: true
+  career_portal: siemens.com/careers
+  ats_type: Workday/Taleo
+- rank: 55
+  name: Goldman Sachs
+  set: GCC
+  category: Banking
+  india_hubs: Bengaluru, Hyderabad
+  is_delhi_ncr_local: false
+  career_portal: goldmansachs.com/careers
+  ats_type: Proprietary/Workday
+- rank: 56
+  name: Morgan Stanley
+  set: GCC
+  category: Banking
+  india_hubs: Mumbai, Bengaluru, Hyderabad
+  is_delhi_ncr_local: false
+  career_portal: morganstanley.com/careers
+  ats_type: Taleo/Workday
+- rank: 57
+  name: SAP
+  set: GCC
+  category: Enterprise software
+  india_hubs: Bengaluru, Gurugram, Pune
+  is_delhi_ncr_local: true
+  career_portal: jobs.sap.com
+  ats_type: SuccessFactors
+- rank: 58
+  name: Google
+  set: GCC
+  category: Technology
+  india_hubs: Bengaluru, Hyderabad
+  is_delhi_ncr_local: false
+  career_portal: careers.google.com
+  ats_type: Proprietary
+- rank: 59
+  name: Target
+  set: GCC
+  category: Retail
+  india_hubs: Bengaluru
+  is_delhi_ncr_local: false
+  career_portal: target.wd5.myworkdayjobs.com
+  ats_type: Workday
+- rank: 60
+  name: Lowe's
+  set: GCC
+  category: Retail
+  india_hubs: Bengaluru
+  is_delhi_ncr_local: false
+  career_portal: lowes.wd5.myworkdayjobs.com
+  ats_type: Workday
+- rank: 61
+  name: American Express
+  set: GCC
+  category: Payments
+  india_hubs: Gurugram, Bengaluru
+  is_delhi_ncr_local: true
+  career_portal: aexp.wd5.myworkdayjobs.com
+  ats_type: Workday
+- rank: 62
+  name: BNY
+  set: GCC
+  category: Financial services
+  india_hubs: Pune, Chennai
+  is_delhi_ncr_local: false
+  career_portal: bny.com/careers
+  ats_type: Workday
+- rank: 63
+  name: State Street
+  set: GCC
+  category: Financial services
+  india_hubs: Bengaluru, Hyderabad, Pune
+  is_delhi_ncr_local: false
+  career_portal: statestreet.wd1.myworkdayjobs.com
+  ats_type: Workday
+- rank: 64
+  name: ANZ
+  set: GCC
+  category: Banking
+  india_hubs: Bengaluru
+  is_delhi_ncr_local: false
+  career_portal: anz.com/careers
+  ats_type: Taleo
+- rank: 65
+  name: Mastercard
+  set: GCC
+  category: Payments
+  india_hubs: Pune, Gurugram, Vadodara
+  is_delhi_ncr_local: true
+  career_portal: mastercard.wd1.myworkdayjobs.com
+  ats_type: Workday
+- rank: 66
+  name: Visa
+  set: GCC
+  category: Payments
+  india_hubs: Bengaluru
+  is_delhi_ncr_local: false
+  career_portal: visa.com/careers
+  ats_type: SmartRecruiters
+- rank: 67
+  name: PayPal
+  set: GCC
+  category: Payments
+  india_hubs: Chennai, Bengaluru
+  is_delhi_ncr_local: false
+  career_portal: paypal.wd1.myworkdayjobs.com
+  ats_type: Workday
+- rank: 68
+  name: Northern Trust
+  set: GCC
+  category: Financial services
+  india_hubs: Pune, Bengaluru
+  is_delhi_ncr_local: false
+  career_portal: northerntrust.wd1.myworkdayjobs.com
+  ats_type: Workday
+- rank: 69
+  name: Nomura
+  set: GCC
+  category: Banking
+  india_hubs: Powai (Mumbai), Chennai
+  is_delhi_ncr_local: false
+  career_portal: nomura.com/careers
+  ats_type: Workday
+- rank: 70
+  name: MUFG
+  set: GCC
+  category: Banking
+  india_hubs: Bengaluru, Mumbai
+  is_delhi_ncr_local: false
+  career_portal: mufgcareers.com
+  ats_type: Workday
+- rank: 71
+  name: Societe Generale
+  set: GCC
+  category: Banking
+  india_hubs: Bengaluru, Chennai
+  is_delhi_ncr_local: false
+  career_portal: careers.societegenerale.com
+  ats_type: Taleo
+- rank: 72
+  name: BNP Paribas
+  set: GCC
+  category: Banking
+  india_hubs: Mumbai, Bengaluru, Chennai
+  is_delhi_ncr_local: false
+  career_portal: group.bnpparibas/careers
+  ats_type: Taleo/Workday
+- rank: 73
+  name: Macquarie
+  set: GCC
+  category: Financial services
+  india_hubs: Gurugram, Hyderabad
+  is_delhi_ncr_local: true
+  career_portal: macquarie.com/careers
+  ats_type: Workday
+- rank: 74
+  name: Adobe
+  set: GCC
+  category: Technology
+  india_hubs: Noida, Bengaluru
+  is_delhi_ncr_local: true
+  career_portal: adobe.wd5.myworkdayjobs.com
+  ats_type: Workday
+- rank: 75
+  name: Intel
+  set: GCC
+  category: Semiconductors
+  india_hubs: Bengaluru, Hyderabad
+  is_delhi_ncr_local: false
+  career_portal: intel.com/jobs
+  ats_type: Workday
+- rank: 76
+  name: NVIDIA
+  set: GCC
+  category: Semiconductors
+  india_hubs: Bengaluru, Hyderabad, Pune
+  is_delhi_ncr_local: false
+  career_portal: nvidia.wd5.myworkdayjobs.com
+  ats_type: Workday
+- rank: 77
+  name: Qualcomm
+  set: GCC
+  category: Semiconductors
+  india_hubs: Hyderabad, Bengaluru, Chennai
+  is_delhi_ncr_local: false
+  career_portal: qualcomm.wd5.myworkdayjobs.com
+  ats_type: Workday
+- rank: 78
+  name: AMD
+  set: GCC
+  category: Semiconductors
+  india_hubs: Hyderabad, Bengaluru
+  is_delhi_ncr_local: false
+  career_portal: careers.amd.com
+  ats_type: Workday
+- rank: 79
+  name: Micron
+  set: GCC
+  category: Semiconductors
+  india_hubs: Hyderabad, Bengaluru
+  is_delhi_ncr_local: false
+  career_portal: micron.com/careers
+  ats_type: SuccessFactors
+- rank: 80
+  name: Texas Instruments
+  set: GCC
+  category: Semiconductors
+  india_hubs: Bengaluru, Pune
+  is_delhi_ncr_local: false
+  career_portal: careers.ti.com
+  ats_type: Workday
+- rank: 81
+  name: Applied Materials
+  set: GCC
+  category: Semiconductors
+  india_hubs: Bengaluru, Chennai
+  is_delhi_ncr_local: false
+  career_portal: appliedmaterials.com/careers
+  ats_type: Workday
+- rank: 82
+  name: Cisco
+  set: GCC
+  category: Networking
+  india_hubs: Bengaluru, Chennai
+  is_delhi_ncr_local: false
+  career_portal: jobs.cisco.com
+  ats_type: Workday/Proprietary
+- rank: 83
+  name: Dell
+  set: GCC
+  category: Technology
+  india_hubs: Bengaluru, Hyderabad
+  is_delhi_ncr_local: false
+  career_portal: dell.com/careers
+  ats_type: Workday
+- rank: 84
+  name: Ericsson
+  set: GCC
+  category: Telecom equipment
+  india_hubs: Bengaluru, Gurugram, Chennai
+  is_delhi_ncr_local: true
+  career_portal: jobs.ericsson.com
+  ats_type: SuccessFactors
+- rank: 85
+  name: Nokia
+  set: GCC
+  category: Telecom equipment
+  india_hubs: Bengaluru, Chennai, Noida
+  is_delhi_ncr_local: true
+  career_portal: nokia.com/careers
+  ats_type: SuccessFactors/Taleo
+- rank: 86
+  name: Samsung R&D India
+  set: GCC
+  category: Technology
+  india_hubs: Bengaluru, Noida
+  is_delhi_ncr_local: true
+  career_portal: samsung.com/careers
+  ats_type: Proprietary
+- rank: 87
+  name: LG Electronics
+  set: GCC
+  category: Technology
+  india_hubs: Bengaluru, Noida
+  is_delhi_ncr_local: true
+  career_portal: lg.com/global/careers
+  ats_type: Proprietary
+- rank: 88
+  name: Panasonic
+  set: GCC
+  category: Technology
+  india_hubs: Bengaluru, Pune
+  is_delhi_ncr_local: false
+  career_portal: panasonic.com/careers
+  ats_type: Workday
+- rank: 89
+  name: Sony
+  set: GCC
+  category: Technology
+  india_hubs: Bengaluru, Noida
+  is_delhi_ncr_local: true
+  career_portal: sonyjobs.com
+  ats_type: Workday
+- rank: 90
+  name: Airbus
+  set: GCC
+  category: Aerospace
+  india_hubs: Bengaluru
+  is_delhi_ncr_local: false
+  career_portal: ag.wd3.myworkdayjobs.com
+  ats_type: Workday
+- rank: 91
+  name: Boeing
+  set: GCC
+  category: Aerospace
+  india_hubs: Bengaluru, Chennai
+  is_delhi_ncr_local: false
+  career_portal: boeing.com/careers
+  ats_type: Workday
+- rank: 92
+  name: GE Aerospace
+  set: GCC
+  category: Aerospace
+  india_hubs: Bengaluru, Hyderabad
+  is_delhi_ncr_local: false
+  career_portal: gecareers.com
+  ats_type: Workday
+- rank: 93
+  name: Honeywell
+  set: GCC
+  category: Engineering
+  india_hubs: Bengaluru, Hyderabad, Gurugram
+  is_delhi_ncr_local: true
+  career_portal: careers.honeywell.com
+  ats_type: Workday
+- rank: 94
+  name: Ford
+  set: GCC
+  category: Automotive
+  india_hubs: Chennai, Bengaluru
+  is_delhi_ncr_local: false
+  career_portal: ford.com/careers
+  ats_type: Taleo
+- rank: 95
+  name: General Motors
+  set: GCC
+  category: Automotive
+  india_hubs: Bengaluru, Chennai
+  is_delhi_ncr_local: false
+  career_portal: search-careers.gm.com
+  ats_type: Workday
+- rank: 96
+  name: Mercedes-Benz R&D India
+  set: GCC
+  category: Automotive
+  india_hubs: Bengaluru, Pune
+  is_delhi_ncr_local: false
+  career_portal: mercedes-benz.com/careers
+  ats_type: SuccessFactors
+- rank: 97
+  name: Shell
+  set: GCC
+  category: Energy
+  india_hubs: Bengaluru, Chennai
+  is_delhi_ncr_local: false
+  career_portal: shell.com/careers
+  ats_type: Workday
+- rank: 98
+  name: BP
+  set: GCC
+  category: Energy
+  india_hubs: Pune, Bengaluru
+  is_delhi_ncr_local: false
+  career_portal: bp.com/careers
+  ats_type: Workday
+- rank: 99
+  name: Unilever
+  set: GCC
+  category: Consumer goods
+  india_hubs: Bengaluru, Mumbai
+  is_delhi_ncr_local: false
+  career_portal: unilever.com/careers
+  ats_type: Workday
+- rank: 100
+  name: Procter & Gamble
+  set: GCC
+  category: Consumer goods
+  india_hubs: Mumbai, Bengaluru
+  is_delhi_ncr_local: false
+  career_portal: pgcareers.com
+  ats_type: Workday

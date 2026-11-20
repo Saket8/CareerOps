@@ -86,6 +86,15 @@ class SmtpMailer:
                     server.send_message(msg)
 
                 logger.info(f"Email '{subject}' successfully delivered to {target_recipient}")
+
+                # Automatically enforce mailbox retention after report dispatch (keep max 3 emails)
+                try:
+                    from src.email_service.mailbox_retention import MailboxRetentionManager
+                    ret_mgr = MailboxRetentionManager({"retention": {"max_careerops_emails_per_folder": 3, "mailbox_retention_enabled": True}})
+                    ret_mgr.apply_retention(dry_run=False)
+                except Exception as ret_err:
+                    logger.debug(f"Post-dispatch mailbox retention note: {ret_err}")
+
                 return True
             except Exception as exc:
                 logger.error(f"Failed to send email on attempt {attempt}: {exc}")

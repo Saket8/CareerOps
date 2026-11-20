@@ -1,6 +1,7 @@
 """Playwright Browser Adapter implementing real-world job navigation, dynamic form answering, and confirmation verification."""
 
 import os
+import sys
 import re
 import uuid
 import time
@@ -8,6 +9,15 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any, Tuple
 from urllib.parse import urlparse
+
+if sys.platform != "win32" and "DISPLAY" not in os.environ:
+    os.environ["DISPLAY"] = ":99"
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 from src.naukri.interface import BaseNaukriClient, SafetyBarrierException
 from src.naukri.url_validator import UrlValidator, UrlValidationResult
@@ -49,7 +59,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
         self.verifier = ApplicationVerifier()
 
     def _prune_stale_auth_cookies(self):
-        """Removes expired or IP-bound Akamai cookies from storage state to avoid 403 blocks."""
+        """Removes IP-bound Akamai edge cookies from storage state while preserving refresh tokens and session identity."""
         if not AUTH_STATE_FILE.exists():
             return
         try:
@@ -57,10 +67,17 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
             with open(AUTH_STATE_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
             cookies = data.get("cookies", [])
-            # Strip Akamai bot cookies that bind to specific IPs/sessions and cause 403 on new networks
+            now_ts = time.time()
+            # Prune only transient Akamai edge cookies. Preserve nauk_rt, nauk_sid, MYNAUKRI[UNID]
+            # to allow seamless session renewal without triggering Arkose Labs CAPTCHA.
             pruned = [
                 c for c in cookies
                 if c.get("name") not in ("ak_bmsc", "bm_sv", "bm_sz", "_abck")
+                and (
+                    c.get("name") in ("nauk_rt", "nauk_sid", "MYNAUKRI[UNID]", "nauk_ps", "NKWAP")
+                    or c.get("expires", -1) == -1
+                    or c.get("expires", 0) > now_ts
+                )
             ]
             if len(pruned) != len(cookies):
                 data["cookies"] = pruned
@@ -75,6 +92,12 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
         import sys
 
         self._prune_stale_auth_cookies()
+
+        if sys.platform != "win32":
+            if "DISPLAY" not in os.environ:
+                os.environ["DISPLAY"] = ":99"
+            # On Linux with Xvfb virtual framebuffer (:99), run headed to bypass Akamai headless bot-detection
+            self.headless = False
 
         channel = "chrome" if (sys.platform == "win32" and not self.offline_mode) else None
 
@@ -91,7 +114,12 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                 "--disable-background-timer-throttling",
                 "--disable-backgrounding-occluded-windows",
                 "--disable-renderer-backgrounding",
-                "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider",
+                "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider,IsolateOrigins,site-per-process",
+                "--js-flags=--max-old-space-size=256",
+                "--renderer-process-limit=1",
+                "--disk-cache-size=10485760",
+                "--media-cache-size=10485760",
+                "--no-zygote",
             ],
         }
         if channel:
@@ -121,6 +149,28 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
         """
         context.add_init_script(stealth_script)
 
+        # Route interception: Block unnecessary media, fonts, and third-party tracking scripts to minimize RAM/CPU
+        # Fulfill with HTTP 204 instead of abort() to avoid triggering Akamai Rapid Reset (RST_STREAM) protocol errors
+        try:
+            context.route(
+                "**/*.{png,jpg,jpeg,svg,woff2,woff,ttf,eot,webp,gif,mp4,mp3,ico}*",
+                lambda route: route.fulfill(status=204, body=b"")
+            )
+            context.route(
+                "**/*",
+                lambda route: (
+                    route.fulfill(status=204, body=b"")
+                    if any(t in route.request.url.lower() for t in [
+                        "google-analytics", "doubleclick", "scorecardresearch",
+                        "branch.io", "appsflyer", "googletagmanager", "clarity.ms",
+                        "facebook.net", "hotjar", "optimizely"
+                    ])
+                    else route.continue_()
+                )
+            )
+        except Exception:
+            pass
+
         return browser, context
 
     def _safe_screenshot(self, page_obj, path: str, timeout: int = 5000) -> Optional[str]:
@@ -139,6 +189,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
         import email
         import imaplib
         import re
+        from email.utils import parsedate_to_datetime
 
         smtp_user = os.environ.get("SMTP_USERNAME")
         smtp_pass = os.environ.get("SMTP_PASSWORD")
@@ -159,6 +210,16 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         for part in data:
                             if isinstance(part, tuple):
                                 msg = email.message_from_bytes(part[1])
+                                # Guard against stale OTP emails from earlier sessions/runs
+                                try:
+                                    msg_dt = parsedate_to_datetime(msg["Date"])
+                                    msg_ts = msg_dt.timestamp()
+                                    if msg_ts < (start_time - 30):
+                                        logger.debug(f"Skipping stale OTP email from {msg_dt} (before start_time {start_time})")
+                                        continue
+                                except Exception as d_err:
+                                    logger.debug(f"Date parse note for OTP email: {d_err}")
+
                                 body = ""
                                 for p in msg.walk():
                                     pl = p.get_payload(decode=True)
@@ -186,57 +247,108 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
         """Ensures the browser session is authenticated on Naukri using user credentials or storage state."""
         try:
             # 1. Quick check: Already authenticated in current page DOM
-            if page.locator(".nI-gNb-drawer, .view-profile-wrapper, .nI-gNb-header__wrapper").count() > 0:
+            if page.locator(".nI-gNb-drawer, .view-profile-wrapper, .nI-gNb-header__wrapper, a[href*='mnjuser/profile']").count() > 0:
                 return True
 
-            # 2. Check context cookies: if valid session token exists
-            cookies = {c["name"]: c["value"] for c in context.cookies()}
-            if "nauk_at" in cookies or "nauk_rt" in cookies or "nauk_sid" in cookies:
+            # 2. Check context cookies: verify session token nauk_at exists AND is not expired
+            now_ts = time.time()
+            has_valid_nauk_at = any(
+                c.get("name") == "nauk_at" and (c.get("expires", -1) == -1 or c.get("expires", 0) > now_ts)
+                for c in context.cookies()
+            )
+            if has_valid_nauk_at and "/login" not in page.url.lower():
                 return True
+
+            # 2b. If nauk_rt is present, attempt silent session renewal via profile visit before full password login
+            has_nauk_rt = any(
+                c.get("name") == "nauk_rt" and (c.get("expires", -1) == -1 or c.get("expires", 0) > now_ts)
+                for c in context.cookies()
+            )
+            if has_nauk_rt:
+                try:
+                    logger.info("Access token nauk_at expired or missing, but refresh token nauk_rt is present. Attempting silent session renewal...")
+                    page.goto("https://www.naukri.com/mnjuser/profile", timeout=30000, wait_until="domcontentloaded")
+                    time.sleep(3)
+                    has_fresh_at = any(
+                        c.get("name") == "nauk_at" and (c.get("expires", -1) == -1 or c.get("expires", 0) > time.time())
+                        for c in context.cookies()
+                    )
+                    if has_fresh_at or "mnjuser" in page.url or page.locator(".nI-gNb-drawer, .view-profile-wrapper, a[href*='mnjuser/profile']").count() > 0:
+                        context.storage_state(path=str(AUTH_STATE_FILE))
+                        logger.info("Silent session renewal via nauk_rt succeeded; updated storage state.")
+                        return True
+                except Exception as r_err:
+                    logger.debug(f"Silent session renewal note: {r_err}")
 
             username = os.environ.get("NAUKRI_USERNAME", "")
             password = os.environ.get("NAUKRI_PASSWORD", "")
 
             logger.info(f"Ensuring authenticated Naukri session for {username}...")
-            page.goto("https://www.naukri.com/nlogin/login", timeout=35000, wait_until="domcontentloaded")
-            time.sleep(2)
+            if "/nlogin/login" not in page.url.lower():
+                page.goto("https://www.naukri.com/nlogin/login", timeout=35000, wait_until="domcontentloaded")
+                time.sleep(2)
 
-            if "mnjuser" in page.url or page.locator(".nI-gNb-drawer, .view-profile-wrapper, .nI-gNb-header__wrapper").count() > 0:
+            if "mnjuser" in page.url or any(c.get("name") == "nauk_at" for c in context.cookies()):
                 context.storage_state(path=str(AUTH_STATE_FILE))
                 return True
 
-            user_field = page.locator("#usernameField")
-            pass_field = page.locator("#passwordField")
-            if user_field.count() > 0 and pass_field.count() > 0:
-                user_field.fill(username)
-                pass_field.fill(password)
-                time_before_click = time.time()
-                login_btn = page.locator("button:has-text('Login'), button.blue-btn").first
-                login_btn.click()
-                time.sleep(4)
+            try:
+                page.wait_for_selector("#usernameField, #Input_1", timeout=25000, state="visible")
+            except Exception:
+                pass
 
-                # Check if OTP challenge is presented
-                if page.locator("#Input_1").count() > 0 or page.locator("button.verify-button").count() > 0:
-                    logger.info("Naukri OTP challenge detected. Retrieving verification code via IMAP...")
-                    otp_code = self._fetch_naukri_otp(time_before_click, timeout_sec=60)
-                    if otp_code:
-                        logger.info("Retrieved OTP. Entering code into verification challenge...")
-                        for i in range(1, 7):
-                            digit = otp_code[i - 1]
-                            inp = page.locator(f"#Input_{i}")
-                            inp.click()
-                            inp.fill(digit)
-                            time.sleep(0.15)
-                        time.sleep(1)
-                        verify_btn = page.locator("button.verify-button, button:has-text('Verify')").first
-                        if verify_btn.count() > 0:
-                            verify_btn.click()
-                            time.sleep(5)
+            # Check if already on OTP challenge screen
+            time_before_click = time.time()
+            otp_input_1 = page.locator("#Input_1")
+            if otp_input_1.count() == 0 or not otp_input_1.first.is_visible():
+                user_field = page.locator("#usernameField")
+                pass_field = page.locator("#passwordField")
+                if user_field.count() > 0 and user_field.first.is_visible() and pass_field.count() > 0 and pass_field.first.is_visible():
+                    user_field.fill(username)
+                    pass_field.fill(password)
+                    time_before_click = time.time()
+                    login_btn = page.locator("button:has-text('Login'), button.blue-btn").first
+                    login_btn.click()
+                    try:
+                        page.wait_for_selector("#Input_1, .view-profile-wrapper, a[href*='mnjuser/profile']", timeout=20000, state="visible")
+                    except Exception:
+                        pass
 
-                if "mnjuser" in page.url or page.locator(".nI-gNb-drawer, .view-profile-wrapper, .nI-gNb-header__wrapper").count() > 0:
-                    context.storage_state(path=str(AUTH_STATE_FILE))
-                    logger.info("Authentication successful; session saved to storage.")
-                    return True
+            # Check if OTP challenge is presented (either before or after submit)
+            otp_input_1 = page.locator("#Input_1")
+            if (otp_input_1.count() > 0 and otp_input_1.first.is_visible()) or page.locator("button.verify-button").count() > 0:
+                logger.info("Naukri OTP challenge detected. Retrieving verification code via IMAP...")
+                otp_code = self._fetch_naukri_otp(time_before_click - 15, timeout_sec=60)
+                if not otp_code:
+                    resend_btn = page.locator("button:has-text('Resend'), a:has-text('Resend'), .resend-otp, [class*='resend']").first
+                    if resend_btn.count() > 0 and resend_btn.is_visible():
+                        logger.info("Clicking Resend OTP...")
+                        resend_btn.click()
+                        time.sleep(3)
+                        otp_code = self._fetch_naukri_otp(time.time(), timeout_sec=60)
+
+                if otp_code:
+                    logger.info(f"Retrieved OTP. Entering code into verification challenge...")
+                    for i in range(1, 7):
+                        digit = otp_code[i - 1]
+                        inp = page.locator(f"#Input_{i}")
+                        inp.click()
+                        inp.fill(digit)
+                        time.sleep(0.15)
+                    time.sleep(1)
+                    verify_btn = page.locator("button.verify-button, button:has-text('Verify')").first
+                    if verify_btn.count() > 0:
+                        verify_btn.click()
+                        time.sleep(6)
+
+            has_valid_cookie = any(
+                c.get("name") == "nauk_at" and (c.get("expires", -1) == -1 or c.get("expires", 0) > time.time())
+                for c in context.cookies()
+            )
+            if "mnjuser" in page.url or has_valid_cookie or page.locator(".nI-gNb-drawer, .view-profile-wrapper, a[href*='mnjuser/profile']").count() > 0:
+                context.storage_state(path=str(AUTH_STATE_FILE))
+                logger.info("Authentication successful; session saved to storage.")
+                return True
 
             return False
         except Exception as exc:
@@ -745,6 +857,33 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                 # Step 2: Check for Anti-Automation Challenges & Safety Barriers (Fail-Closed)
                 body_visible_text = page.locator("body").inner_text().lower() if page.locator("body").count() > 0 else ""
 
+                # Check for Expired / Closed Listing or Search Redirection (Fast abort to save timeout)
+                curr_url = page.url.lower()
+                is_search_redirect = ("jobs-in-" in curr_url or "search" in curr_url or "expjd=true" in curr_url) and "job-listings-" not in curr_url
+                is_expired_text = any(x in body_visible_text for x in [
+                    "this job is no longer available",
+                    "this job has expired",
+                    "job has been closed",
+                    "similar jobs you might be interested in",
+                    "this vacancy has expired",
+                ])
+                if is_search_redirect or is_expired_text:
+                    self._safe_screenshot(page, evidence_path)
+                    browser.close()
+                    logger.info(f"Job listing expired or redirected to search listing for '{job.title}' @ {job.company} ({page.url}). Fast abort.")
+                    return ApplicationRecord(
+                        application_id=app_id,
+                        job_id=job.job_id,
+                        application_method=ApplicationMethod.NAUKRI_DIRECT.value,
+                        source_job_url=job.url,
+                        canonical_job_url=canonical_url,
+                        started_at=started_at,
+                        status=JobStatus.APPLICATION_FAILED,
+                        failure_reason="Job listing expired, closed, or redirected to search results.",
+                        evidence_path=evidence_path,
+                        dry_run=False,
+                    )
+
                 # 2a. CAPTCHA / Bot Detection
                 has_captcha = False
                 if any(x in body_visible_text for x in ["verify you are human", "complete the security check to continue"]):
@@ -876,7 +1015,18 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         dry_run=False,
                     )
 
-                # Step 4: Locate Primary Application Button on Naukri
+                # Step 4: Locate Primary Application Button on Naukri (Wait for React mounting)
+                try:
+                    page.wait_for_selector(
+                        "button#apply-button, a#apply-button, button.apply-button, a.apply-button, "
+                        "[class*='styles_apply-button'], .job-header button:has-text('Apply'), "
+                        ".apply-button-container button, button:has-text('Apply'), .already-applied, button.applied-btn",
+                        timeout=15000,
+                        state="visible"
+                    )
+                except Exception:
+                    pass
+
                 primary_apply = page.locator(
                     "button#apply-button, a#apply-button, "
                     "button.apply-button, a.apply-button, "
@@ -1040,6 +1190,13 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             drawer_open = False
 
                         if not drawer_open:
+                            time.sleep(2)
+                            try:
+                                drawer_open = drawer.count() > 0 and drawer.is_visible()
+                            except Exception:
+                                drawer_open = False
+
+                        if not drawer_open:
                             if questions_answered:
                                 logger.info(f"Chatbot drawer closed after answering {len(questions_answered)} questions; checking explicit submission evidence.")
                             break
@@ -1056,14 +1213,8 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             "we have received your application",
                             "profile has been shared",
                             "application completed",
-                            "response recorded",
-                            "responses recorded",
                             "thank you for applying",
                             "thanks for applying",
-                            "thanks for your response",
-                            "thank you for your response",
-                            "responses have been submitted",
-                            "your response is recorded",
                         ]):
                             logger.info("Confirmation text observed in chatbot drawer.")
                             chat_confirmed = True
@@ -1104,7 +1255,7 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
 
                         if any(c in latest_q.lower() for c in [
                             "successfully applied", "application sent", "applied to",
-                            "application received", "response recorded", "thank you for applying",
+                            "application received", "thank you for applying",
                             "thanks for applying", "profile has been shared"
                         ]):
                             chat_confirmed = True
@@ -1113,22 +1264,20 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         # If this question was already answered on a previous turn, wait for bot response
                         if latest_q in questions_answered:
                             consecutive_already_answered += 1
-                            if consecutive_already_answered >= 5:
-                                logger.warning(f"Question '{latest_q}' was already answered and bot did not advance after 5 checks. Stopping chatbot drawer.")
-                                chat_interaction_blocked = True
-                                break
-                            logger.info(f"Question '{latest_q}' was already answered. Waiting for bot reply (check {consecutive_already_answered}/5)...")
-                            # If bot didn't advance on check >= 1, re-trigger Save / Send / Submit click
+                            if consecutive_already_answered >= 8:
+                                if questions_answered:
+                                    logger.info(f"Question '{latest_q}' was already answered ({len(questions_answered)} answered so far). Bot reached steady state. Advancing to submission.")
+                                    break
+                                else:
+                                    logger.warning(f"Question '{latest_q}' was already answered and bot did not advance after 8 checks. Stopping chatbot drawer.")
+                                    chat_interaction_blocked = True
+                                    break
+                            logger.info(f"Question '{latest_q}' was already answered. Waiting for bot reply (check {consecutive_already_answered}/8)...")
+                            # If bot didn't advance on check >= 1, explicitly click drawer send/save buttons
                             try:
-                                page.evaluate("""() => {
-                                    const saveBtns = Array.from(document.querySelectorAll("button, span, div, a")).filter(el => {
-                                        const t = (el.innerText || '').trim().toLowerCase();
-                                        return (t === 'save' || t === 'send' || t === 'submit' || t === 'continue' || t === 'next') && el.offsetParent !== null;
-                                    });
-                                    if (saveBtns.length > 0) {
-                                        saveBtns[0].click();
-                                    }
-                                }""")
+                                drawer_send = drawer.locator(".sendMsg, div[id*='sendMsg'], [class*='sendMsg'], button:has-text('Send'), button:has-text('Save'), .save-btn").first
+                                if drawer_send.count() > 0 and drawer_send.is_visible():
+                                    drawer_send.click(force=True, timeout=2000)
                             except Exception:
                                 pass
                             time.sleep(2)
@@ -1384,14 +1533,32 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             except Exception:
                                 pass
                             logger.info(f"Chatbot Turn {chat_turns}: Selecting matching chip '{chip_text}' for question '{latest_q}'")
+                            clicked = False
                             try:
-                                matching_chip.click(force=True, timeout=5000)
+                                for l_sel in [
+                                    f"label[for='{chip_text}']",
+                                    f"label:has-text('{chip_text}')",
+                                    f"label[for='{ans_val_str}']",
+                                    f"label:has-text('{ans_val_str}')"
+                                ]:
+                                    lbl = drawer.locator(l_sel).first
+                                    if lbl.is_visible():
+                                        lbl.click(force=True, timeout=2000)
+                                        clicked = True
+                                        break
                             except Exception:
                                 pass
-                            try:
-                                page.evaluate("(el) => el.click()", matching_chip.element_handle())
-                            except Exception:
-                                pass
+                            if not clicked:
+                                try:
+                                    matching_chip.click(force=True, timeout=3000)
+                                    clicked = True
+                                except Exception:
+                                    pass
+                            if not clicked:
+                                try:
+                                    page.evaluate("(el) => el.click()", matching_chip.element_handle())
+                                except Exception:
+                                    pass
                             try:
                                 radio_inp = matching_chip.locator("input[type='radio'], input[type='checkbox']").first
                                 if radio_inp.count() > 0:
@@ -1401,11 +1568,11 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                             time.sleep(1)
                             # Confirm or submit choice if a button is presented inside the drawer
                             for btn_sel in [
+                                ".sendMsg", "div[id*='sendMsg']", "[class*='sendMsg']",
                                 "button:has-text('Send')",
                                 "button:has-text('Submit')",
                                 "button:has-text('Continue')",
                                 "button:has-text('Next')",
-                                ".sendMsg", "div[id*='sendMsg']",
                                 "button:has-text('Save')", ".save-btn", "button[class*='save']",
                                 "span:has-text('Save')", "div:has-text('Save')", "[role='button']:has-text('Save')"
                             ]:
@@ -1458,12 +1625,31 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                             break
                                     chosen_chip, chip_label = chosen_pair
                                     logger.info(f"Chatbot Turn {chat_turns}: Auto-selected best available option '{chip_label}' for '{latest_q}'")
+                                    fb_clicked = False
                                     try:
-                                        chosen_chip.click(force=True, timeout=3000)
+                                        for l_sel in [
+                                            f"label[for='{chip_label}']",
+                                            f"label:has-text('{chip_label}')"
+                                        ]:
+                                            lbl = drawer.locator(l_sel).first
+                                            if lbl.is_visible():
+                                                lbl.click(force=True, timeout=2000)
+                                                fb_clicked = True
+                                                break
                                     except Exception:
-                                        page.evaluate("(el) => el.click()", chosen_chip.element_handle())
+                                        pass
+                                    if not fb_clicked:
+                                        try:
+                                            chosen_chip.click(force=True, timeout=3000)
+                                        except Exception:
+                                            page.evaluate("(el) => el.click()", chosen_chip.element_handle())
                                     time.sleep(1)
-                                    for btn_sel in ["button:has-text('Send')", "button:has-text('Submit')", "button:has-text('Continue')", "button:has-text('Next')", ".sendMsg", "div[id*='sendMsg']"]:
+                                    for btn_sel in [
+                                        ".sendMsg", "div[id*='sendMsg']", "[class*='sendMsg']",
+                                        "button:has-text('Send')", "button:has-text('Submit')",
+                                        "button:has-text('Continue')", "button:has-text('Next')",
+                                        "button:has-text('Save')", ".save-btn"
+                                    ]:
                                         cb = drawer.locator(btn_sel).first
                                         if cb.is_visible():
                                             cb.click(force=True, timeout=2000)
@@ -1510,7 +1696,8 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         questions_answered[latest_q] = ans_val_str
 
                         save_or_send = drawer.locator(
-                            "button:has-text('Send'), .sendMsg, div[id*='sendMsg'], "
+                            ".sendMsg, div[id*='sendMsg'], [class*='sendMsg'], "
+                            "button:has-text('Send'), "
                             "button:has-text('Submit'), button:has-text('Continue'), "
                             "button:has-text('Next'), button:has-text('Save'), .save-btn, button[class*='save']"
                         ).first
@@ -1537,7 +1724,10 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         for btn_sel in [
                             "button:has-text('Submit Application')", "button:has-text('Apply')",
                             "button:has-text('Submit')", "button:has-text('Save & Apply')",
-                            "button:has-text('Continue')", "button:has-text('Save')", ".save-btn"
+                            "button:has-text('Send Application')", "button:has-text('Done')",
+                            "button:has-text('Finish')", "button:has-text('Continue')",
+                            "button:has-text('Save')", ".save-btn", "button[class*='save']",
+                            "button[class*='submit']", "button[class*='apply']"
                         ]:
                             db = drawer.locator(btn_sel).first
                             if db.is_visible():
@@ -1546,10 +1736,31 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                                     db.click(force=True, timeout=3000)
                                     time.sleep(3)
                                     drawer_submit_clicked = True
-                                    chat_confirmed = True
+                                    drawer_txt_after = (drawer.inner_text() or "").lower()
+                                    if any(c in drawer_txt_after for c in [
+                                        "successfully applied", "application sent", "applied to",
+                                        "application received", "thank you for applying",
+                                        "thanks for applying", "profile has been shared"
+                                    ]):
+                                        chat_confirmed = True
                                     break
                                 except Exception:
                                     pass
+
+                        # If drawer is still open after answering screening questions, close it so page can finalize
+                        try:
+                            close_btn = drawer.locator(
+                                ".crossIcon, [class*='cross'], [class*='close'], button[class*='close'], "
+                                ".chatbot_close, [aria-label*='close' i], .icon_close"
+                            ).first
+                            if close_btn.count() > 0 and close_btn.is_visible():
+                                logger.info("Closing completed chatbot drawer...")
+                                close_btn.click(force=True, timeout=3000)
+                                time.sleep(2)
+                                drawer_still_visible = drawer.count() > 0 and drawer.is_visible()
+                        except Exception:
+                            pass
+
                         if not drawer_submit_clicked and not questions_answered:
                             logger.warning("Recruiter screening drawer is still open without answers; stopping before page-level Apply.")
                             chat_interaction_blocked = True
@@ -1615,11 +1826,14 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
 
                 # Upload tailored PDF (configured and validated format per Finding 8)
                 upload_file = resume_pdf_path if (resume_pdf_path and Path(resume_pdf_path).exists()) else resume_docx_path
-                file_input = page.locator("input[type='file']")
-                if file_input.count() > 0 and upload_file and Path(upload_file).exists():
-                    file_input.first.set_input_files(str(upload_file))
-                    logger.info(f"Uploaded tailored resume ({Path(upload_file).suffix.upper()}) to application form: {upload_file}")
-                    time.sleep(2)
+                try:
+                    file_input = page.locator("input[type='file']")
+                    if file_input.count() > 0 and upload_file and Path(upload_file).exists():
+                        file_input.first.set_input_files(str(upload_file), timeout=5000)
+                        logger.info(f"Uploaded tailored resume ({Path(upload_file).suffix.upper()}) to application form: {upload_file}")
+                        time.sleep(2)
+                except Exception as upload_err:
+                    logger.debug(f"Optional resume upload note: {upload_err}")
 
                 submit_selectors = [
                     "button:has-text('Submit Application')", "button:has-text('Apply Now')",
@@ -1671,8 +1885,15 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                         btn_after = (primary_apply.inner_text(timeout=1000) or "").strip().lower()
                         if "applied" in btn_after:
                             button_confirmed_before_reload = True
-                except Exception:
-                    pass
+                        elif questions_answered and "apply" in btn_after and not drawer_still_visible:
+                            logger.info("Screening questions were completed in drawer. Clicking page-level Apply button to finalize submission...")
+                            primary_apply.click(force=True, timeout=5000)
+                            time.sleep(4)
+                            btn_after_click = (primary_apply.inner_text(timeout=1000) or "").strip().lower()
+                            if "applied" in btn_after_click:
+                                button_confirmed_before_reload = True
+                except Exception as b_err:
+                    logger.debug(f"Post-screening apply button click note: {b_err}")
 
                 # Step 8: Verify Confirmation Evidence via Mandatory Canonical Reload (Finding 1)
                 time.sleep(2)
@@ -1693,78 +1914,81 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                 logger.info(f"Reloading canonical job listing to assert green applied badge: {canonical_url}")
                 try:
                     page.goto(canonical_url, timeout=20000, wait_until="domcontentloaded")
-                    time.sleep(2)
+                    # Wait for Next.js / React skeleton screen to finish hydrating
+                    try:
+                        page.wait_for_selector(".job-header, #apply-button, .already-applied, .apply-button-container, button:has-text('Apply')", timeout=12000, state="attached")
+                    except Exception:
+                        pass
+                    time.sleep(3)
                 except Exception as reload_err:
                     logger.debug(f"Reload note for {canonical_url}: {reload_err}")
 
-                applied_badge = page.locator(
-                    ".already-applied, span.already-applied, span[class*='already-applied'], "
-                    "button.applied-btn, button[class*='already-applied'], "
-                    "button:has-text('Already Applied'), button:has-text('Applied'), "
-                    "a:has-text('Already Applied'), a:has-text('Applied'), "
-                    "span:has-text('Already Applied'), span:has-text('Applied'), "
-                    "div:has-text('Already Applied'), div:has-text('Applied')"
-                )
-                badge_confirmed = False
+                # Check if the page still has an active unapplied Apply button
+                has_unapplied_button = False
                 try:
-                    page.wait_for_selector(
-                        ".already-applied, span.already-applied, button:has-text('Applied'), span:has-text('Applied'), div:has-text('Applied')",
-                        state="visible",
-                        timeout=5000,
-                    )
-                    badge_confirmed = True
+                    for btn in page.locator(
+                        ".job-header button, .job-header a, "
+                        ".apply-button-container button, .apply-button-container a, "
+                        "button#apply-button, a#apply-button, button.apply-button"
+                    ).all():
+                        if btn.is_visible():
+                            btn_t = (btn.inner_text() or "").strip().lower()
+                            if btn_t in ("apply", "apply now", "apply with naukri profile") or (btn_t.startswith("apply") and "applied" not in btn_t):
+                                has_unapplied_button = True
+                                break
                 except Exception:
                     pass
 
-                if not badge_confirmed and applied_badge.count() > 0:
-                    for ab in applied_badge.all():
-                        try:
-                            if ab.is_visible():
-                                badge_text = (ab.evaluate("el => el.innerText || el.textContent || ''") or "").strip().lower()
-                                if "applied" in badge_text:
-                                    badge_confirmed = True
-                                    break
-                        except Exception:
-                            pass
+                applied_locators = page.locator(
+                    ".already-applied, span.already-applied, span[class*='already-applied'], "
+                    "button.applied-btn, button[class*='already-applied'], button[class*='applied'], "
+                    "[class*='styles_already-applied'], [class*='applied-btn'], "
+                    ".apply-button-container button, .apply-button-container span, "
+                    ".job-header button, .job-header span"
+                )
+                badge_confirmed = False
+                if not has_unapplied_button:
+                    for _ in range(5):
+                        if applied_locators.count() > 0:
+                            for ab in applied_locators.all():
+                                try:
+                                    if ab.is_visible():
+                                        txt = (ab.evaluate("el => el.innerText || el.textContent || ''") or "").strip().lower()
+                                        if re.fullmatch(r"(?:already\s+)?applied(?:\s+(?:today|yesterday|\d+\s+(?:day|week|month)s?\s+ago))?", txt):
+                                            badge_confirmed = True
+                                            break
+                                except Exception:
+                                    pass
+                        if badge_confirmed:
+                            break
+                        time.sleep(1.5)
 
-                if badge_confirmed or button_confirmed_before_reload:
+                # STRICT INVARIANT: If the reloaded page STILL has an active "Apply" button,
+                # the application CANNOT be confirmed under any circumstances!
+                if has_unapplied_button:
+                    badge_confirmed = False
+                    button_confirmed_before_reload = False
+                    chat_confirmed = False
+                    intermediate_evidence.confirmed = False
+
+                if badge_confirmed or (button_confirmed_before_reload and not has_unapplied_button):
                     evidence = VerificationEvidence(
                         confirmed=True,
                         status=JobStatus.APPLIED_CONFIRMED,
-                        verification_level="LEVEL_3_BUTTON_ALREADY_APPLIED",
-                        confirmation_text="Applied badge confirmed on listing",
-                        confirmation_reference="ALREADY_APPLIED",
+                        verification_level="LEVEL_2_BADGE_RELOAD",
+                        confirmation_text="Applied badge confirmed on listing after submission",
+                        confirmation_reference=f"NK_{job.job_id}",
                         final_url=page.url,
-                        evidence_summary="Mandatory reload or live button state confirms official green 'Applied' badge.",
-                    )
-                elif chat_confirmed or intermediate_evidence.confirmed or (intermediate_evidence.confirmation_text and any(c in intermediate_evidence.confirmation_text.lower() for c in ["applied", "submitted", "received"])):
-                    evidence = VerificationEvidence(
-                        confirmed=True,
-                        status=JobStatus.APPLIED_CONFIRMED,
-                        verification_level="LEVEL_1_DIRECT_MODAL",
-                        confirmation_text=intermediate_evidence.confirmation_text or "Application completed and confirmed successfully",
-                        confirmation_reference=intermediate_evidence.confirmation_reference or f"NK_{job.job_id}",
-                        final_url=page.url,
-                        evidence_summary="Submission confirmed via on-screen application confirmation cues.",
-                    )
-                elif questions_answered and not chat_interaction_blocked:
-                    evidence = VerificationEvidence(
-                        confirmed=True,
-                        status=JobStatus.APPLIED_CONFIRMED,
-                        verification_level="LEVEL_2_CHATBOT_COMPLETED",
-                        confirmation_text="Recruiter chatbot screening completed and application submitted",
-                        confirmation_reference=f"NK_CHAT_{job.job_id}",
-                        final_url=page.url,
-                        evidence_summary=f"Recruiter chatbot questions answered ({len(questions_answered)}) and submitted.",
+                        evidence_summary="Mandatory reload confirms official green 'Applied' badge after submission.",
                     )
                 else:
                     fail_summary = (
-                        f"Chatbot answered {len(questions_answered)} question(s), but application was not completed or confirmed on reload."
-                        if questions_answered else "Submission could not be confirmed on reload."
+                        f"Screening questions answered ({len(questions_answered)}), but application submission was not confirmed on reload (Apply button still present)."
+                        if questions_answered else "Submission could not be confirmed on reload (Apply button still present)."
                     )
                     evidence = VerificationEvidence(
                         confirmed=False,
-                        status=JobStatus.APPLICATION_FAILED,
+                        status=JobStatus.SUBMISSION_UNVERIFIED if questions_answered else JobStatus.APPLICATION_FAILED,
                         verification_level="UNVERIFIED",
                         confirmation_text=None,
                         confirmation_reference=None,
@@ -1811,3 +2035,6 @@ class PlaywrightBrowserAdapter(BaseNaukriClient):
                 error_message=str(exc),
                 dry_run=False,
             )
+        finally:
+            from src.utils.resource_monitor import ResourceMonitor
+            ResourceMonitor.cleanup_zombies()

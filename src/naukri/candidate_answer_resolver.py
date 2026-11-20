@@ -315,7 +315,7 @@ class CandidateAnswerResolver:
             return FormQuestionAnswerResult(can_answer=True, answer_value="5", field_type=field_type)
 
         # AI / GenAI / LLM / RAG / AIOps / MLOps / AIML / Machine Learning
-        if bool(re.search(r"\b(generative ai|genai|gen ai|aiml|ai/ml|ai-ml|llm|rag|agentic|aiops|mlops|artificial intelligence|machine learning|deep learning|ai|ml|large language model)\b", q_lower)) and any(term in q_lower for term in ["experience", "years", "work", "worked", "architectures", "models"]):
+        if bool(re.search(r"\b(generative ai|genai|gen ai|aiml|ai/ml|ai-ml|llm|rag|retrieval augmented generation|agentic|aiops|mlops|artificial intelligence|machine learning|deep learning|ai|ml|large language model|langchain|llamaindex|prompt engineering)\b", q_lower)) and any(term in q_lower for term in ["experience", "years", "work", "worked", "architectures", "models"]):
             ai_years = getattr(self.cand, "ai_experience_years", 5.0)
             if ai_years is not None:
                 if self._is_yes_no_inquiry(q_lower):
@@ -535,8 +535,10 @@ class CandidateAnswerResolver:
             )
 
         # 2. Total Experience
-        if any(term in q_lower for term in ["total experience", "overall experience", "total years", "years of overall experience", "years of total experience"]) or (
+        if any(term in q_lower for term in ["total experience", "overall experience", "total years", "years of overall experience", "years of total experience", "years experience"]) or (
             "years of experience" in q_lower and not any(spec in q_lower for spec in [" in ", " with ", " on "])
+        ) or (
+            bool(re.search(r"\b\d+\+?\s*years?\s*(?:of\s*)?experience\b", q_lower)) and not any(spec in q_lower for spec in [" in ", " with ", " on "])
         ):
             if "oci" not in q_lower and "aws" not in q_lower and "azure" not in q_lower and "gcp" not in q_lower:
                 if self._is_yes_no_inquiry(q_lower):
@@ -850,7 +852,9 @@ class CandidateAnswerResolver:
                 negative_indicators = [
                     "break", "gap", "crime", "criminal", "convicted", "court", "case", "bond",
                     "disciplinary", "blacklisted", "previously applied", "earlier applied",
-                    "applied before", "worked earlier", "former employee", "relatives", "family member",
+                    "applied before", "worked earlier", "former employee", "employed by",
+                    "employed before", "worked before", "worked with", "worked for", "ex-employee",
+                    "previous employee", "rehire", "relatives", "family member",
                     "holding any offer", "offer in hand",
                     "differently abled", "disability", "conviction"
                 ]

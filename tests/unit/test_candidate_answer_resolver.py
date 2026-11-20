@@ -175,7 +175,7 @@ def test_resolver_expanded_screening_questions():
 
     res_role = resolver.resolve_question("What is your current designation / role?")
     assert res_role.can_answer is True
-    assert res_role.answer_value == "Principal Cloud Engineer (OCI) / Manager-Projects"
+    assert res_role.answer_value == candidate_truth.candidate.current_role
 
     # 7. Currently employed
     res_emp = resolver.resolve_question("Are you currently employed / working?")

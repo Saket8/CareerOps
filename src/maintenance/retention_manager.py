@@ -65,10 +65,20 @@ class RetentionManager:
         db_stats = self.clean_database(dry_run=dry_run)
         storage_stats = self.clean_storage(dry_run=dry_run)
 
+        mailbox_stats = {}
+        try:
+            from src.email_service.mailbox_retention import MailboxRetentionManager
+            mailbox_mgr = MailboxRetentionManager(self.config)
+            mailbox_stats = mailbox_mgr.apply_retention(dry_run=dry_run)
+        except Exception as e:
+            logger.warning(f"Mailbox retention execution encountered an error: {e}")
+            mailbox_stats = {"status": "ERROR", "error": str(e)}
+
         logger.info(
             f"Retention policy complete. DB Purged: {db_stats.get('jobs_purged', 0)} jobs, "
             f"Storage Reclaimed: {storage_stats.get('bytes_reclaimed', 0):,} bytes across "
-            f"{storage_stats.get('total_files_deleted', 0)} files."
+            f"{storage_stats.get('total_files_deleted', 0)} files, "
+            f"Mailbox Purged: {mailbox_stats.get('total_deleted', 0)} emails."
         )
 
         return {
@@ -77,6 +87,7 @@ class RetentionManager:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "database": db_stats,
             "storage": storage_stats,
+            "mailbox": mailbox_stats,
         }
 
     def clean_database(self, dry_run: bool = False) -> Dict[str, Any]:

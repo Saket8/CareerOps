@@ -9,6 +9,9 @@ import os
 import sys
 from pathlib import Path
 
+if sys.platform != "win32" and "DISPLAY" not in os.environ:
+    os.environ["DISPLAY"] = ":99"
+
 from src.utils.config_loader import load_config
 from src.agents.orchestrator import Orchestrator
 from src.utils.logger import get_logger

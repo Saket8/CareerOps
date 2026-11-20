@@ -131,21 +131,61 @@ class LinkedInAdapter:
             with sync_playwright() as p:
                 browser = p.chromium.launch(
                     headless=True,
-                    args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-blink-features=AutomationControlled"]
+                    args=[
+                        "--no-sandbox",
+                        "--disable-dev-shm-usage",
+                        "--disable-blink-features=AutomationControlled",
+                        "--disable-gpu",
+                        "--disable-software-rasterizer",
+                        "--disable-extensions",
+                        "--js-flags=--max-old-space-size=256",
+                        "--renderer-process-limit=1",
+                        "--disable-features=Translate,OptimizationHints,MediaRouter,IsolateOrigins,site-per-process",
+                        "--disk-cache-size=10485760",
+                        "--media-cache-size=10485760",
+                        "--no-zygote",
+                    ]
                 )
                 page = browser.new_page(
                     user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
                     viewport={"width": 1440, "height": 900}
                 )
 
-                per_region_cap = max(15, limit_per_query * 2)
+                try:
+                    page.route(
+                        "**/*.{png,jpg,jpeg,svg,woff2,woff,ttf,eot,webp,gif,mp4,mp3,ico}*",
+                        lambda route: route.abort()
+                    )
+                    page.route(
+                        "**/*",
+                        lambda route: (
+                            route.abort()
+                            if route.request.resource_type in ["image", "media", "font"]
+                            or any(t in route.request.url.lower() for t in [
+                                "google-analytics", "doubleclick", "scorecardresearch",
+                                "branch.io", "appsflyer", "liadm", "bizographics"
+                            ])
+                            else route.continue_()
+                        ),
+                    )
+                except Exception:
+                    pass
+
+                disc_start = time.time()
+                max_discovery_seconds = float(self.li_config.get("max_discovery_seconds", 300))
+                max_total_discover = int(self.li_config.get("max_total_discover", max(35, len(target_regions) * 4)))
+                per_region_cap = max(4, limit_per_query)
+
                 for region_item in target_regions:
+                    if len(discovered_jobs) >= max_total_discover or (time.time() - disc_start) >= max_discovery_seconds:
+                        logger.info(f"LinkedIn discovery budget reached ({len(discovered_jobs)} discovered in {time.time() - disc_start:.1f}s). Concluding discovery.")
+                        break
                     region_name = region_item.get("name", "Worldwide")
                     location_query = region_item.get("location", region_name)
                     region_found = 0
 
                     for q in queries:
-                        if region_found >= per_region_cap:
+                        if region_found >= per_region_cap or len(discovered_jobs) >= max_total_discover or (time.time() - disc_start) >= max_discovery_seconds:
                             break
 
                         encoded_q = quote_plus(q)
@@ -271,6 +311,7 @@ class LinkedInAdapter:
 
         from playwright.sync_api import sync_playwright
 
+        context = None
         try:
             with sync_playwright() as p:
                 context = p.chromium.launch_persistent_context(
@@ -283,6 +324,12 @@ class LinkedInAdapter:
                         "--disable-gpu",
                         "--disable-software-rasterizer",
                         "--disable-extensions",
+                        "--js-flags=--max-old-space-size=256",
+                        "--renderer-process-limit=1",
+                        "--disable-features=Translate,OptimizationHints,MediaRouter,IsolateOrigins,site-per-process",
+                        "--disk-cache-size=10485760",
+                        "--media-cache-size=10485760",
+                        "--no-zygote",
                     ],
                     viewport={"width": 1440, "height": 900},
                 )
@@ -291,13 +338,18 @@ class LinkedInAdapter:
                 # Block images, fonts, media, and heavy analytics to keep memory minimal and CDP snappy on VPS
                 try:
                     page.route(
+                        "**/*.{png,jpg,jpeg,svg,woff2,woff,ttf,eot,webp,gif,mp4,mp3,ico}*",
+                        lambda route: route.abort()
+                    )
+                    page.route(
                         "**/*",
                         lambda route: (
                             route.abort()
                             if route.request.resource_type in ["image", "media", "font"]
-                            or any(t in route.request.url for t in [
+                            or any(t in route.request.url.lower() for t in [
                                 "google-analytics", "doubleclick", "scorecardresearch",
-                                "branch.io", "appsflyer", "liadm", "bizographics"
+                                "branch.io", "appsflyer", "liadm", "bizographics",
+                                "googletagmanager", "clarity.ms"
                             ])
                             else route.continue_()
                         ),
@@ -305,12 +357,15 @@ class LinkedInAdapter:
                 except Exception:
                     pass
 
-                # Normalize regional subdomains (e.g. fr.linkedin.com, es.linkedin.com) to www.linkedin.com
-                clean_target_url = re.sub(r"^https://[a-z]{2,3}\.linkedin\.com", "https://www.linkedin.com", job.url)
-                clean_target_url = clean_target_url.split("?")[0]
+                # Normalize to canonical authenticated LinkedIn job URL (using pure numeric job_id to prevent slug encoding issues)
+                if job.job_id and str(job.job_id).isdigit():
+                    clean_target_url = f"https://www.linkedin.com/jobs/view/{job.job_id}/"
+                else:
+                    clean_target_url = re.sub(r"^https://[a-z]{2,3}\.linkedin\.com", "https://www.linkedin.com", job.url)
+                    clean_target_url = clean_target_url.split("?")[0]
 
                 logger.info(f"Navigating to LinkedIn job: {job.title} @ {job.company} ({clean_target_url})")
-                page.goto(clean_target_url, wait_until="commit", timeout=35000)
+                page.goto(clean_target_url, wait_until="domcontentloaded", timeout=35000)
                 page.wait_for_timeout(4000)
 
                 # 1. Check if already applied
@@ -344,68 +399,60 @@ class LinkedInAdapter:
                     context.close()
                     return record
 
-                # 2. Locate Easy Apply button (with explicit wait for client-side rendering)
-                try:
-                    page.wait_for_selector(
-                        "button[aria-label*='Easy Apply' i], button.jobs-apply-button, button:has-text('Easy Apply'), .jobs-apply-button--top-card",
-                        state="visible",
-                        timeout=5000
-                    )
-                except Exception:
-                    pass
-
-                apply_btn = page.get_by_role("button", name=re.compile(r"easy apply", re.I)).first
-                if apply_btn.count() == 0:
-                    apply_btn = page.locator("button.jobs-apply-button, button:has-text('Easy Apply')").first
-
-                if apply_btn.count() == 0 or not apply_btn.is_visible():
-                    logger.warning(f"Easy Apply button not visible on {clean_target_url}. Status: EXTERNAL_APPLICATION_REQUIRED")
-                    record.status = JobStatus.EXTERNAL_APPLICATION_REQUIRED
-                    record.failure_reason = "No Easy Apply button present on LinkedIn job listing."
-                    context.close()
-                    return record
-
-                logger.info(f"Clicking Easy Apply for {job.title}...")
-
-                # Zero-timeout click via bounding box / coordinate (avoids Playwright actionability hangs on custom web components)
+                # 2. Locate Easy Apply button (with explicit fast wait and international keywords)
                 btn_coords = page.evaluate('''() => {
                     const btn = document.querySelector('button[aria-label*="Easy Apply" i]') ||
+                                document.querySelector('button[aria-label*="Candidature simplifiée" i]') ||
+                                document.querySelector('button[aria-label*="Solicitud sencilla" i]') ||
                                 document.querySelector('button.jobs-apply-button') ||
-                                Array.from(document.querySelectorAll('button')).find(b => b.innerText && b.innerText.includes('Easy Apply'));
+                                Array.from(document.querySelectorAll('button')).find(b => {
+                                    const t = (b.innerText || '').toLowerCase();
+                                    return t.includes('easy apply') || t.includes('candidature simplifiée') || t.includes('solicitud sencilla') || t.includes('einfache bewerbung');
+                                });
                     if (!btn) return null;
                     const rect = btn.getBoundingClientRect();
                     return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
                 }''')
-                if btn_coords and btn_coords.get("x", 0) > 0 and btn_coords.get("y", 0) > 0:
-                    page.mouse.click(btn_coords["x"], btn_coords["y"])
-                else:
-                    apply_btn.dispatch_event("click")
+
+                apply_btn = page.get_by_role("button", name=re.compile(r"easy apply|candidature simplifiée|solicitud sencilla", re.I)).first
+                if apply_btn.count() == 0:
+                    apply_btn = page.locator("button.jobs-apply-button, button:has-text('Easy Apply')").first
+
+                is_apply_visible = False
+                try:
+                    if apply_btn.count() > 0:
+                        is_apply_visible = apply_btn.is_visible(timeout=2000)
+                except Exception:
+                    is_apply_visible = False
+
+                if not is_apply_visible and not btn_coords:
+                    logger.warning(f"Easy Apply button not visible on {clean_target_url}. Status: EXTERNAL_APPLICATION_REQUIRED")
+                    record.status = JobStatus.EXTERNAL_APPLICATION_REQUIRED
+                    record.failure_reason = "No Easy Apply button present on LinkedIn job listing."
+                    return record
+
+                logger.info(f"Clicking Easy Apply for {job.title}...")
+
+                # DOM click + Playwright hardware click fallback
+                clicked_dom = page.evaluate('''() => {
+                    const btn = document.querySelector('button[aria-label*="Easy Apply" i]') ||
+                                document.querySelector('button.jobs-apply-button') ||
+                                Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').toLowerCase().includes('easy apply'));
+                    if (btn) {
+                        btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+                        btn.click();
+                        return true;
+                    }
+                    return false;
+                }''')
+
+                if not clicked_dom:
+                    try:
+                        apply_btn.click(force=True, timeout=2000)
+                    except Exception:
+                        apply_btn.dispatch_event("click")
 
                 page.wait_for_timeout(3000)
-
-                # 3. Locate modal (supports HTML5 <dialog> and classic div modals, strictly filtering out inert popovers)
-                modal_sel = "dialog:not([data-testid='popover-floating']):not([inert]), div[role='dialog']:not([data-testid='popover-floating']):not([inert]), .jobs-easy-apply-modal, .artdeco-modal:not([data-testid='popover-floating']):not([inert])"
-                modal = page.locator(modal_sel).first
-
-                def check_modal_rendered() -> bool:
-                    try:
-                        return page.evaluate("""() => {
-                            const d = document.querySelector("dialog:not([data-testid='popover-floating']):not([inert]), div[role='dialog']:not([data-testid='popover-floating']):not([inert]), .jobs-easy-apply-modal, .artdeco-modal:not([data-testid='popover-floating']):not([inert])");
-                            return !!d && (d.offsetWidth > 0 || d.offsetHeight > 0);
-                        }""")
-                    except Exception:
-                        return False
-
-                if not check_modal_rendered():
-                    # Retry click via dispatch event
-                    apply_btn.dispatch_event("click")
-                    page.wait_for_timeout(2500)
-
-                if not check_modal_rendered():
-                    record.status = JobStatus.APPLICATION_FAILED
-                    record.failure_reason = "Easy Apply modal dialog did not render."
-                    context.close()
-                    return record
 
                 # Helper script injected into page evaluate to always target the true form dialog
                 modal_helper_js = """
@@ -456,13 +503,72 @@ class LinkedInAdapter:
                 }
                 """
 
-                # 4. Step-by-Step Form Resolution (up to 7 steps, max 600s per job)
+                # 3. Locate modal (supports HTML5 <dialog> and classic div modals, strictly filtering out inert popovers)
+                modal_sel = "dialog:not([data-testid='popover-floating']):not([inert]), div[role='dialog']:not([data-testid='popover-floating']):not([inert]), .jobs-easy-apply-modal, .artdeco-modal:not([data-testid='popover-floating']):not([inert])"
+                modal = page.locator(modal_sel).first
+
+                def check_modal_rendered() -> bool:
+                    try:
+                        return page.evaluate(f"""() => {{
+                            {modal_helper_js}
+                            const d = getEasyApplyModal();
+                            return !!d && (d.offsetWidth > 0 || d.offsetHeight > 0);
+                        }}""")
+                    except Exception:
+                        return False
+
+                if not check_modal_rendered():
+                    # Retry DOM click
+                    page.evaluate('''() => {
+                        const btn = document.querySelector('button[aria-label*="Easy Apply" i]') ||
+                                    document.querySelector('button.jobs-apply-button') ||
+                                    Array.from(document.querySelectorAll('button')).find(b => (b.innerText || '').toLowerCase().includes('easy apply'));
+                        if (btn) btn.click();
+                    }''')
+                    page.wait_for_timeout(2500)
+
+                if not check_modal_rendered():
+                    record.status = JobStatus.APPLICATION_FAILED
+                    record.failure_reason = "Easy Apply modal dialog did not render."
+                    context.close()
+                    return record
+
+                # 4. Step-by-Step Form Resolution (up to 7 steps, max 90s per job to maintain throughput)
                 easy_apply_start = time.time()
-                max_easy_apply_duration = 600
+                max_easy_apply_duration = 120
                 step = 0
                 max_steps = 7
                 submitted = False
                 is_domestic = "india" in (job.location or "").lower()
+                cand = self.candidate_truth.candidate
+                cand_dict = {
+                    "name": cand.name or "Saket Saurav",
+                    "first_name": (cand.name.split()[0] if cand.name else "Saket"),
+                    "last_name": (cand.name.split()[-1] if cand.name and len(cand.name.split()) > 1 else "Saurav"),
+                    "email": cand.email or "sauravskt8@gmail.com",
+                    "phone": getattr(cand, "phone", "7028481800"),
+                    "phone_clean": re.sub(r"[^\d]", "", getattr(cand, "phone", "7028481800"))[-10:],
+                    "dob_iso": getattr(cand, "date_of_birth", "1992-08-15") or "1992-08-15",
+                    "dob_us": "08/15/1992",
+                    "dob_in": "15/08/1992",
+                    "linkedin_url": getattr(cand, "linkedin_url", "https://www.linkedin.com/in/saket-saurav-31326b57/") or "https://www.linkedin.com/in/saket-saurav-31326b57/",
+                    "github_url": getattr(cand, "github_url", "https://github.com/Saket8") or "https://github.com/Saket8",
+                    "portfolio_url": getattr(cand, "portfolio_url", "https://saketsaurav.dev") or "https://saketsaurav.dev",
+                    "postal_code": getattr(cand, "postal_code", "201301") or "201301",
+                    "street": "Sector 62",
+                    "city": "Noida",
+                    "state": "Uttar Pradesh",
+                    "country": "India",
+                    "current_company": getattr(cand, "current_organization", "Cognizant") or "Cognizant",
+                    "current_title": getattr(cand, "current_role", "Principal Cloud Engineer") or "Principal Cloud Engineer",
+                    "skills": "Oracle Cloud Infrastructure (OCI), AWS, Azure, Multi-Cloud Architecture, Kubernetes (OKE), Docker, Terraform, Enterprise GenAI, LLMOps, RAG, Agentic AI, Python, Exadata, Oracle RAC",
+                    "total_exp": str(int(getattr(cand, "total_experience_years", 12))),
+                    "cloud_exp": "7",
+                    "ai_exp": "5",
+                    "k8s_exp": "5",
+                    "database_exp": "12",
+                    "notice_period": "90",
+                }
                 last_step_signature = ""
                 stagnation_count = 0
                 review_count = 0
@@ -493,10 +599,40 @@ class LinkedInAdapter:
                         page.wait_for_timeout(300)
 
                     # B. Fast Consolidated Form Processing (inputs, radios, selects, master resume in single call)
-                    form_eval_result = page.evaluate(f"""(isDom) => {{
+                    form_eval_result = page.evaluate(f"""([cand, isDom]) => {{
                         {modal_helper_js}
                         const d = getEasyApplyModal();
                         if (!d) return {{ error: 'no_modal' }};
+
+                        function getFieldLabel(el, container) {{
+                            let lbl = '';
+                            const id = el.id;
+                            if (id) {{
+                                const lEl = container.querySelector('label[for="' + id + '"]');
+                                if (lEl) lbl = lEl.innerText || '';
+                            }}
+                            if (!lbl && el.getAttribute('aria-label')) {{
+                                lbl = el.getAttribute('aria-label');
+                            }}
+                            if (!lbl && el.placeholder) {{
+                                lbl = el.placeholder;
+                            }}
+                            if (!lbl) {{
+                                let p = el.parentElement;
+                                for (let i = 0; i < 5 && p && p !== container; i++) {{
+                                    const found = p.querySelector('label, [data-test-form-element-label], .fb-dash-form-element__label, p, h3, h4');
+                                    if (found && found !== el && !found.contains(el)) {{
+                                        const t = (found.innerText || '').trim();
+                                        if (t && t.length < 100 && !t.toLowerCase().includes('percent complete')) {{
+                                            lbl = t;
+                                            break;
+                                        }}
+                                    }}
+                                    p = p.parentElement;
+                                }}
+                            }}
+                            return (lbl || '').trim();
+                        }}
 
                         // 1. Master Resume Radio Selection
                         let savedMasterSelected = false;
@@ -533,15 +669,58 @@ class LinkedInAdapter:
                         const inps = Array.from(d.querySelectorAll('input:not([type="hidden"]):not([type="file"]):not([data-testid="typeahead-input"]):not([type="radio"]):not([type="checkbox"]), textarea'));
                         for (const inp of inps) {{
                             if (inp.value && inp.value.trim()) continue;
-                            const id = inp.id;
-                            let lbl = (id ? d.querySelector('label[for="' + id + '"]')?.innerText : '') ||
-                                      inp.closest('.fb-dash-form-element, .jobs-easy-apply-form-element, div')?.querySelector('label, .fb-dash-form-element__label')?.innerText ||
-                                      inp.getAttribute('aria-label') || inp.placeholder || '';
-                            const l = lbl.toLowerCase();
+                            const rawLbl = getFieldLabel(inp, d);
+                            const l = (rawLbl + ' ' + (inp.getAttribute('data-testid') || '') + ' ' + (inp.type || '')).toLowerCase();
 
-                            let val = '12';
+                            let val = '';
+                            // URLs
+                            if (l.includes('linkedin') || l.includes('profile url')) {{
+                                val = cand.linkedin_url;
+                            }} else if (l.includes('github') || l.includes('git')) {{
+                                val = cand.github_url;
+                            }} else if (l.includes('website') || l.includes('portfolio') || l.includes('blog') || (l.includes('url') && !l.includes('company'))) {{
+                                val = cand.portfolio_url;
+                            }}
+                            // Date of Birth / Calendar
+                            else if (l.includes('birth') || l.includes('dob') || l.includes('date-picker') || inp.type === 'date') {{
+                                val = (inp.lang && inp.lang.includes('en-US')) ? cand.dob_us : cand.dob_us;
+                            }}
+                            // Address / Location
+                            else if (l.includes('street') || l.includes('address line 1') || l.includes('address line') || l.includes('street address')) {{
+                                val = cand.street;
+                            }} else if (l.includes('zip') || l.includes('postal') || l.includes('pincode') || l.includes('pin code')) {{
+                                val = cand.postal_code;
+                            }} else if (l.includes('city') || l.includes('town')) {{
+                                val = cand.city;
+                            }} else if (l.includes('state') || l.includes('province') || l.includes('region')) {{
+                                val = cand.state;
+                            }} else if (l.includes('country') && !l.includes('code')) {{
+                                val = cand.country;
+                            }}
+                            // Personal Details
+                            else if (l.includes('phone') || l.includes('mobile') || l.includes('cell') || inp.type === 'tel') {{
+                                val = cand.phone_clean;
+                            }} else if (l.includes('email') || inp.type === 'email') {{
+                                val = cand.email;
+                            }} else if (l.includes('first name') || l.includes('given name')) {{
+                                val = cand.first_name;
+                            }} else if (l.includes('last name') || l.includes('family name') || l.includes('surname')) {{
+                                val = cand.last_name;
+                            }} else if (l.includes('full name') || l.includes('your name') || l.includes('legal name')) {{
+                                val = cand.name;
+                            }}
+                            // Current Employment
+                            else if (l.includes('current employer') || l.includes('current company') || l.includes('company name')) {{
+                                val = cand.current_company;
+                            }} else if (l.includes('current job title') || l.includes('current title') || l.includes('designation')) {{
+                                val = cand.current_title;
+                            }}
+                            // Textarea / Skills / Summaries
+                            else if (inp.tagName === 'TEXTAREA' || l.includes('skill') || l.includes('summary') || l.includes('overview') || l.includes('cover') || l.includes('message') || l.includes('describe') || l.includes('tell us')) {{
+                                val = cand.skills;
+                            }}
                             // Salary / Compensation / Currency
-                            if (l.includes('salary') || l.includes('compensation') || l.includes('remuneration') || l.includes('rate') || l.includes('ctc') || l.includes('pay') || l.includes('gross') || l.includes('eur') || l.includes('cad') || l.includes('usd') || l.includes('inr')) {{
+                            else if (l.includes('salary') || l.includes('compensation') || l.includes('remuneration') || l.includes('rate') || l.includes('ctc') || l.includes('pay') || l.includes('gross') || l.includes('eur') || l.includes('cad') || l.includes('usd') || l.includes('inr')) {{
                                 if (l.includes('month') || l.includes('mensual') || l.includes('monat') || l.includes('mensuel')) {{
                                     val = '7500';
                                 }} else if (l.includes('hour') || l.includes('hourly') || l.includes('stunde') || l.includes('heure') || l.includes('hr')) {{
@@ -556,33 +735,33 @@ class LinkedInAdapter:
                             }}
                             // Specific Cloud Platforms
                             else if (l.includes('oci') || l.includes('oracle cloud')) {{
-                                val = '7';
+                                val = cand.oci_exp;
                             }} else if (l.includes('aws') || l.includes('amazon') || l.includes('azure')) {{
                                 val = '6';
                             }} else if (l.includes('gcp') || l.includes('google cloud')) {{
                                 val = '3';
                             }} else if (l.includes('cloud')) {{
-                                val = '7';
+                                val = cand.cloud_exp;
                             }}
                             // AI / GenAI / LLM / RAG / Agentic
                             else if (l.includes('genai') || l.includes('llm') || l.includes('rag') || l.includes('agent') || l.includes('agentic') || (l.includes('ai') && !l.includes('email'))) {{
-                                val = '5';
+                                val = cand.ai_exp;
                             }}
                             // Containers & DevOps
                             else if (l.includes('kubernetes') || l.includes('k8s') || l.includes('oke') || l.includes('docker') || l.includes('container') || l.includes('helm')) {{
-                                val = '5';
+                                val = cand.k8s_exp;
                             }} else if (l.includes('terraform') || l.includes('iac') || l.includes('ansible') || l.includes('devops') || l.includes('ci/cd') || l.includes('pipeline')) {{
                                 val = '6';
                             }}
                             // Operating Systems & Scripting
                             else if (l.includes('linux') || l.includes('unix') || l.includes('rhel') || l.includes('centos') || l.includes('bash') || l.includes('shell')) {{
-                                val = '12';
+                                val = cand.total_exp;
                             }} else if (l.includes('python')) {{
                                 val = '5';
                             }}
                             // Databases & Mission-Critical Data
                             else if (l.includes('database') || l.includes('dba') || l.includes('oracle db') || l.includes('exadata') || l.includes('rac') || l.includes('sql') || l.includes('plsql')) {{
-                                val = '12';
+                                val = cand.database_exp;
                             }}
                             // Security & IAM
                             else if (l.includes('security') || l.includes('iam') || l.includes('sso') || l.includes('saml') || l.includes('rbac') || l.includes('identity')) {{
@@ -590,15 +769,19 @@ class LinkedInAdapter:
                             }}
                             // General Tenure / Years of Experience
                             else if (l.includes('year') || l.includes('tenure') || l.includes('experience') || l.includes('año') || l.includes('jahr') || l.includes('année')) {{
-                                val = '12';
+                                val = cand.total_exp;
                             }} else if (inp.type === 'number') {{
-                                val = '12';
+                                val = cand.total_exp;
                             }}
                             // Notice Period
                             else if (l.includes('notice') || l.includes('joining') || l.includes('start date') || l.includes('lwd')) {{
-                                val = '90 Days';
+                                val = cand.notice_period;
+                            }}
+                            // Negative intent inquiries in text inputs (e.g. "Employee ID if former employee")
+                            else if (/former|previous employee|ex-employee|employed before|worked before/i.test(l)) {{
+                                val = 'N/A';
                             }} else {{
-                                val = 'Yes';
+                                val = inp.type === 'number' ? cand.total_exp : 'Yes';
                             }}
 
                             setReactValue(inp, val);
@@ -613,9 +796,8 @@ class LinkedInAdapter:
                                     continue;
                                 }}
                             }}
-                            const id = sel.id;
-                            const lbl = (id ? d.querySelector('label[for="' + id + '"]')?.innerText : '') || sel.getAttribute('aria-label') || '';
-                            const l = lbl.toLowerCase();
+                            const rawLbl = getFieldLabel(sel, d);
+                            const l = rawLbl.toLowerCase();
                             const options = Array.from(sel.options);
                             if (options.length <= 1) continue;
 
@@ -629,29 +811,42 @@ class LinkedInAdapter:
                                 return t === 'no' || t === 'non' || t === 'nein';
                             }});
 
+                            // Negative intent check: (former employee, criminal, non-compete, etc.)
+                            const isNegativeIntent = /employed|worked|ex-employee|former|criminal|convict|felony|discipline|terminated|fired|discharge|non-compete/i.test(l);
+
                             if (yesIdx !== -1 && noIdx !== -1) {{
-                                targetIdx = yesIdx;
+                                targetIdx = isNegativeIntent ? noIdx : yesIdx;
+                            }} else if (l.includes('country') || l.includes('nationality') || l.includes('citizenship')) {{
+                                targetIdx = options.findIndex(o => {{
+                                    const t = (o.text || '').toLowerCase();
+                                    return t === 'india' || t === 'indian' || t.includes('india');
+                                }});
                             }} else if (l.includes('english') || l.includes('inglés') || l.includes('englisch') || l.includes('anglais') || l.includes('language') || l.includes('idioma') || l.includes('proficiency')) {{
                                 targetIdx = options.findIndex(o => {{
                                     const t = (o.text || '').toLowerCase();
                                     return t.includes('professional') || t.includes('native') || t.includes('fluent') || t.includes('advanced') || t.includes('bilingual') || t.includes('avanzado') || t.includes('alto') || t.includes('c1') || t.includes('c2') || t.includes('fließend');
                                 }});
-                            }} else if (l.includes('notice') || l.includes('joining') || l.includes('available') || l.includes('start date')) {{
+                            }} else if (l.includes('notice') || l.includes('joining') || l.includes('available') || l.includes('availability') || l.includes('start date')) {{
                                 targetIdx = options.findIndex(o => {{
                                     const t = (o.text || '').toLowerCase();
-                                    return t.includes('immediate') || t.includes('15') || t.includes('30') || t.includes('1 month') || t.includes('now');
+                                    return t.includes('immediate') || t.includes('1 month') || t.includes('less than') || t.includes('15') || t.includes('30') || t.includes('now');
                                 }});
                             }} else if (l.includes('education') || l.includes('degree') || l.includes('master') || l.includes('bachelor')) {{
                                 targetIdx = options.findIndex(o => {{
                                     const t = (o.text || '').toLowerCase();
                                     return t.includes('bachelor') || t.includes('master') || t.includes('degree') || t.includes('licenciatura');
                                 }});
+                            }} else if (l.includes('role') || l.includes('title') || l.includes('level') || l.includes('seniority')) {{
+                                targetIdx = options.findIndex(o => {{
+                                    const t = (o.text || '').toLowerCase();
+                                    return (t.includes('manager') || t.includes('lead') || t.includes('architect') || t.includes('principal') || t.includes('senior')) && !t.includes('fresher') && !t.includes('intern');
+                                }});
                             }}
 
                             if (targetIdx === -1 || (targetIdx === 0 && (options[0].text.toLowerCase().includes('select') || !options[0].value))) {{
                                 for (let i = 1; i < options.length; i++) {{
                                     const t = (options[i].text || options[i].value || '').trim().toLowerCase();
-                                    if (t && !t.includes('select') && !t.includes('choose') && !t.includes('ninguno') && !t.includes('none')) {{
+                                    if (t && !t.includes('select') && !t.includes('choose') && !t.includes('ninguno') && !t.includes('none') && !t.includes('fresher') && !t.includes('intern')) {{
                                         targetIdx = i;
                                         break;
                                     }}
@@ -668,10 +863,14 @@ class LinkedInAdapter:
                         }}
 
                         // 5. Handle Radio Buttons & Checkboxes
-                        const fieldsets = Array.from(d.querySelectorAll('fieldset, [role="radiogroup"], div[data-test-form-builder-radio]'));
+                        const fieldsets = Array.from(d.querySelectorAll('fieldset, [role="radiogroup"], div[data-test-form-builder-radio], div[componentkey*="radio"]'));
                         for (const fs of fieldsets) {{
                             const radios = Array.from(fs.querySelectorAll('input[type="radio"]'));
                             if (radios.length === 0) continue;
+
+                            const legend = fs.querySelector('legend, p, h3, h4, span')?.innerText || '';
+                            const qText = legend.toLowerCase();
+                            const isNegativeIntent = /employed|worked|ex-employee|former|criminal|convict|felony|discipline|terminated|fired|discharge|non-compete/i.test(qText);
 
                             const findRadio = (kw) => {{
                                 return radios.find(r => {{
@@ -687,11 +886,19 @@ class LinkedInAdapter:
                                 }});
                             }};
 
-                            const yesRadio = findRadio('yes') || findRadio('sí') || findRadio('si') || findRadio('oui') || findRadio('ja') || radios.find(r => (r.value || '').toLowerCase().includes('yes') || (r.value || '').toLowerCase().includes('true'));
-                            if (yesRadio && !yesRadio.checked) {{
-                                setReactRadio(yesRadio, true);
-                            }} else if (radios.length > 0 && !radios.some(r => r.checked)) {{
-                                setReactRadio(radios[0], true);
+                            let targetRadio = null;
+                            if (isNegativeIntent) {{
+                                targetRadio = findRadio('no') || findRadio('non') || findRadio('nein') || findRadio('0') || radios.find(r => (r.value || '').toLowerCase().includes('no') || (r.value || '').toLowerCase().includes('false'));
+                            }} else {{
+                                targetRadio = findRadio('yes') || findRadio('sí') || findRadio('si') || findRadio('oui') || findRadio('ja') || findRadio('1') || radios.find(r => (r.value || '').toLowerCase().includes('yes') || (r.value || '').toLowerCase().includes('true'));
+                            }}
+
+                            if (!targetRadio && radios.length > 0) {{
+                                targetRadio = isNegativeIntent ? radios[radios.length - 1] : radios[0];
+                            }}
+
+                            if (targetRadio && !targetRadio.checked) {{
+                                setReactRadio(targetRadio, true);
                             }}
                         }}
 
@@ -722,7 +929,7 @@ class LinkedInAdapter:
                             errors: errors,
                             signature: signature
                         }};
-                    }}""", is_domestic)
+                    }}""", [cand_dict, is_domestic])
 
                     if isinstance(form_eval_result, dict) and form_eval_result.get("savedMasterSelected"):
                         logger.info("Selected master CV already saved on LinkedIn profile.")
@@ -797,20 +1004,46 @@ class LinkedInAdapter:
                                         if mi_id:
                                             lbl += " " + (page.evaluate(f"() => document.querySelector('label[for=\"{mi_id}\"]')?.innerText || ''") or "").lower()
                                         
-                                        if any(w in lbl for w in ["salary", "compensation", "ctc", "pay", "rate"]):
+                                        if any(w in lbl for w in ["linkedin", "profile url"]):
+                                            val_to_fill = cand_dict["linkedin_url"]
+                                        elif any(w in lbl for w in ["github", "git"]):
+                                            val_to_fill = cand_dict["github_url"]
+                                        elif any(w in lbl for w in ["website", "portfolio", "blog"]):
+                                            val_to_fill = cand_dict["portfolio_url"]
+                                        elif any(w in lbl for w in ["birth", "dob", "date-picker"]):
+                                            val_to_fill = cand_dict["dob_us"]
+                                        elif any(w in lbl for w in ["street", "address"]):
+                                            val_to_fill = cand_dict["street"]
+                                        elif any(w in lbl for w in ["zip", "postal", "pincode"]):
+                                            val_to_fill = cand_dict["postal_code"]
+                                        elif any(w in lbl for w in ["city", "town"]):
+                                            val_to_fill = cand_dict["city"]
+                                        elif any(w in lbl for w in ["state", "province"]):
+                                            val_to_fill = cand_dict["state"]
+                                        elif any(w in lbl for w in ["salary", "compensation", "ctc", "pay", "rate"]):
                                             val_to_fill = "7500" if "month" in lbl else ("45" if "lpa" in lbl or "inr" in lbl else ("80" if "hour" in lbl else "95000"))
-                                        elif any(w in lbl for w in ["oci", "oracle cloud", "cloud"]):
-                                            val_to_fill = "7"
+                                        elif any(w in lbl for w in ["oci", "oracle cloud"]):
+                                            val_to_fill = cand_dict["oci_exp"]
+                                        elif any(w in lbl for w in ["aws", "amazon", "azure"]):
+                                            val_to_fill = "6"
                                         elif any(w in lbl for w in ["genai", "llm", "rag", "agent", "ai"]):
-                                            val_to_fill = "5"
+                                            val_to_fill = cand_dict["ai_exp"]
+                                        elif any(w in lbl for w in ["kubernetes", "k8s", "oke", "docker"]):
+                                            val_to_fill = cand_dict["k8s_exp"]
+                                        elif any(w in lbl for w in ["terraform", "iac", "devops"]):
+                                            val_to_fill = "6"
+                                        elif any(w in lbl for w in ["database", "dba", "sql"]):
+                                            val_to_fill = cand_dict["database_exp"]
                                         elif any(w in lbl for w in ["notice", "joining", "start"]):
-                                            val_to_fill = "90 Days"
+                                            val_to_fill = cand_dict["notice_period"]
+                                        elif any(w in lbl for w in ["skill", "summary", "overview"]):
+                                            val_to_fill = cand_dict["skills"]
                                         elif mi.get_attribute("type") == "number":
-                                            val_to_fill = "12"
+                                            val_to_fill = cand_dict["total_exp"]
                                         elif any(w in lbl for w in ["year", "tenure", "experience"]):
-                                            val_to_fill = "12"
+                                            val_to_fill = cand_dict["total_exp"]
                                         else:
-                                            val_to_fill = "12" if mi.get_attribute("type") == "number" else "Yes"
+                                            val_to_fill = cand_dict["total_exp"] if mi.get_attribute("type") == "number" else "Yes"
                                         mi.fill(val_to_fill, timeout=1000)
                                 except Exception:
                                     pass
@@ -1010,11 +1243,23 @@ class LinkedInAdapter:
                     if not record.failure_reason:
                         record.failure_reason = "Unresolved screening fields or multi-page form pause."
 
-                context.close()
+                if context:
+                    try:
+                        context.close()
+                    except Exception:
+                        pass
         except Exception as e:
             logger.error(f"Error during LinkedIn Easy Apply execution for {job.title}: {e}")
             record.status = JobStatus.APPLICATION_FAILED
             record.failure_reason = str(e)
+        finally:
+            if context:
+                try:
+                    context.close()
+                except Exception:
+                    pass
+            from src.utils.resource_monitor import ResourceMonitor
+            ResourceMonitor.cleanup_zombies()
 
         return record
 

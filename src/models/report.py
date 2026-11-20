@@ -22,6 +22,8 @@ class TopApplicationItem(BaseModel):
     outreach_target: Optional[str] = None
     outreach_inmail: Optional[str] = None
     outreach_search_url: Optional[str] = None
+    referral_pack_path: Optional[str] = None
+    referral_pitch: Optional[str] = None
 
 
 class SourceBreakdownItem(BaseModel):

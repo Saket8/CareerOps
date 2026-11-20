@@ -68,6 +68,8 @@ class ReportingAgent:
         confirmed_apps = [
             a for a in valid_apps
             if a.status in ("APPLIED_CONFIRMED", "APPLIED")
+            and (a.confirmation_ref or "") != "ALREADY_APPLIED"
+            and "already applied" not in (a.reason or "").lower()
             and (data.dry_run or not (a.confirmation_ref and any(a.confirmation_ref.startswith(p) for p in ("MOCK_", "SIM_"))))
         ]
         unverified_apps = [a for a in valid_apps if a.status == "SUBMISSION_UNVERIFIED"]
@@ -164,16 +166,22 @@ Date: {data.date}
             md_content += "_No confirmed applications in this run._\n\n"
 
         if external_apps:
-            md_content += "### ⭐ HIGH-VALUE EXTERNAL OPPORTUNITIES (RECOMMENDED FOR 1-CLICK MANUAL APPLICATION)\n"
-            md_content += "_The following opportunities scored high for your profile (≥75% match, meeting compensation criteria) but require submission on external enterprise career portals (Workday, Greenhouse, Taleo). Direct links are provided below for 1-click manual submission:_\n\n"
+            md_content += "### ⭐ HIGH-VALUE EXTERNAL OPPORTUNITIES — TIER-1 GCC & HYPERSCALER DIRECT REQUISITIONS (PORTAL & REFERRAL PACKS)\n"
+            md_content += "_The following high-value enterprise opportunities were discovered directly on official career portals (Workday, Amazon.jobs, Oracle HCM, Greenhouse). Pre-crafted employee referral messages, hiring manager pitches, and tailored resumes are ready:_\n\n"
             for idx, item in enumerate(external_apps, 1):
                 factors = ", ".join(item.key_factors[:3]) if item.key_factors else "High architecture alignment"
                 md_content += f"{idx}. **{item.role}** @ **{item.company}**\n"
                 md_content += f"   - **Match Score:** `{item.match_score}%`\n"
-                md_content += f"   - **Salary:** {item.salary}\n"
+                md_content += f"   - **Estimated Compensation:** {item.salary}\n"
                 md_content += f"   - **Key Fit Factors:** {factors}\n"
-                md_content += f"   - **Recommended Resume:** `{item.resume_used}`\n"
-                md_content += f"   - **Direct Portal Link:** [Apply on Company Portal ↗]({item.url})\n\n"
+                md_content += f"   - **Tailored Resume:** `{item.resume_used}`\n"
+                md_content += f"   - **Direct Portal Link:** [Apply on Company Portal ↗]({item.url})\n"
+                if item.referral_pack_path:
+                    pack_name = Path(item.referral_pack_path).name
+                    md_content += f"   - **1-Click Referral Pack:** [{pack_name}](file://{Path(item.referral_pack_path).resolve()})\n"
+                if item.outreach_search_url:
+                    md_content += f"   - **Hiring Contact Search:** [Find Recruiter on LinkedIn ↗]({item.outreach_search_url})\n"
+                md_content += "\n"
 
         if manual_intervention_apps:
             md_content += "### APPLICATIONS REQUIRING SCREENING REVIEW\n"
@@ -284,6 +292,7 @@ Date: {data.date}
                 escaped_company = html.escape(str(app.company or ''))
                 escaped_salary = html.escape(str(app.salary or 'Not Disclosed'))
                 escaped_factors = html.escape(str(factors))
+                pack_badge = '<div style="margin-top: 6px;"><span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background-color: #fef08a; color: #854d0e;">🤝 Referral Pack & 30s Pitch Ready</span></div>' if getattr(app, 'referral_pack_path', None) else ''
 
                 rows.append(f"""
                 <tr style="background-color: #ffffff;">
@@ -297,6 +306,7 @@ Date: {data.date}
                         <div style="font-size: 11px; color: #64748b; margin-top: 3px; font-style: italic;">
                             {escaped_factors}
                         </div>
+                        {pack_badge}
                     </td>
                     <td style="padding: 12px 10px; border-bottom: 1px solid #bae6fd; text-align: center; vertical-align: middle; white-space: nowrap;">
                         <span style="display: inline-block; padding: 3px 8px; border-radius: 9999px; font-size: 11px; font-weight: 700; background-color: #e0f2fe; color: #0369a1;">{app.match_score}%</span>

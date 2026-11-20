@@ -1,6 +1,7 @@
 """Master Orchestrator coordinating all autonomous career agents and state machine."""
 
 import os
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,6 +35,7 @@ from src.models.job import JobStatus, ApplicationMethod, JobListing, Application
 from src.models.candidate import CandidateTruth
 from src.linkedin import LinkedInAdapter
 from src.utils.logger import get_logger
+from src.utils.tier1_detector import is_tier_1_company
 
 logger = get_logger("orchestrator")
 
@@ -98,8 +100,9 @@ def check_submission_gates(
     is_remote = any(m in job_loc or m in (job.work_mode or "").lower() for m in ["remote", "hybrid", "wfh"])
     if not is_remote and candidate_truth.candidate.willing_to_relocate:
         allowed_keywords = [
-            "india", "noida", "gurgaon", "delhi", "bengaluru", "bangalore", "pune", "hyderabad",
-            "mumbai", "chennai", "europe", "uk", "united kingdom", "london", "germany", "netherlands", "switzerland",
+            "india", "noida", "gurgaon", "gurugram", "delhi", "ncr", "bengaluru", "bangalore", "pune", "hyderabad",
+            "mumbai", "chennai", "kolkata", "ahmedabad", "coimbatore", "jaipur", "pan india", "remote",
+            "europe", "uk", "united kingdom", "london", "germany", "netherlands", "switzerland",
             "ireland", "sweden", "denmark", "norway", "finland", "nordics", "malmo", "malmö", "australia", "zealand",
             "united states", "usa", "us", "canada", "singapore", "uae", "dubai"
         ]
@@ -149,7 +152,12 @@ def get_source_label(job: JobListing, ats_filler_obj: Any = None) -> str:
     """Classifies job into canonical platform source: Naukri, LinkedIn, or ATS Portal."""
     if job.application_method == ApplicationMethod.LINKEDIN_EASY_APPLY or "linkedin" in (job.source_platform or "").lower() or "linkedin" in (job.url or "").lower():
         return "LinkedIn"
-    if (ats_filler_obj and ats_filler_obj.is_supported_portal(job.url)) or "ats" in (job.source_platform or "").lower() or "greenhouse" in (job.url or "").lower() or "lever" in (job.url or "").lower():
+    if (
+        (ats_filler_obj and ats_filler_obj.is_supported_portal(job.url))
+        or "ats" in (job.source_platform or "").lower()
+        or "direct" in (job.source_platform or "").lower()
+        or any(k in (job.url or "").lower() for k in ("greenhouse", "lever", "myworkdayjobs", "amazon.jobs", "oraclecloud"))
+    ):
         return "ATS Portal"
     return "Naukri"
 
@@ -240,11 +248,15 @@ class Orchestrator:
                 from src.agents.cover_letter_agent import CoverLetterAgent
                 from src.agents.outreach_agent import OutreachAgent
                 from src.agents.ats_filler import AtsPortalFiller
+                from src.agents.direct_portal_discovery import DirectPortalDiscoveryAgent
+                from src.agents.referral_pack_agent import ReferralPackAgent
                 from src.email_service.inbound_email_tracker import InboundEmailTracker
 
                 cover_letter_agent = CoverLetterAgent(self.candidate_truth, self.config)
                 outreach_agent = OutreachAgent(self.candidate_truth, self.config)
                 ats_filler = AtsPortalFiller(self.candidate_truth, self.config, offline_mode=self.offline_mode)
+                direct_portal_agent = DirectPortalDiscoveryAgent(job_repo=job_repo, config=self.config, offline_mode=self.offline_mode)
+                referral_pack_agent = ReferralPackAgent(self.candidate_truth, self.config)
                 inbound_tracker = InboundEmailTracker(self.config)
 
                 rep_cfg = self.config.get("reporting", {})
@@ -319,18 +331,33 @@ class Orchestrator:
                 except Exception as ats_err:
                     logger.warning(f"ATS portal discovery note: {ats_err}")
 
+                # 1d. DIRECT GCC & HYPERSCALER PORTAL DISCOVERY (Top 100 Enterprise Portals: Workday, Amazon.jobs, Greenhouse)
+                direct_portal_jobs = []
+                try:
+                    logger.info("Discovering direct enterprise requisitions from Top 100 GCCs & Hyperscalers...")
+                    direct_portal_jobs = direct_portal_agent.discover_all_direct_portals(limit_per_target=3, max_total=12)
+                    jobs_scanned_count += len(direct_portal_jobs)
+                    source_counts["ATS Portal"]["discovered"] += len(direct_portal_jobs)
+                    session.commit()
+                except Exception as dp_err:
+                    logger.warning(f"Direct portal discovery note: {dp_err}")
+
                 # 2. QUALIFICATION & SCORING
                 # Include existing qualified and ready-for-retry opportunities from database to prevent opportunity starvation
                 db_unapplied = []
-                for status_candidate in [JobStatus.QUALIFIED, JobStatus.READY_FOR_RETRY, JobStatus.HIGH_MATCH]:
+                for status_candidate in [JobStatus.QUALIFIED, JobStatus.READY_FOR_RETRY, JobStatus.HIGH_MATCH, JobStatus.APPLICATION_READY]:
                     for jm in job_repo.get_jobs_by_status(status_candidate):
                         jl = jm.to_listing()
+                        if not li_enabled and "linkedin" in (jl.source_platform or "").lower():
+                            continue
                         if not app_repo.has_applied_to_job(jl.job_id) and not job_repo.is_already_applied(jl.job_id):
-                            db_unapplied.append(jl)
+                            can_retry, _ = app_repo.can_retry_application(jl.job_id, jl.company, jl.title)
+                            if can_retry:
+                                db_unapplied.append(jl)
 
                 seen_pool_ids = set()
                 eligible_jobs_pool = []
-                for j in (list(disc_result.eligible_jobs) + li_discovered_jobs + ats_discovered_jobs + db_unapplied):
+                for j in (list(disc_result.eligible_jobs) + li_discovered_jobs + ats_discovered_jobs + direct_portal_jobs + db_unapplied):
                     if j.job_id not in seen_pool_ids:
                         seen_pool_ids.add(j.job_id)
                         eligible_jobs_pool.append(j)
@@ -368,19 +395,105 @@ class Orchestrator:
                         item for item in qualifying_jobs
                         if "naukri" in (item[0].source_platform or "").lower()
                     ]
-                    linkedin_jobs = [
-                        item for item in qualifying_jobs
-                        if "linkedin" in (item[0].source_platform or "").lower()
-                        or item[0].application_method == ApplicationMethod.LINKEDIN_EASY_APPLY
-                    ]
+                    if not li_enabled or not linkedin_adapter:
+                        linkedin_jobs = []
+                    else:
+                        linkedin_jobs = [
+                            item for item in qualifying_jobs
+                            if "linkedin" in (item[0].source_platform or "").lower()
+                            or item[0].application_method == ApplicationMethod.LINKEDIN_EASY_APPLY
+                        ]
                     ats_jobs = [
                         item for item in qualifying_jobs
                         if item not in naukri_jobs and item not in linkedin_jobs
                     ]
 
-                    naukri_jobs.sort(key=lambda item: item[1].overall_score, reverse=True)
-                    linkedin_jobs.sort(key=lambda item: item[1].overall_score, reverse=True)
-                    ats_jobs.sort(key=lambda item: item[1].overall_score, reverse=True)
+                    def extract_country_tag(job) -> str:
+                        loc = (getattr(job, "location", "") or "").lower()
+                        if any(k in loc for k in ["united states", "usa", "us ", "u.s.", "texas", "california", "virginia", "chicago", "new york", "seattle"]):
+                            return "United States"
+                        if any(k in loc for k in ["united kingdom", "uk", "london", "england", "scotland"]):
+                            return "United Kingdom"
+                        if any(k in loc for k in ["germany", "deutschland", "berlin", "munich", "frankfurt", "hamburg", "stuttgart"]):
+                            return "Germany"
+                        if any(k in loc for k in ["netherlands", "amsterdam", "holland", "rotterdam", "utrecht", "eindhoven"]):
+                            return "Netherlands"
+                        if any(k in loc for k in ["sweden", "stockholm", "gothenburg", "malmo"]):
+                            return "Sweden"
+                        if any(k in loc for k in ["norway", "oslo", "bergen"]):
+                            return "Norway"
+                        if any(k in loc for k in ["ireland", "dublin", "cork"]):
+                            return "Ireland"
+                        if any(k in loc for k in ["switzerland", "zurich", "geneva", "basel", "bern"]):
+                            return "Switzerland"
+                        if "india" in loc:
+                            return "India"
+                        return "Other"
+
+                    # Group and interleave LinkedIn jobs across target countries to achieve 2-3 jobs per country per user request
+                    from collections import defaultdict
+                    grouped_by_country = defaultdict(list)
+                    for item in linkedin_jobs:
+                        c_tag = extract_country_tag(item[0])
+                        grouped_by_country[c_tag].append(item)
+
+                    tier_1_prio_list = self.config.get("search", {}).get("tier_1_priority_companies")
+                    for c_tag in grouped_by_country:
+                        grouped_by_country[c_tag].sort(
+                            key=lambda item: (
+                                1 if is_tier_1_company(item[0].company, tier_1_prio_list) else 0,
+                                item[1].overall_score,
+                            ),
+                            reverse=True,
+                        )
+
+                    priority_countries = [
+                        "United States", "United Kingdom", "Germany", "Netherlands",
+                        "Sweden", "Norway", "Ireland", "Switzerland", "India", "Other"
+                    ]
+
+                    interleaved_linkedin_jobs = []
+                    per_country_tgt = int(self.config.get("linkedin", {}).get("per_country_target", 3))
+
+                    for round_idx in range(per_country_tgt):
+                        for c_tag in priority_countries:
+                            if round_idx < len(grouped_by_country[c_tag]):
+                                interleaved_linkedin_jobs.append(grouped_by_country[c_tag][round_idx])
+
+                    for c_tag in priority_countries:
+                        if len(grouped_by_country[c_tag]) > per_country_tgt:
+                            interleaved_linkedin_jobs.extend(grouped_by_country[c_tag][per_country_tgt:])
+
+                    linkedin_jobs = interleaved_linkedin_jobs
+
+                    # Prioritize fresh Naukri jobs (within 21 days) over expired August/September records
+                    from datetime import timedelta
+                    cutoff_date = (datetime.now(timezone.utc) - timedelta(days=21)).strftime("%Y-%m-%d")
+                    fresh_naukri = [
+                        item for item in naukri_jobs
+                        if not getattr(item[0], "created_at", None) or str(item[0].created_at)[:10] >= cutoff_date
+                    ]
+                    if fresh_naukri:
+                        naukri_jobs = fresh_naukri
+
+                    # Sort Naukri jobs: Tier-1 GCCs / Hyperscalers first, then freshness, then score
+                    naukri_jobs.sort(
+                        key=lambda item: (
+                            1 if is_tier_1_company(item[0].company, tier_1_prio_list) else 0,
+                            str(getattr(item[0], "created_at", "") or "")[:10],
+                            item[1].overall_score,
+                        ),
+                        reverse=True,
+                    )
+
+                    # Sort ATS jobs: Tier-1 GCCs / Hyperscalers first, then score
+                    ats_jobs.sort(
+                        key=lambda item: (
+                            1 if is_tier_1_company(item[0].company, tier_1_prio_list) else 0,
+                            item[1].overall_score,
+                        ),
+                        reverse=True,
+                    )
 
                     # Strictly sequential pipeline per user directive:
                     # Phase 1: Naukri direct applications run to full completion first.
@@ -390,59 +503,19 @@ class Orchestrator:
 
                 qualified_jobs_count = len(qualifying_jobs)
 
-                for job, score, evidence in qualifying_jobs:
-                    # Enforce daily confirmed application ceiling across runs and current run
-                    if (confirmed_count + apps_confirmed_today) >= max_apps_per_day:
-                        logger.info(
-                            f"Daily confirmed application cap strictly reached ({confirmed_count + apps_confirmed_today}/{max_apps_per_day}). "
-                            "Halting further submissions for this run."
-                        )
-                        break
-
-                    # Guard against runaway attempts in case of repeated third-party errors
-                    max_attempts_ceiling = int(app_cfg.get("max_attempts_per_run", 60))
-                    if applications_attempted >= max_attempts_ceiling:
-                        logger.info(
-                            f"Run attempt ceiling reached ({applications_attempted}/{max_attempts_ceiling}). "
-                            "Wrapping up run to protect credentials and resources."
-                        )
-                        break
-
-                    # Check per-platform targets so neither platform is starved or hogs the quota
-                    is_li_job = (job.application_method == ApplicationMethod.LINKEDIN_EASY_APPLY or "linkedin" in (job.source_platform or "").lower())
-                    is_nk_job = ("naukri" in (job.source_platform or "").lower() and not is_li_job)
-
-                    max_nk_per_day = int(app_cfg.get("max_naukri_per_day", 15))
-                    max_li_per_day = int(self.config.get("linkedin", {}).get("max_applications_per_day", 15))
-                    target_nk = int(app_cfg.get("target_naukri_per_day", 10))
-                    target_li = int(app_cfg.get("target_linkedin_per_day", 10))
-
-                    if source_counts["Naukri"]["confirmed"] >= target_nk and source_counts["LinkedIn"]["confirmed"] >= target_li:
-                        logger.info(f"Target applications attained for all platforms (Naukri: {source_counts['Naukri']['confirmed']}, LinkedIn: {source_counts['LinkedIn']['confirmed']}). Run successfully completed.")
-                        break
-
-                    if is_nk_job and source_counts["Naukri"]["confirmed"] >= max_nk_per_day:
-                        continue
-                    if is_li_job and source_counts["LinkedIn"]["confirmed"] >= max_li_per_day:
-                        continue
-
-                    # Enforce pipeline duration ceiling (time limit guard)
-                    elapsed_now = (datetime.now(timezone.utc) - start_time).total_seconds()
-                    if elapsed_now >= max_duration_sec:
-                        logger.warning(
-                            f"Execution time limit reached ({elapsed_now:.0f}s >= {max_duration_sec:.0f}s). "
-                            "Gracefully wrapping up run to prevent lingering processes."
-                        )
-                        break
+                # Helper to process a single candidate job application safely
+                def _process_single_job(job, score, evidence) -> bool:
+                    nonlocal applications_attempted, confirmed_count, unverified_count, blocked_count, failed_count
+                    nonlocal external_count, manual_count, resumes_generated, interview_packs_generated, drafts_dispatched_telegram
 
                     src_name = get_source_label(job, ats_filler)
 
-                    # 1. Careful Status & Retry Rules: audit history before retrying an ambiguous submission to avoid duplicates
+                    # 1. Status & Retry Rules: audit history before retrying an ambiguous submission
                     can_retry, retry_reason = app_repo.can_retry_application(job.job_id, job.company, job.title)
                     if not can_retry or job_repo.is_already_applied(job.job_id):
                         logger.info(f"Retry Guard: Skipping '{job.title}' @ {job.company} ({retry_reason})")
                         source_counts[src_name]["skipped"] += 1
-                        continue
+                        return False
 
                     # 2. Automated Submission Gates (salary, employer, location, experience, candidate-truth)
                     passed_gates, gate_type, gate_reason = check_submission_gates(job, self.candidate_truth, self.config)
@@ -453,13 +526,13 @@ class Orchestrator:
                             job_repo.update_status(job.job_id, JobStatus.NEEDS_DATA)
                             session.commit()
                         source_counts[src_name]["skipped"] += 1
-                        continue
+                        return False
 
                     # Tailor ATS Resume (DOCX & PDF)
                     docx_path, pdf_path, val_report = resume_agent.generate_tailored_resume(job, score)
                     resumes_generated += 1
 
-                    # Generate Executive Cover Letter & Recruiter Outreach Draft for High-Matches (>= 80%) or International roles
+                    # Generate Executive Cover Letter & Recruiter Outreach Draft for High-Matches (>= 80%)
                     cover_letter_doc = None
                     cl_pdf_path = None
                     outreach_draft = None
@@ -469,7 +542,6 @@ class Orchestrator:
                             cl_pdf_path = cl_pdf if cl_pdf.exists() else cl_docx
                             cover_letter_doc = str(cl_pdf_path)
 
-                            # Strategy 1: Discover specific recruiter/hiring lead on LinkedIn (only for roles high enough for outreach)
                             recruiter_lead = None
                             tg_cfg = self.config.get("telegram", {})
                             min_draft_score = float(tg_cfg.get("min_match_score_for_draft", 85.0))
@@ -483,7 +555,6 @@ class Orchestrator:
 
                             outreach_draft = outreach_agent.draft_outreach(job, score, recruiter_lead=recruiter_lead)
                             if outreach_draft:
-                                # Dispatch draft to Telegram channel ONLY for high-value recruiter one-to-one message drafts with direct link
                                 if score.overall_score >= min_draft_score and drafts_dispatched_telegram < max_draft_alerts:
                                     try:
                                         sent_tg = telegram_notifier.notify_recruiter_draft(
@@ -502,7 +573,17 @@ class Orchestrator:
                     except Exception as cl_err:
                         logger.warning(f"Cover letter / outreach drafting note: {cl_err}")
 
-                    # Process Automated Application (Naukri Direct, LinkedIn Easy Apply, or Greenhouse/Lever ATS)
+                    # Generate Executive Referral and Direct Application Pack for Tier-1 GCCs & Hyperscalers
+                    referral_pack_file = None
+                    tier_1_prio_list = self.config.get("search", {}).get("tier_1_priority_companies")
+                    if is_tier_1_company(job.company, tier_1_prio_list) or "direct" in (job.source_platform or "").lower() or ats_filler.is_supported_portal(job.url):
+                        try:
+                            referral_pack_file = referral_pack_agent.generate_referral_pack(job, score, docx_path, pdf_path)
+                            logger.info(f"Referral pack generated for {job.company}: {referral_pack_file}")
+                        except Exception as rp_err:
+                            logger.debug(f"Referral pack generation note: {rp_err}")
+
+                    # Process Automated Application
                     applications_attempted += 1
                     source_counts[src_name]["attempted"] += 1
 
@@ -547,7 +628,6 @@ class Orchestrator:
                         status = outcome.status
                         outcome_reason = outcome.reason
 
-                    # Save outreach draft into database for human review (never auto-sent)
                     if outreach_draft and rec:
                         try:
                             draft_payload = {
@@ -567,20 +647,16 @@ class Orchestrator:
                         except Exception as draft_save_err:
                             logger.debug(f"Outreach draft persistence note: {draft_save_err}")
 
-                    # If skipped because already applied in previous session, do not count as new or include in report
                     if status == JobStatus.APPLIED or "already applied" in (outcome_reason or "").lower() or (rec and "already applied" in (rec.failure_reason or "").lower()):
                         logger.info(f"Job already applied in past session: '{job.title}' @ {job.company}. Excluded from today's report.")
                         source_counts[src_name]["skipped"] += 1
-                        continue
+                        return False
 
                     matched_items_for_briefing.append((job, score, evidence))
 
                     if status == JobStatus.APPLIED_CONFIRMED:
                         confirmed_count += 1
                         source_counts[src_name]["confirmed"] += 1
-                        # Per user directive: Telegram alert ONLY for high-value recruiter outreach drafts with direct links
-                        # Routine application confirmations belong in the morning summary email, not Telegram
-                        pass
                     elif status == JobStatus.SUBMISSION_UNVERIFIED:
                         unverified_count += 1
                         source_counts[src_name]["failed"] += 1
@@ -596,18 +672,16 @@ class Orchestrator:
                         manual_count += 1
                         source_counts[src_name]["failed"] += 1
 
-                    # Top application item with full audit evidence and executive collateral
                     if rec:
-                        method = rec.application_method
+                        method = getattr(rec, "external_portal", None) or rec.application_method
                     elif job.application_method == ApplicationMethod.LINKEDIN_EASY_APPLY:
                         method = "LinkedIn Easy Apply"
-                    elif ats_filler.is_supported_portal(job.url):
-                        method = "Greenhouse/Lever ATS"
+                    elif ats_filler.is_supported_portal(job.url) or "direct" in (job.source_platform or "").lower():
+                        method = "Enterprise Career Portal"
                     else:
                         method = "Naukri Direct"
                     ref = rec.confirmation_reference if rec else None
                     portal_url = (rec.external_application_url if (rec and rec.external_application_url) else job.url)
-                    # Compute market compensation intelligence estimation if undisclosed
                     from src.utils.compensation_intelligence import CompensationIntelligence
                     comp_est = CompensationIntelligence.estimate_compensation(job)
                     salary_display = (
@@ -634,16 +708,160 @@ class Orchestrator:
                             outreach_target=outreach_draft.hiring_lead_target if outreach_draft else None,
                             outreach_inmail=outreach_draft.inmail_message if outreach_draft else None,
                             outreach_search_url=outreach_draft.linkedin_search_url if outreach_draft else None,
+                            referral_pack_path=str(referral_pack_file) if referral_pack_file else None,
                         )
                     )
 
-                    # 4. INTERVIEW PREPARATION (Optimized: generate for confirmed applications or dry run to preserve throughput)
                     if (status == JobStatus.APPLIED_CONFIRMED or self.dry_run) and (score.overall_score >= qualification_agent.high_match_threshold or score.architecture_score >= 85.0):
                         interview_agent.generate_interview_pack(job, score, evidence)
                         interview_packs_generated += 1
 
-                    # Commit immediately after each application attempt to isolate transactions
                     session.commit()
+                    return (status == JobStatus.APPLIED_CONFIRMED)
+
+                # ==============================================================================
+                # STRICT PIPELINE DECOUPLING & SEQUENCING:
+                # PHASE 1: Naukri direct applications run to full completion first.
+                # PHASE 2: LinkedIn Easy Apply runs ONLY AFTER Naukri completes.
+                # PHASE 3: ATS Portals (Greenhouse / Lever) run last.
+                # ==============================================================================
+                target_nk = int(app_cfg.get("target_naukri_per_day", 35 if not li_enabled else 15))
+                target_li = int(app_cfg.get("target_linkedin_per_day", 0 if not li_enabled else 15))
+                max_nk_per_day = int(app_cfg.get("max_naukri_per_day", 45 if not li_enabled else 20))
+                max_li_per_day = int(self.config.get("linkedin", {}).get("max_applications_per_day", 0 if not li_enabled else 20))
+
+                nk_confirmed_today_init = app_repo.count_applications_today_by_method("naukri")
+                li_confirmed_today_init = app_repo.count_applications_today_by_method("linkedin")
+                logger.info(
+                    f"Pipeline Daily Baseline: Naukri confirmed today: {nk_confirmed_today_init} (target {target_nk}), "
+                    f"LinkedIn confirmed today: {li_confirmed_today_init} (target {target_li})"
+                )
+
+                # --- PHASE 1: NAUKRI DIRECT APPLICATIONS ---
+                from src.utils.resource_monitor import ResourceMonitor
+                ResourceMonitor.cleanup_zombies()
+                logger.info(f"=== Starting Phase 1: Naukri Applications ({len(naukri_jobs)} qualified queued, daily target: {target_nk}) ===")
+                phase1_start = time.time()
+                default_p1_budget = (max_duration_sec - 300) if not li_enabled else 1500
+                max_phase1_sec = float(app_cfg.get("max_naukri_phase_seconds", default_p1_budget))
+
+                for job, score, evidence in naukri_jobs:
+                    total_nk_today = nk_confirmed_today_init + source_counts["Naukri"]["confirmed"]
+                    total_apps_today = confirmed_count + apps_confirmed_today
+                    if total_apps_today >= max_apps_per_day:
+                        logger.info(f"Daily confirmed application cap reached ({total_apps_today}/{max_apps_per_day}). Concluding Phase 1.")
+                        break
+                    if total_nk_today >= max_nk_per_day:
+                        logger.info(f"Naukri max confirmed cap reached for today ({total_nk_today}/{max_nk_per_day}). Concluding Phase 1.")
+                        break
+                    if total_nk_today >= target_nk:
+                        logger.info(f"Naukri target confirmed reached for today ({total_nk_today}/{target_nk}). Concluding Phase 1.")
+                        break
+                    max_nk_attempts = int(app_cfg.get("max_naukri_attempts", 70 if not li_enabled else 50))
+                    if source_counts["Naukri"]["attempted"] >= max_nk_attempts:
+                        logger.info(f"Naukri attempt limit reached ({max_nk_attempts}). Concluding Phase 1.")
+                        break
+
+                    phase1_elapsed = time.time() - phase1_start
+                    total_elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
+                    cutoff_elapsed = (max_duration_sec - 300) if not li_enabled else (max_duration_sec * 0.55)
+                    if phase1_elapsed >= max_phase1_sec or total_elapsed >= cutoff_elapsed:
+                        logger.info(f"Naukri phase time budget reached (Phase: {phase1_elapsed:.0f}s, Total: {total_elapsed:.0f}s). Concluding Phase 1.")
+                        break
+
+                    # Pre-job Circuit Breaker Resource Health Check
+                    healthy, r_stats, breach = ResourceMonitor.check_health()
+                    if not healthy:
+                        logger.warning(f"Resource Circuit Breaker active before Naukri job: {breach}. Pausing 5s for memory relief.")
+                        ResourceMonitor.cleanup_zombies()
+                        import gc
+                        gc.collect()
+                        time.sleep(5)
+                        healthy, r_stats, breach = ResourceMonitor.check_health()
+                        if not healthy:
+                            logger.error(f"Circuit Breaker sustained breach ({breach}). Gracefully concluding Phase 1.")
+                            break
+
+                    _process_single_job(job, score, evidence)
+                    ResourceMonitor.cleanup_zombies()
+
+                total_nk_today = nk_confirmed_today_init + source_counts["Naukri"]["confirmed"]
+                logger.info(f"=== Phase 1 (Naukri) Finished: {total_nk_today} total confirmed today ({source_counts['Naukri']['confirmed']} this run, {source_counts['Naukri']['failed']} failed). ===")
+
+                # Memory hygiene: Clean up any lingering browser processes before starting Phase 2
+                ResourceMonitor.cleanup_zombies()
+
+                # --- PHASE 2: LINKEDIN EASY APPLY (Starts ONLY after Naukri finishes) ---
+                if not li_enabled or not linkedin_adapter:
+                    logger.info("LinkedIn pipeline is disabled per configuration. Skipping Phase 2.")
+                else:
+                    logger.info(f"=== Starting Phase 2: LinkedIn Easy Apply ({len(linkedin_jobs)} qualified queued, daily target: {target_li}) ===")
+                    phase2_start = time.time()
+                    max_phase2_sec = float(app_cfg.get("max_linkedin_phase_seconds", 1500))  # 25 min dedicated budget
+
+                    country_apps_confirmed = defaultdict(int)
+                    for job, score, evidence in linkedin_jobs:
+                        j_country = extract_country_tag(job)
+                        # Per user directive: target 2-3 jobs in each country
+                        if country_apps_confirmed[j_country] >= per_country_tgt:
+                            other_has_capacity = any(
+                                country_apps_confirmed[c] < per_country_tgt
+                                for c in ["United States", "United Kingdom", "Germany", "Netherlands", "Sweden", "Norway", "Ireland", "Switzerland", "India"]
+                                if c != j_country and len(grouped_by_country[c]) > country_apps_confirmed[c]
+                            )
+                            if other_has_capacity:
+                                continue
+
+                        total_li_today = li_confirmed_today_init + source_counts["LinkedIn"]["confirmed"]
+                        total_apps_today = confirmed_count + apps_confirmed_today
+                        if total_apps_today >= max_apps_per_day:
+                            logger.info(f"Daily confirmed application cap reached ({total_apps_today}/{max_apps_per_day}). Concluding Phase 2.")
+                            break
+                        if total_li_today >= max_li_per_day:
+                            logger.info(f"LinkedIn max confirmed cap reached for today ({total_li_today}/{max_li_per_day}). Concluding Phase 2.")
+                            break
+                        if total_li_today >= target_li:
+                            logger.info(f"LinkedIn target confirmed reached for today ({total_li_today}/{target_li}). Concluding Phase 2.")
+                            break
+                        max_li_attempts = int(app_cfg.get("max_linkedin_attempts", 50))
+                        if source_counts["LinkedIn"]["attempted"] >= max_li_attempts:
+                            logger.info(f"LinkedIn attempt limit reached ({max_li_attempts}). Concluding Phase 2.")
+                            break
+
+                        phase2_elapsed = time.time() - phase2_start
+                        total_elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
+                        if phase2_elapsed >= max_phase2_sec or total_elapsed >= (max_duration_sec - 300):
+                            logger.info(f"LinkedIn phase time budget reached (Phase: {phase2_elapsed:.0f}s, Total: {total_elapsed:.0f}s). Concluding Phase 2 to ensure reporting and email delivery.")
+                            break
+
+                        # Pre-job Circuit Breaker Resource Health Check
+                        healthy, r_stats, breach = ResourceMonitor.check_health()
+                        if not healthy:
+                            logger.warning(f"Resource Circuit Breaker active before LinkedIn job: {breach}. Pausing 5s for memory relief.")
+                            import gc
+                            gc.collect()
+                            time.sleep(5)
+                            healthy, r_stats, breach = ResourceMonitor.check_health()
+                            if not healthy:
+                                logger.error(f"Circuit Breaker sustained breach ({breach}). Gracefully concluding Phase 2.")
+                                break
+
+                        applied_ok = _process_single_job(job, score, evidence)
+                        if applied_ok:
+                            country_apps_confirmed[j_country] += 1
+                            logger.info(f"LinkedIn Confirmed Application for {j_country}: '{job.title}' @ {job.company} ({country_apps_confirmed[j_country]}/{per_country_tgt} target).")
+
+                    total_li_today = li_confirmed_today_init + source_counts["LinkedIn"]["confirmed"]
+                    logger.info(f"=== Phase 2 (LinkedIn) Finished: {total_li_today} total confirmed today ({source_counts['LinkedIn']['confirmed']} this run, {source_counts['LinkedIn']['failed']} failed). ===")
+                    ResourceMonitor.cleanup_zombies()
+
+                # --- PHASE 3: ATS PORTALS ---
+                if ats_jobs and (datetime.now(timezone.utc) - start_time).total_seconds() < (max_duration_sec * 0.90):
+                    logger.info(f"=== Starting Phase 3: ATS Portals ({len(ats_jobs)} queued) ===")
+                    for job, score, evidence in ats_jobs:
+                        if (confirmed_count + apps_confirmed_today) >= max_apps_per_day:
+                            break
+                        _process_single_job(job, score, evidence)
 
                 # 3b. Autonomous Failure Analysis & Self-Healing Agent
                 try:

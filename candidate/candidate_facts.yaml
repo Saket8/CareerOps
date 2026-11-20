@@ -1,8 +1,8 @@
 candidate:
   name: "Saket Saurav"
-  title: "Principal Cloud Engineer"
+  title: "Principal Cloud Architect"
   current_organization: "Cognizant"
-  current_role: "Principal Cloud Engineer (OCI) / Manager-Projects"
+  current_role: "Principal Cloud Architect (Enterprise Cloud & Security)"
   email: "sauravskt8@gmail.com"
   phone: "+91-7028481800"
   location: "Noida, India"
@@ -68,6 +68,10 @@ candidate:
   salutation: "Mr."
   country_code: "+91"
   postal_code: "201301"
+  date_of_birth: "1992-08-15"
+  linkedin_url: "https://www.linkedin.com/in/saket-saurav-31326b57/"  # INVARIANT: Must always include the exact -31326b57/ suffix
+  github_url: "https://github.com/Saket8"  # INVARIANT: Saket8
+  portfolio_url: "https://saketsaurav.dev"
   tenth_passout_year: "2008"
   tenth_percentage: "82%"
   twelfth_passout_year: "2010"
@@ -201,10 +205,10 @@ certifications:
 employment_history:
   - company: "Cognizant"
     client: "KPN (Netherlands)"
-    role: "Principal Cloud Engineer (OCI) / Manager-Projects"
+    role: "Principal Cloud Architect (Enterprise Cloud & Security)"
     start_date: "2024-11"
-    end_date: "2026-07"
-    duration: "1.7 yrs"
+    end_date: "Present"
+    duration: "2.0 yrs"
     responsibilities:
       - "Cloud Architecture & Landing Zones: Owned the architecture of a production-grade, air-gapped Oracle Cloud Infrastructure (OCI) environment for telecom billing platforms (DBSS Revenue Management / BRM modernization), defining landing zone, network domains, connectivity model, and isolation boundaries."
       - "Cloud Architecture & Governance: Produced architecture design documents, technical decision records (TDRs), and operational runbooks covering network topology, platform dependencies, environment patterns, and support procedures, improving implementation clarity and governance traceability."

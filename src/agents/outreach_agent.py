@@ -78,7 +78,7 @@ class OutreachAgent:
             f"{cand.name}\n"
             f"{cand.title}\n"
             f"{cand.email} | {cand.phone}\n"
-            f"LinkedIn: linkedin.com/in/saket-saurav-cloud"
+            f"LinkedIn: {getattr(cand, 'linkedin_url', 'https://www.linkedin.com/in/saket-saurav-31326b57/')}"
         )
 
         cold_email_body = (

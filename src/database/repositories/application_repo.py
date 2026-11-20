@@ -16,7 +16,7 @@ class ApplicationRepository:
     def get_by_job_id(self, job_id: str) -> Optional[ApplicationModel]:
         return self.session.query(ApplicationModel).filter(ApplicationModel.job_id == job_id).first()
 
-    def has_applied_to_job(self, job_id: str) -> bool:
+    def has_applied_to_job(self, job_id: str, allow_unverified_retry: bool = False) -> bool:
         """Check if an application was already submitted, confirmed, unverified, or is actively leasing this job."""
         app = self.get_by_job_id(job_id)
         if not app:
@@ -24,6 +24,9 @@ class ApplicationRepository:
         if app.status in (
             JobStatus.APPLIED.value,
             JobStatus.APPLIED_CONFIRMED.value,
+        ):
+            return True
+        if not allow_unverified_retry and app.status in (
             JobStatus.APPLICATION_READY.value,
             JobStatus.SUBMISSION_UNVERIFIED.value,
         ):
@@ -45,6 +48,7 @@ class ApplicationRepository:
         job_id: str,
         company: Optional[str] = None,
         title: Optional[str] = None,
+        allow_unverified_retry: bool = False,
     ) -> Tuple[bool, str]:
         """Audits application history before retrying an ambiguous or failed submission to avoid duplicates.
         Explicitly tracks:
@@ -66,7 +70,8 @@ class ApplicationRepository:
             return False, f"Application already confirmed (Ref: {app.confirmation_reference})"
 
         if status == JobStatus.SUBMISSION_UNVERIFIED.value:
-            return False, "Application submission is unverified; manual history audit required before retrying to prevent duplicate submission"
+            if not allow_unverified_retry:
+                return False, "Application submission is unverified; manual history audit required before retrying to prevent duplicate submission"
 
         if status == JobStatus.APPLICATION_STARTED.value:
             if app.started_at:
@@ -78,6 +83,15 @@ class ApplicationRepository:
 
         if status in (JobStatus.APPLICATION_BLOCKED.value, JobStatus.BLOCKED.value):
             return False, f"Application halted by safety gate: {app.failure_reason}"
+
+        if status in (JobStatus.APPLICATION_FAILED.value, JobStatus.FAILED.value):
+            perm_failures = [
+                "expired", "closed", "no longer available", "redirected to search",
+                "apply button not found", "does not accept applications",
+                "external career portal", "external application required",
+            ]
+            if app.failure_reason and any(pf in app.failure_reason.lower() for pf in perm_failures):
+                return False, f"Permanent listing failure: {app.failure_reason}"
 
         return True, "Eligible for submission attempt"
 
@@ -124,6 +138,20 @@ class ApplicationRepository:
             or 0
         )
 
+    def count_applications_today_by_method(self, method_prefix: str) -> int:
+        """Count successful applications submitted today for a specific method/platform prefix."""
+        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        return (
+            self.session.query(func.count(ApplicationModel.application_id))
+            .filter(
+                ApplicationModel.status.in_([JobStatus.APPLIED.value, JobStatus.APPLIED_CONFIRMED.value]),
+                ApplicationModel.submitted_at >= today_start,
+                ApplicationModel.application_method.ilike(f"%{method_prefix}%"),
+            )
+            .scalar()
+            or 0
+        )
+
     def count_applications_attempted_today(self) -> int:
         """Count all applications submitted or attempted today to enforce daily limits across runs."""
         today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -154,6 +182,8 @@ class ApplicationRepository:
         status_val = record.status.value if hasattr(record.status, "value") else str(record.status)
         method_val = record.application_method.value if hasattr(record.application_method, "value") else str(record.application_method)
 
+        is_prior_app = (record.confirmation_reference == "ALREADY_APPLIED")
+
         if existing:
             record.application_id = existing.application_id
             existing.status = status_val
@@ -164,9 +194,9 @@ class ApplicationRepository:
             existing.external_application_url = record.external_application_url
             existing.external_portal = record.external_portal
             existing.started_at = record.started_at or existing.started_at
-            if status_val == JobStatus.APPLIED_CONFIRMED.value and not record.submitted_at:
+            if status_val == JobStatus.APPLIED_CONFIRMED.value and not record.submitted_at and not is_prior_app:
                 record.submitted_at = datetime.now(timezone.utc)
-            existing.submitted_at = record.submitted_at or (datetime.now(timezone.utc) if status_val == JobStatus.APPLIED_CONFIRMED.value else existing.submitted_at)
+            existing.submitted_at = record.submitted_at or (existing.submitted_at if is_prior_app else (datetime.now(timezone.utc) if status_val == JobStatus.APPLIED_CONFIRMED.value else existing.submitted_at))
             existing.resume_version = record.resume_version
             existing.resume_version_id = record.resume_version_id
             existing.questions_detected = record.questions_detected
@@ -199,7 +229,7 @@ class ApplicationRepository:
             external_application_url=record.external_application_url,
             external_portal=record.external_portal,
             started_at=record.started_at,
-            submitted_at=record.submitted_at or (datetime.now(timezone.utc) if status_val == JobStatus.APPLIED_CONFIRMED.value else None),
+            submitted_at=record.submitted_at or (None if is_prior_app else (datetime.now(timezone.utc) if status_val == JobStatus.APPLIED_CONFIRMED.value else None)),
             status=status_val,
             questions_detected=record.questions_detected,
             questions_answered=record.questions_answered,

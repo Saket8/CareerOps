@@ -40,6 +40,7 @@ from src.linkedin.adapter import LinkedInAdapter
 from src.naukri.playwright_adapter import PlaywrightBrowserAdapter
 from src.utils.screening_knowledge import get_screening_knowledge_base
 from src.utils.logger import get_logger
+from src.utils.tier1_detector import is_tier_1_company
 
 logger = get_logger("post_run_healer")
 
@@ -219,7 +220,11 @@ class PostRunHealerAgent:
             .all()
         )
 
-        confirmed = [(a, j) for a, j in apps_today if a.status == JobStatus.APPLIED_CONFIRMED.value]
+        confirmed = [
+            (a, j) for a, j in apps_today
+            if a.status == JobStatus.APPLIED_CONFIRMED.value
+            and (a.confirmation_reference or "") != "ALREADY_APPLIED"
+        ]
         failed = [(a, j) for a, j in apps_today if a.status in (JobStatus.APPLICATION_FAILED.value, JobStatus.FAILED.value)]
         intervention = [(a, j) for a, j in apps_today if a.status == JobStatus.NEEDS_MANUAL_INTERVENTION.value]
         unverified = [(a, j) for a, j in apps_today if a.status == JobStatus.SUBMISSION_UNVERIFIED.value]
@@ -323,13 +328,14 @@ class PostRunHealerAgent:
             "quota_met": db_audit["quota_achieved"],
         }
 
-        target_per_platform = int(self.config.get("application", {}).get("target_naukri_per_day", 10))
-        target_li = int(self.config.get("linkedin", {}).get("target_linkedin_per_day") or self.config.get("application", {}).get("target_linkedin_per_day", 10))
-        max_per_platform = int(self.config.get("application", {}).get("max_naukri_per_day", 15))
-        max_li_per_day = int(self.config.get("linkedin", {}).get("max_applications_per_day", 15))
+        target_per_platform = int(self.config.get("application", {}).get("target_naukri_per_day", 35))
+        li_enabled = bool(self.config.get("linkedin", {}).get("enabled", False))
+        target_li = int(self.config.get("linkedin", {}).get("target_linkedin_per_day") or self.config.get("application", {}).get("target_linkedin_per_day", 10)) if li_enabled else 0
+        max_per_platform = int(self.config.get("application", {}).get("max_naukri_per_day", 45))
+        max_li_per_day = int(self.config.get("linkedin", {}).get("max_applications_per_day", 15)) if li_enabled else 0
 
         naukri_today = db_audit.get("confirmed_naukri_today", 0)
-        linkedin_today = db_audit.get("confirmed_linkedin_today", 0)
+        linkedin_today = db_audit.get("confirmed_linkedin_today", 0) if li_enabled else 0
         current_confirmed = db_audit.get("confirmed_today", 0)
 
         if not force_catchup and naukri_today >= target_per_platform and linkedin_today >= target_li and current_confirmed >= self.target_quota:
@@ -338,28 +344,31 @@ class PostRunHealerAgent:
 
         logger.info(f"Catch-up required: Naukri today {naukri_today}/{target_per_platform}, LinkedIn today {linkedin_today}/{target_li}. Effective shortfall: {shortfall}")
 
-        # Find eligible candidate jobs:
-        # 1. Jobs in READY_FOR_RETRY (overall_score >= 70%)
-        # 2. High-match qualified jobs that were starved due to time limits (overall_score >= 75%)
-        # 3. Jobs stalled or failed due to timeout / reload that can now be retried
+        # Find eligible candidate jobs: prioritize fresh, unattempted high-match opportunities
         candidate_records = (
             session.query(JobModel, JobScoreModel)
             .join(JobScoreModel, JobModel.job_id == JobScoreModel.job_id)
             .filter(
                 JobModel.status.in_([
-                    JobStatus.READY_FOR_RETRY.value,
-                    JobStatus.QUALIFIED.value,
                     JobStatus.HIGH_MATCH.value,
                     JobStatus.APPLICATION_READY.value,
+                    JobStatus.QUALIFIED.value,
+                    JobStatus.READY_FOR_RETRY.value,
                     JobStatus.ELIGIBLE.value,
                     JobStatus.DISCOVERED.value,
-                    JobStatus.NEEDS_MANUAL_INTERVENTION.value,
-                    JobStatus.APPLICATION_FAILED.value,
+                    JobStatus.SUBMISSION_UNVERIFIED.value,
                 ]),
                 JobScoreModel.overall_score >= self.min_match_score,
+                ~JobModel.url.like('%expJD=true%'),
+                ~JobModel.url.like('%jobs-in-%'),
                 ~JobModel.job_id.in_(
                     session.query(ApplicationModel.job_id).filter(
-                        ApplicationModel.status == JobStatus.APPLIED_CONFIRMED.value
+                        ApplicationModel.status.in_([
+                            JobStatus.APPLIED_CONFIRMED.value,
+                            JobStatus.EXTERNAL_APPLICATION_REQUIRED.value,
+                            JobStatus.APPLICATION_FAILED.value,
+                            JobStatus.APPLICATION_BLOCKED.value,
+                        ])
                     )
                 ),
             )
@@ -370,6 +379,14 @@ class PostRunHealerAgent:
             logger.info("No eligible retry or qualified jobs found in database for catch-up.")
             return result
 
+        if not li_enabled:
+            candidate_records = [
+                (job, score) for job, score in candidate_records
+                if "linkedin" not in (job.source_platform or "").lower()
+                and "linkedin" not in (job.url or "").lower()
+                and job.application_method not in (ApplicationMethod.LINKEDIN_EASY_APPLY.value, "LINKEDIN_EASY_APPLY", "linkedin_easy_apply")
+            ]
+
         # Separate by platform and interleave (prioritizing direct Naukri and LinkedIn Easy Apply)
         naukri_candidates = [
             (job, score) for job, score in candidate_records
@@ -377,24 +394,50 @@ class PostRunHealerAgent:
         ]
         linkedin_candidates = [
             (job, score) for job, score in candidate_records
-            if "linkedin" in (job.source_platform or "").lower()
-            or job.application_method in (ApplicationMethod.LINKEDIN_EASY_APPLY.value, "LINKEDIN_EASY_APPLY")
+            if li_enabled and ("linkedin" in (job.source_platform or "").lower()
+            or job.application_method in (ApplicationMethod.LINKEDIN_EASY_APPLY.value, "LINKEDIN_EASY_APPLY"))
         ]
         ats_candidates = [
             (job, score) for job, score in candidate_records
-            if (job, score) not in naukri_candidates and (job, score) not in linkedin_candidates
+            if (job, score) not in naukri_candidates
+            and (job, score) not in linkedin_candidates
+            and "linkedin" not in (job.source_platform or "").lower()
+            and "linkedin" not in (job.url or "").lower()
         ]
 
-        naukri_candidates.sort(key=lambda x: x[1].overall_score, reverse=True)
-        linkedin_candidates.sort(key=lambda x: x[1].overall_score, reverse=True)
-        ats_candidates.sort(key=lambda x: x[1].overall_score, reverse=True)
+        tier_1_prio_list = self.config.get("search", {}).get("tier_1_priority_companies")
+        # Prioritize Tier-1 GCCs / Hyperscalers first, then match score DESC, then freshness
+        naukri_candidates.sort(
+            key=lambda x: (
+                1 if is_tier_1_company(x[0].company, tier_1_prio_list) else 0,
+                x[1].overall_score,
+                x[0].created_at or datetime.min,
+            ),
+            reverse=True,
+        )
+        linkedin_candidates.sort(
+            key=lambda x: (
+                1 if is_tier_1_company(x[0].company, tier_1_prio_list) else 0,
+                x[1].overall_score,
+                x[0].created_at or datetime.min,
+            ),
+            reverse=True,
+        )
+        ats_candidates.sort(
+            key=lambda x: (
+                1 if is_tier_1_company(x[0].company, tier_1_prio_list) else 0,
+                x[1].overall_score,
+                x[0].created_at or datetime.min,
+            ),
+            reverse=True,
+        )
 
         # Strictly sequential pipeline per user directive:
         # Phase 1: Naukri direct applications run to full completion first (if quota not yet reached).
-        # Phase 2: LinkedIn Easy Apply applications run only after Naukri finishes completely (if LinkedIn quota not reached).
+        # Phase 2: LinkedIn Easy Apply applications run only after Naukri finishes completely (if LinkedIn quota not reached and enabled).
         # Phase 3: External ATS candidates.
         active_naukri = naukri_candidates if naukri_today < max_per_platform else []
-        active_linkedin = linkedin_candidates if linkedin_today < max_li_per_day else []
+        active_linkedin = linkedin_candidates if (li_enabled and linkedin_today < max_li_per_day) else []
         active_ats = ats_candidates if (naukri_today + linkedin_today) < self.target_quota else []
 
         sequential_queue = active_naukri + active_linkedin + active_ats
@@ -421,11 +464,14 @@ class PostRunHealerAgent:
         if not dry_run and not self.offline_mode:
             logger.info("Initializing Playwright adapters for autonomous catch-up submissions...")
             naukri_client = PlaywrightBrowserAdapter(offline_mode=False)
-            linkedin_adapter = LinkedInAdapter(
-                config=self.config,
-                candidate_truth=self.candidate_truth,
-                offline_mode=False,
-            )
+            li_cfg = self.config.get("linkedin", {})
+            li_enabled = bool(li_cfg.get("enabled", False))
+            if li_enabled:
+                linkedin_adapter = LinkedInAdapter(
+                    config=self.config,
+                    candidate_truth=self.candidate_truth,
+                    offline_mode=False,
+                )
 
         app_agent = ApplicationAgent(
             client=naukri_client if naukri_client else PlaywrightBrowserAdapter(offline_mode=True),
@@ -439,7 +485,7 @@ class PostRunHealerAgent:
         naukri_newly_confirmed = 0
         linkedin_newly_confirmed = 0
         catchup_start = time.time()
-        max_catchup_duration = int(self.config.get("application", {}).get("max_catchup_duration_seconds", 1800))
+        max_catchup_duration = int(self.config.get("application", {}).get("max_catchup_duration_seconds", 4500))
 
         try:
             for job_model, score_model in catchup_queue:
@@ -454,17 +500,23 @@ class PostRunHealerAgent:
                     or "linkedin" in (job.url or "").lower()
                 )
 
-                if naukri_today >= target_per_platform and linkedin_today >= target_li:
-                    logger.info(f"Target of {target_per_platform}+ applications on BOTH Naukri and LinkedIn achieved during catch-up! (Naukri: {naukri_today}, LinkedIn: {linkedin_today})")
+                if naukri_today >= target_per_platform and (not li_enabled or linkedin_today >= target_li):
+                    logger.info(f"Target of {target_per_platform}+ applications achieved during catch-up! (Naukri: {naukri_today}, LinkedIn: {linkedin_today})")
                     break
+
+                if is_li_role and not li_enabled:
+                    logger.info(f"Skipping LinkedIn role '{job.title}' @ {job.company} as LinkedIn is disabled.")
+                    continue
 
                 if is_li_role and linkedin_today >= max_li_per_day:
                     continue
                 if not is_li_role and naukri_today >= max_per_platform:
                     continue
 
-                # 1. Retry Guard
-                can_retry, retry_reason = app_repo.can_retry_application(job.job_id, job.company, job.title)
+                # 1. Retry Guard: Healer specifically verifies and heals unverified submissions safely
+                can_retry, retry_reason = app_repo.can_retry_application(
+                    job.job_id, job.company, job.title, allow_unverified_retry=True
+                )
                 if not can_retry or job_repo.is_already_applied(job.job_id):
                     logger.info(f"Retry Guard: Skipping '{job.title}' @ {job.company} ({retry_reason})")
                     continue
@@ -524,7 +576,7 @@ class PostRunHealerAgent:
                     job_repo.update_status(job.job_id, app_status)
                     session.commit()
                 else:
-                    outcome = app_agent.process_application(job, score, docx_path, pdf_path)
+                    outcome = app_agent.process_application(job, score, docx_path, pdf_path, allow_unverified_retry=True)
                     rec = outcome.app_record
                     app_status = outcome.status
                     if rec:
@@ -532,7 +584,11 @@ class PostRunHealerAgent:
                     job_repo.update_status(job.job_id, app_status)
                     session.commit()
 
-                is_confirmed = (app_status == JobStatus.APPLIED_CONFIRMED) or ((dry_run or self.offline_mode) and app_status == JobStatus.APPLICATION_READY)
+                is_already_applied = (rec and (rec.confirmation_reference == "ALREADY_APPLIED" or "already applied" in (rec.failure_reason or "").lower()))
+                is_confirmed = not is_already_applied and ((app_status == JobStatus.APPLIED_CONFIRMED) or ((dry_run or self.offline_mode) and app_status == JobStatus.APPLICATION_READY))
+
+                if is_already_applied:
+                    logger.info(f"Job was already applied previously: '{job.title}' @ {job.company}. Skipping count toward today's quota.")
 
                 if is_confirmed:
                     result["confirmed"] += 1
@@ -564,6 +620,8 @@ class PostRunHealerAgent:
                 })
 
                 session.commit()
+                from src.utils.resource_monitor import ResourceMonitor
+                ResourceMonitor.cleanup_zombies()
                 import gc
                 gc.collect()
                 time.sleep(2)

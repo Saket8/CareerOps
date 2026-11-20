@@ -627,7 +627,10 @@ class ResumeAgent:
         try:
             from playwright.sync_api import sync_playwright
             with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--disable-software-rasterizer"]
+                )
                 page = browser.new_page()
                 page.set_content(html_doc, wait_until="networkidle")
                 page.pdf(

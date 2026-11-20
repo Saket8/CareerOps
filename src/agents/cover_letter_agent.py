@@ -65,10 +65,11 @@ class CoverLetterAgent:
         h_run.font.bold = True
         h_run.font.color.rgb = RGBColor(15, 23, 42)  # Slate 900
 
+        li_clean = getattr(cand, "linkedin_url", "https://www.linkedin.com/in/saket-saurav-31326b57/")
         sub_para = doc.add_paragraph()
         sub_run = sub_para.add_run(
             f"{cand.title} | {cand.location} | {cand.email} | {cand.phone}\n"
-            f"LinkedIn: linkedin.com/in/saket-saurav-cloud"
+            f"LinkedIn: {li_clean}"
         )
         sub_run.font.size = Pt(9.5)
         sub_run.font.color.rgb = RGBColor(71, 85, 105)  # Slate 600
@@ -293,7 +294,10 @@ class CoverLetterAgent:
         try:
             from playwright.sync_api import sync_playwright
             with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--disable-software-rasterizer"]
+                )
                 page = browser.new_page()
                 page.set_content(html_doc, wait_until="networkidle")
                 page.pdf(

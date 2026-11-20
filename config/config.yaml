@@ -23,12 +23,15 @@ application:
   # Salary floor is loaded dynamically from .env (MIN_ACCEPTABLE_SALARY_LPA or CURRENT_SALARY_LPA)
   min_salary_lpa: null  # Resolved from .env (Single Source of Truth)
   undisclosed_salary_allowed: true
-  max_applications_per_day: 35  # Cap allowing at least 15+ Naukri and 15+ LinkedIn confirmed per day
-  target_naukri_per_day: 15
-  target_linkedin_per_day: 15
-  max_attempts_per_run: 60  # Allows pipeline to reach target confirmed applies across platforms
-  max_run_duration_seconds: 7200  # 120 minute ceiling to allow multi-step applies on VPS
-  max_catchup_duration_seconds: 7200  # 120 minute ceiling to allow catchup to reach full 15 confirmed applies
+  max_applications_per_day: 50  # Cap allowing 30+ Naukri confirmed per day
+  max_naukri_per_day: 45  # Allow up to 45 confirmed applies on Naukri per day
+  target_naukri_per_day: 35  # Target 30-35 confirmed applies on Naukri per day with LinkedIn disabled
+  target_linkedin_per_day: 0   # LinkedIn disabled per user configuration
+  max_attempts_per_run: 75   # Allows pipeline to reach target confirmed applies on Naukri
+  max_naukri_attempts: 70
+  max_naukri_phase_seconds: 4500  # 75 min budget for Naukri to comfortably hit 30+ applies
+  max_run_duration_seconds: 5400  # 90 minute internal ceiling to allow comprehensive applications and guaranteed email dispatch
+  max_catchup_duration_seconds: 3600  # 60 minute ceiling for post-run healer
   dry_run: false  # LIVE mode enabled per user preference
   retry_attempts: 3
   retry_backoff_seconds: 5
@@ -49,6 +52,9 @@ database:
 
 retention:
   enabled: true
+  mailbox_retention_enabled: true
+  purge_trash: true            # Permanently expunge CareerOps emails from [Gmail]/Bin (Trash)
+  max_careerops_emails_per_folder: 3  # Maintain at most 3 latest CareerOps emails in INBOX and Sent Mail
   unqualified_job_days: 14     # Purge rejected/unqualified jobs older than 14 days
   run_history_days: 90         # Retain pipeline execution run logs for 90 days
   market_signal_days: 90       # Retain market trend signals for 90 days
@@ -118,6 +124,20 @@ search:
     min_years: 10
     max_years: 16
   queries:
+    tier1_gcc_enterprise_cloud:
+      - "Enterprise Cloud Architect"
+      - "Cloud Solutions Architect"
+      - "Principal Cloud Infrastructure Architect"
+      - "Cloud Platform Architect"
+      - "Cloud Security Architect"
+      - "Staff Cloud Architect"
+    hyperscaler_solutions_architecture:
+      - "Solutions Architect OCI"
+      - "Cloud Solutions Architect Azure"
+      - "AWS Solutions Architect"
+      - "Cloud Infrastructure Architect"
+      - "Principal Solutions Architect"
+      - "Customer Engineer Cloud"
     oracle_cloud:
       - "Principal OCI Architect"
       - "OCI Cloud Architect"
@@ -137,11 +157,45 @@ search:
       - "Agentic AI Architect"
       - "AI Solutions Architect"
       - "Cloud GenAI Architect"
+  tier_1_priority_companies:
+    - "Oracle"
+    - "JPMorgan"
+    - "JP Morgan"
+    - "Goldman Sachs"
+    - "Wells Fargo"
+    - "Walmart"
+    - "Walmart Global Tech"
+    - "Target"
+    - "Fidelity"
+    - "Fidelity Investments"
+    - "Optum"
+    - "UnitedHealth"
+    - "Barclays"
+    - "Morgan Stanley"
+    - "BNY Mellon"
+    - "State Street"
+    - "Standard Chartered"
+    - "Citi"
+    - "Citibank"
+    - "Amazon"
+    - "AWS"
+    - "Microsoft"
+    - "Google"
+    - "Google Cloud"
+    - "Cisco"
+    - "VMware"
+    - "Broadcom"
+    - "Lowe's"
+    - "PayPal"
+    - "ServiceNow"
+    - "Adobe"
+    - "Salesforce"
+    - "Snowflake"
 
 linkedin:
-  enabled: true
+  enabled: false
   auto_submit: true  # Fully unattended submission per user directive (no manual review)
-  max_applications_per_day: 15
+  max_applications_per_day: 25
   user_data_dir: "/u01/CareerOps/.li_profile"
   auth_state_path: "artifacts/linkedin_auth.json"
   email_alerts: true
@@ -151,48 +205,40 @@ linkedin:
     - "onsite"
     - "hybrid"
     - "remote"
+  per_country_target: 3  # Target 2-3 confirmed applications per country per user directive
   target_regions:
-    - name: "India"
-      location: "India"
-    - name: "Pan India"
-      location: "India"
-    - name: "Europe"
-      location: "Europe"
-    - name: "Nordics"
-      location: "Nordics"
-    - name: "Australia"
-      location: "Australia"
     - name: "United States"
       location: "United States"
     - name: "United Kingdom"
       location: "United Kingdom"
-    - name: "Canada"
-      location: "Canada"
-    - name: "Singapore"
-      location: "Singapore"
-    - name: "UAE"
-      location: "United Arab Emirates"
+    - name: "Germany"
+      location: "Germany"
+    - name: "Netherlands"
+      location: "Netherlands"
+    - name: "Sweden"
+      location: "Sweden"
+    - name: "Norway"
+      location: "Norway"
+    - name: "Ireland"
+      location: "Ireland"
+    - name: "Switzerland"
+      location: "Switzerland"
+    - name: "India"
+      location: "India"
   queries:
-    - "OCI Architect visa sponsorship"
-    - "Oracle Cloud Infrastructure Architect visa sponsorship"
-    - "Cloud Architect relocation"
-    - "OCI Architect relocation"
-    - "AI Architect visa sponsorship"
-    - "GenAI Architect relocation"
-    - "Cloud Architect visa sponsorship"
+    - "Oracle Cloud Architect"
     - "OCI Architect"
     - "Oracle Cloud Infrastructure Architect"
     - "Principal Cloud Architect"
-    - "AI Architect"
-    - "GenAI Architect"
+    - "Enterprise Cloud Architect"
 
 telegram:
-  enabled: true
+  enabled: false
   bot_token: ""  # Loaded from TELEGRAM_BOT_TOKEN in .env
   chat_id: "-1003761096081"
   notify_on_applied: false           # Do NOT send per-job submission alerts to Telegram (all applies delivered in morning email)
-  notify_on_interview: true         # Instant alert for incoming recruiter interview invites
-  notify_on_daily_summary: true     # Daily summary after morning run finishes
-  notify_on_recruiter_draft: true   # Telegram alerts ONLY for high-value recruiter 1-to-1 message drafts
+  notify_on_interview: false        # Telegram alerts disabled per user directive
+  notify_on_daily_summary: false    # Telegram alerts disabled per user directive
+  notify_on_recruiter_draft: false  # Telegram alerts disabled per user directive
   min_match_score_for_draft: 85.0   # Only high-value roles (>= 85% match)
-  max_draft_alerts_per_run: 5       # Cap to top high-value opportunities per day
+  max_draft_alerts_per_run: 0       # Disabled

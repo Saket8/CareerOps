@@ -139,10 +139,15 @@ class DirectPortalDiscoveryAgent:
         logger.info(f"Navigating to Amazon.jobs: {search_url}")
 
         try:
-            page.goto(search_url, timeout=25000, wait_until="domcontentloaded")
-            page.wait_for_timeout(3500)
+            page.goto(search_url, timeout=30000, wait_until="domcontentloaded")
+            try:
+                page.wait_for_selector('.job-tile, a.job-link', timeout=8000)
+            except Exception:
+                page.wait_for_timeout(3500)
 
             cards = page.locator(".job-tile").all()
+            if not cards:
+                cards = page.locator("li.search-result").all()
             logger.info(f"Amazon.jobs returned {len(cards)} job tiles.")
 
             for card in cards[:limit]:
@@ -202,10 +207,15 @@ class DirectPortalDiscoveryAgent:
         logger.info(f"Navigating to {name} Workday Portal: {search_url}")
 
         try:
-            page.goto(search_url, timeout=25000, wait_until="domcontentloaded")
-            page.wait_for_timeout(3500)
+            page.goto(search_url, timeout=30000, wait_until="domcontentloaded")
+            try:
+                page.wait_for_selector('a[data-automation-id="jobTitle"], a[href*="/job/"]', timeout=8000)
+            except Exception:
+                page.wait_for_timeout(4000)
 
             links = page.locator('a[data-automation-id="jobTitle"]').all()
+            if not links:
+                links = page.locator('a[href*="/job/"]').all()
             logger.info(f"{name} Workday portal found {len(links)} job links.")
 
             for l in links[:limit]:
